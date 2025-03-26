@@ -1,0 +1,148 @@
+2025-03-10 23:33:34,221 - Config - INFO - 当前配置：{
+  "id": 12345678,
+  "mode": "single",
+  "keepalive_timeout": 1,
+  "zmq": {
+    "in_port": 5555,
+    "out_port": 5556,
+    "max_cache": 1000
+  },
+  "ros": {
+    "pointcloud_topic": "rslidar_points",
+    "queue_size": 10
+  },
+  "processing": {
+    "interval": 1,
+    "max_workers": 4,
+    "overlap_threshold": 0.3,
+    "H": 100,
+    "W": 100
+  }
+}
+2025-03-10 23:33:34,221 - asyncio - DEBUG - Using selector: EpollSelector
+2025-03-10 23:33:34,223 - rosout - DEBUG - signal handlers for rospy disabled
+2025-03-10 23:33:34,375 - ZMQ - INFO - ZMQ接收循环启动
+2025-03-10 23:33:34,376 - ROS - INFO - 启动ROS线程
+2025-03-10 23:33:34,377 - asyncio - ERROR - Task exception was never retrieved
+future: <Task finished name='Task-7' coro=<CollaborationSystem.pipeline() done, defined at main.py:66> exception=RuntimeError("Task <Task pending name='Task-7' coro=<CollaborationSystem.pipeline() running at main.py:68>> got Future <Future pending> attached to a different loop")>
+Traceback (most recent call last):
+  File "main.py", line 68, in pipeline
+    sensor_data = await agent_server.wait_ego_feat()
+  File "/home/nvidia/mydisk/gzh/projects/interopera/perception/co/server.py", line 117, in wait_ego_feat
+    return await self.ego_feat.wait(timeout)
+  File "/home/nvidia/mydisk/gzh/projects/interopera/perception/co/utils.py", line 30, in wait
+    await self._wait_condition(timeout)
+  File "/home/nvidia/mydisk/gzh/projects/interopera/perception/co/utils.py", line 43, in _wait_condition
+    await self._condition.wait_for(lambda: self._value is not None)
+  File "/home/nvidia/mydisk/miniconda3/envs/rospy/lib/python3.8/asyncio/locks.py", line 400, in wait_for
+    await self.wait()
+  File "/home/nvidia/mydisk/miniconda3/envs/rospy/lib/python3.8/asyncio/locks.py", line 373, in wait
+    await fut
+RuntimeError: Task <Task pending name='Task-7' coro=<CollaborationSystem.pipeline() running at main.py:68>> got Future <Future pending> attached to a different loop
+2025-03-10 23:33:34,379 - rospy.topics - DEBUG - tm._add: /rslidar_points, sensor_msgs/PointCloud2, sub
+2025-03-10 23:33:34,379 - rospy.registration - DEBUG - master.registerSubscriber(/async_ros_node, /rslidar_points, sensor_msgs/PointCloud2, http://miivii-tegra:38669/)
+2025-03-10 23:33:34,382 - rospy.impl.masterslave - DEBUG - connect[/rslidar_points]: calling requestTopic(/async_ros_node, /rslidar_points, [['TCPROS']])
+2025-03-10 23:33:34,385 - rospy.impl.masterslave - DEBUG - connect[/rslidar_points]: requestTopic returned protocol list ['TCPROS', 'miivii-tegra', 44171]
+2025-03-10 23:33:34,385 - rospy.internal - INFO - topic[/rslidar_points] adding connection to [http://miivii-tegra:39993/], count 0
+2025-03-10 23:33:34,387 - rospy.tcpros - DEBUG - [/rslidar_points]: writing header
+2025-03-10 23:33:34,388 - rospy.tcpros - DEBUG - receive_loop for [/rslidar_points]
+2025-03-10 23:33:34,485 - rospy.impl.masterslave - DEBUG - requestTopic('/rosout', '/rosout', [['TCPROS']])
+2025-03-10 23:33:34,486 - rospy.impl.masterslave - DEBUG - requestTopic[/rosout]: choosing protocol TCPROS
+2025-03-10 23:33:34,487 - rospy.impl.masterslave - DEBUG - requestTopic('/rosout', '/rosout', [['TCPROS']]) returns (1, 'ready on miivii-tegra:43869', ['TCPROS', 'miivii-tegra', 43869])
+2025-03-10 23:33:34,496 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:34,593 - rospy.tcpros - DEBUG - [/rosout]: writing header
+2025-03-10 23:33:34,595 - rospy.internal - INFO - topic[/rosout] adding connection to [/rosout], count 0
+2025-03-10 23:33:35,382 - root - DEBUG - annotate result [[ 3.93490881e-01 -9.19328511e-01  0.00000000e+00  1.14000000e+02]
+ [ 4.83304769e-01 -8.75452161e-01  9.99999978e-03  1.15000000e+02]
+ [ 5.68289638e-01 -8.22828591e-01  1.99999996e-02  1.16000000e+02]]
+2025-03-10 23:33:35,498 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:36,382 - root - DEBUG - annotate result [[ 4.83304769e-01 -8.75452161e-01  0.00000000e+00  1.15000000e+02]
+ [ 5.68289638e-01 -8.22828591e-01  9.99999978e-03  1.16000000e+02]
+ [ 6.47596359e-01 -7.61983573e-01  1.99999996e-02  1.17000000e+02]]
+2025-03-10 23:33:36,494 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:37,384 - root - DEBUG - annotate result [[ 5.68289638e-01 -8.22828591e-01  0.00000000e+00  1.16000000e+02]
+ [ 6.47596359e-01 -7.61983573e-01  9.99999978e-03  1.17000000e+02]
+ [ 7.20432460e-01 -6.93525076e-01  1.99999996e-02  1.18000000e+02]]
+2025-03-10 23:33:37,497 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:38,388 - root - DEBUG - annotate result [[ 6.47596359e-01 -7.61983573e-01  0.00000000e+00  1.17000000e+02]
+ [ 7.20432460e-01 -6.93525076e-01  9.99999978e-03  1.18000000e+02]
+ [ 7.86070287e-01 -6.18137121e-01  1.99999996e-02  1.19000000e+02]]
+2025-03-10 23:33:38,496 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:39,389 - root - DEBUG - annotate result [[ 7.20432460e-01 -6.93525076e-01  0.00000000e+00  1.18000000e+02]
+ [ 7.86070287e-01 -6.18137121e-01  9.99999978e-03  1.19000000e+02]
+ [ 8.43853951e-01 -5.36572933e-01  1.99999996e-02  1.20000000e+02]]
+2025-03-10 23:33:39,494 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:40,389 - root - DEBUG - annotate result [[ 7.86070287e-01 -6.18137121e-01  0.00000000e+00  1.19000000e+02]
+ [ 8.43853951e-01 -5.36572933e-01  9.99999978e-03  1.20000000e+02]
+ [ 8.93206120e-01 -4.49647456e-01  1.99999996e-02  1.21000000e+02]]
+2025-03-10 23:33:40,494 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:41,395 - root - DEBUG - annotate result [[ 8.43853951e-01 -5.36572933e-01  0.00000000e+00  1.20000000e+02]
+ [ 8.93206120e-01 -4.49647456e-01  9.99999978e-03  1.21000000e+02]
+ [ 9.33633626e-01 -3.58229280e-01  1.99999996e-02  1.22000000e+02]]
+2025-03-10 23:33:41,498 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:42,398 - root - DEBUG - annotate result [[ 8.93206120e-01 -4.49647456e-01  0.00000000e+00  1.21000000e+02]
+ [ 9.33633626e-01 -3.58229280e-01  9.99999978e-03  1.22000000e+02]
+ [ 9.64732647e-01 -2.63231784e-01  1.99999996e-02  1.23000000e+02]]
+2025-03-10 23:33:42,493 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:43,401 - root - DEBUG - annotate result [[ 9.33633626e-01 -3.58229280e-01  0.00000000e+00  1.22000000e+02]
+ [ 9.64732647e-01 -2.63231784e-01  9.99999978e-03  1.23000000e+02]
+ [ 9.86192286e-01 -1.65604174e-01  1.99999996e-02  1.24000000e+02]]
+2025-03-10 23:33:43,496 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:44,400 - root - DEBUG - annotate result [[ 9.64732647e-01 -2.63231784e-01  0.00000000e+00  1.23000000e+02]
+ [ 9.86192286e-01 -1.65604174e-01  9.99999978e-03  1.24000000e+02]
+ [ 9.97798264e-01 -6.63218945e-02  1.99999996e-02  1.25000000e+02]]
+2025-03-10 23:33:44,493 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:45,405 - root - DEBUG - annotate result [[ 9.86192286e-01 -1.65604174e-01  0.00000000e+00  1.24000000e+02]
+ [ 9.97798264e-01 -6.63218945e-02  9.99999978e-03  1.25000000e+02]
+ [ 9.99434590e-01  3.36230472e-02  1.99999996e-02  1.26000000e+02]]
+2025-03-10 23:33:45,497 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:46,409 - root - DEBUG - annotate result [[ 9.97798264e-01 -6.63218945e-02  0.00000000e+00  1.25000000e+02]
+ [ 9.99434590e-01  3.36230472e-02  9.99999978e-03  1.26000000e+02]
+ [ 9.91084874e-01  1.33232042e-01  1.99999996e-02  1.27000000e+02]]
+2025-03-10 23:33:46,493 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:47,412 - root - DEBUG - annotate result [[9.99434590e-01 3.36230472e-02 0.00000000e+00 1.26000000e+02]
+ [9.91084874e-01 1.33232042e-01 9.99999978e-03 1.27000000e+02]
+ [9.72832561e-01 2.31509820e-01 1.99999996e-02 1.28000000e+02]]
+2025-03-10 23:33:47,492 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:48,414 - root - DEBUG - annotate result [[9.91084874e-01 1.33232042e-01 0.00000000e+00 1.27000000e+02]
+ [9.72832561e-01 2.31509820e-01 9.99999978e-03 1.28000000e+02]
+ [9.44860041e-01 3.27474445e-01 1.99999996e-02 1.29000000e+02]]
+2025-03-10 23:33:48,492 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:49,417 - root - DEBUG - annotate result [[9.72832561e-01 2.31509820e-01 0.00000000e+00 1.28000000e+02]
+ [9.44860041e-01 3.27474445e-01 9.99999978e-03 1.29000000e+02]
+ [9.07446802e-01 4.20167029e-01 1.99999996e-02 1.30000000e+02]]
+2025-03-10 23:33:49,494 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:50,418 - root - DEBUG - annotate result [[9.44860041e-01 3.27474445e-01 0.00000000e+00 1.29000000e+02]
+ [9.07446802e-01 4.20167029e-01 9.99999978e-03 1.30000000e+02]
+ [8.60966623e-01 5.08661449e-01 1.99999996e-02 1.31000000e+02]]
+2025-03-10 23:33:50,493 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:51,422 - root - DEBUG - annotate result [[9.07446802e-01 4.20167029e-01 0.00000000e+00 1.30000000e+02]
+ [8.60966623e-01 5.08661449e-01 9.99999978e-03 1.31000000e+02]
+ [8.05883944e-01 5.92073500e-01 1.99999996e-02 1.32000000e+02]]
+2025-03-10 23:33:51,493 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:52,421 - root - DEBUG - annotate result [[8.60966623e-01 5.08661449e-01 0.00000000e+00 1.31000000e+02]
+ [8.05883944e-01 5.92073500e-01 9.99999978e-03 1.32000000e+02]
+ [7.42749155e-01 6.69569790e-01 1.99999996e-02 1.33000000e+02]]
+2025-03-10 23:33:52,491 - ROS - INFO - 收到点云数据: 100 个点
+2025-03-10 23:33:53,263 - root - INFO - 用户主动终止程序
+2025-03-10 23:33:53,265 - root - INFO - ==== 系统关闭 ====
+2025-03-10 23:33:53,266 - rospy.core - INFO - signal_shutdown [atexit]
+2025-03-10 23:33:53,267 - rospy.registration - DEBUG - registration cleanup starting
+2025-03-10 23:33:53,267 - rospy.registration - DEBUG - unregisterSubscriber [/rslidar_points]
+2025-03-10 23:33:53,268 - rospy.registration - DEBUG - unregisterPublisher [/rosout]
+2025-03-10 23:33:53,269 - rospy.registration - DEBUG - unregisterService [/async_ros_node/get_loggers]
+2025-03-10 23:33:53,269 - rospy.registration - DEBUG - unregisterService [/async_ros_node/set_logger_level]
+2025-03-10 23:33:53,277 - rospy.registration - DEBUG - registration cleanup: master calls complete
+2025-03-10 23:33:53,277 - rospy.internal - INFO - topic[/rosout] removing connection to /rosout
+2025-03-10 23:33:53,279 - rospy.internal - INFO - topic[/rslidar_points] removing connection to http://miivii-tegra:39993/
+2025-03-10 23:33:53,279 - rospy.impl.masterslave - INFO - atexit
+2025-03-10 23:33:53,281 - rospy.internal - DEBUG - [/rslidar_points] failed to receive incoming message: Traceback (most recent call last):
+  File "/opt/ros/noetic/lib/python3/dist-packages/rospy/impl/tcpros_base.py", line 804, in receive_loop
+    msgs = self.receive_once()
+  File "/opt/ros/noetic/lib/python3/dist-packages/rospy/impl/tcpros_base.py", line 744, in receive_once
+    self.stat_bytes += recv_buff(sock, b, p.buff_size)
+  File "/opt/ros/noetic/lib/python3/dist-packages/rospy/impl/tcpros_base.py", line 111, in recv_buff
+    raise TransportTerminated("unable to receive data from sender, check sender's logs for details")
+rospy.exceptions.TransportTerminated: unable to receive data from sender, check sender's logs for details
+
+2025-03-10 23:33:53,282 - rospy.internal - DEBUG - receive_loop[/rslidar_points]: done condition met, exited loop
