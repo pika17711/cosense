@@ -2,12 +2,12 @@ import asyncio
 from enum import IntEnum
 import logging
 import random
-from typing import Dict
-
+from typing import Dict, List
 from config import AppConfig
-from mes.mid import MessageID
-from src.mes.ICPServer import ICPServer, ICPClient
-from src.mes.message import AckMessage, Message, AppRspMessage
+from mes.messageID import MessageID
+from mes.message import AckMessage, Message, AppRspMessage
+from ICP.ICPServer import icp_client, icp_server
+import concurrent.futures
 
 """transactionHandler"""
 class txContext:
@@ -15,14 +15,13 @@ class txContext:
         self.tid = tid
         self.queue = asyncio.Queue(1)
 
-
 class transactionHandler:
     def __init__(self, message_queue: asyncio.Queue):
         self.recv_queue = asyncio.Queue()
         self.tid_counter = random.randint(0, 1 << 20)
         self.tx_table: Dict[int, txContext] = dict() # tid -> txContext
-        self.icp_server = ICPServer(AppConfig.app_id)
-        self.icp_client = ICPClient()
+        self.icp_server = icp_server
+        self.icp_client = icp_client
         self.running = True
         self.message_queue = message_queue
 
@@ -33,7 +32,15 @@ class transactionHandler:
     def add_tx(self, tid, txctx):
         self.tx_table[tid] = txctx
 
+    async def recv_icp(self):
+        loop = asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = loop.run_in_executor(executor, self.icp_client.recv_message)
+            result = await future
+            await self.recv_queue.put(result)
+
     async def recv_loop(self):
+        asyncio.create_task(self.recv_icp())
         while self.running:
             resp = await self.recv_queue.get()
             mes = Message.parse(resp)
@@ -107,11 +114,11 @@ class transactionHandler:
                           coopMap: str, coopMapType: int, bearcap: int):
         return self.submit_transaction(self.brocastsubnty_handler(oid, did, topic, context, coopMap, coopMapType, bearcap))
 
-    async def subscribe_handler(self, oid: str, did: list[str], topic: int, act: int, 
+    async def subscribe_handler(self, oid: str, did: List[str], topic: int, act: int, 
                               context: str, coopMap: str, coopMapType: int, bearInfo: int) -> bool:
         return self.xxx_handler(lambda tid: self.icp_server.subMessage(tid, oid, did, topic, act, context, coopMap, coopMapType, bearInfo), 'SUBSCRIBE')
 
-    async def subscribe(self, oid: str, did: list[str], topic: int, act: int, 
+    async def subscribe(self, oid: str, did: List[str], topic: int, act: int, 
                       context: str, coopMap: str, coopMapType: int, bearInfo: int):
         return self.submit_transaction(self.subscribe_handler(oid, did, topic, act, context, coopMap, coopMapType, bearInfo))
 

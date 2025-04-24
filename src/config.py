@@ -32,7 +32,7 @@ class AppConfig:
     app_ver = 1
     app_id = 131
     mode = "CO"
-    topic = 1
+    topic = "where2comm"
     zmq_in_port = 5555
     zmq_in_host = '127.0.0.1'
     zmq_out_port = 5556

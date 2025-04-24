@@ -2,11 +2,13 @@ import zmq
 import json
 import sys
 import os
+from typing import List
+
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(parent_dir)
 import config
 class ICPServer:
-    def __init__(self, app_id:str):
+    def __init__(self, app_id:int):
         """
         初始化 ICPServer 类，绑定到指定端口。
         :param port: 服务器端口号
@@ -22,6 +24,9 @@ class ICPServer:
     def send(self, message: dict):
         print(f"Sending message: {message}")
         self.socket.send_string(json.dumps(message, ensure_ascii=False))
+        #status = self.socket.getsockopt(zmq.EVENTS)
+        #print(f"Socket status: {status}")
+
     def AppMessage(self, 
                    CapID:int,
                    CapVersion:int,
@@ -45,7 +50,7 @@ class ICPServer:
             "app_id": self.app_id,
             "tid": tid,
             "msg":{
-                "capID": CapID,
+                "capId": CapID,
                 "capVersion": CapVersion,
                 "capConfig": CapConfig,
                 "act": act
@@ -159,7 +164,7 @@ class ICPServer:
     def subMessage(self,
                    tid:0,
                    oid:str,
-                   did:list[str],
+                   did:List[str],
                    topic:int,
                    act:int,
                    context:str,

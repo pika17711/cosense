@@ -1,12 +1,16 @@
+from typing import List
+from config import AppConfig
 import zmq
 import json
 import sys
 import os
-from src.config import AppConfig
-from mes.messageID import MessageID
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(parent_dir)
+
+import ICP.config as config
 
 class ICPServer:
-    def __init__(self, app_id:str):
+    def __init__(self, app_id:int):
         """
         初始化 ICPServer 类，绑定到指定端口。
         :param port: 服务器端口号
@@ -17,19 +21,20 @@ class ICPServer:
         self.app_id = app_id
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
-        self.socket.connect(f"tcp://:{AppConfig.zmq_out_host}:{AppConfig.zmq_out_port}")
+        self.socket.connect(f"tcp://{config.selfip}:{config.send_sub_port}")
         print(f"Server started")
-
     def send(self, message: dict):
         print(f"Sending message: {message}")
         self.socket.send_string(json.dumps(message, ensure_ascii=False))
-
+        #status = self.socket.getsockopt(zmq.EVENTS)
+        #print(f"Socket status: {status}")
     def AppMessage(self, 
                    CapID:int,
                    CapVersion:int,
                    CapConfig:int,
                    act:int,
-                   tid:0):
+                   tid:0       
+                    ):
         """
         构建应用消息
         :param CapID: 能力ID
@@ -42,11 +47,11 @@ class ICPServer:
         CapVersion = CapVersion & 0xF
         CapConfig = CapConfig & 0xFFF
         message = {
-            "mid": MessageID.APPREG.value,
+            "mid":config.appReg,
             "app_id": self.app_id,
             "tid": tid,
             "msg":{
-                "capID": CapID,
+                "capId": CapID,
                 "capVersion": CapVersion,
                 "capConfig": CapConfig,
                 "act": act
@@ -55,10 +60,10 @@ class ICPServer:
         self.send(message)
     
     def brocastPub(self,
-                   tid:int,
-                   oid:int,
+                   tid:0,
+                   oid:str,
                    topic:int,
-                   coopMap:bytes,
+                   coopMap:str,
                    coopMapType:int
                    ):
         """
@@ -71,7 +76,7 @@ class ICPServer:
         if oid is None or topic is None or coopMap is None or coopMapType is None:
             raise ValueError("oid, topic 和 cooMap 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.BROCASTPUB.value,
+            "mid":config.boardCastPub,
             "app_id": self.app_id,
             "tid": tid,
             "msg":{
@@ -105,7 +110,7 @@ class ICPServer:
         if oid is None or topic is None or context is None or coopMap is None or bearCap is None or coopMapType is None:
             raise ValueError("oid, topic, context, coopMap 和 bearcap 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.BROCASTSUB.value,
+            "mid":config.boardCastSub,
             "app_id": self.app_id,
             "tid": tid,
             "msg":{
@@ -142,7 +147,7 @@ class ICPServer:
         if oid is None or did is None or topic is None or context is None or coopMap is None or bearcap is None or coopMapType is None:
             raise ValueError("oid, did, topic, context, coopMap 和 bearcap 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.BROCASTSUBNTY.value,
+            "mid":config.boardCastSubNotify,
             "app_id": self.app_id,
             "tid": tid,
             "msg":{
@@ -160,7 +165,7 @@ class ICPServer:
     def subMessage(self,
                    tid:0,
                    oid:str,
-                   did:list[str],
+                   did:List[str],
                    topic:int,
                    act:int,
                    context:str,
@@ -181,7 +186,7 @@ class ICPServer:
         if oid is None or did is None or topic is None or context is None or coopMap is None or bearInfo is None or coopMapType is None or act is None:
             raise ValueError("oid, did, topic, act, context, coopMap 和 bearcap 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.SUBSCRIBE.value,
+            "mid":config.subScribe,
             "app_id": self.app_id,
             "tid": tid,
             "msg":{
@@ -221,7 +226,7 @@ class ICPServer:
         if oid is None or did is None or topic is None or context is None or coopMap is None or bearCap is None or coopMapType is None or act is None:
             raise ValueError("oid, did, topic, act, context, coopMap 和 bearCap 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.NOTIFY.value,
+            "mid":config.notify,
             "app_id": self.app_id,
             "tid": tid,
             "msg":{ 
@@ -253,7 +258,7 @@ class ICPServer:
         if did is None or context is None or rl is None or pt is None:
             raise ValueError("did, context, rl 和 pt 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.SENDREQ.value,
+            "mid":config.streamSendreq,
             "app_id": self.app_id,
             "msg":{
                 "did": did,
@@ -275,7 +280,7 @@ class ICPServer:
         if sid is None or data is None:
             raise ValueError("sid 和 data 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.SEND.value,
+            "mid":config.streamSend,
             "app_id": self.app_id,
             "msg":{
                 "sid": sid,
@@ -297,7 +302,7 @@ class ICPServer:
         if sid is None or did is None or context is None:
             raise ValueError("sid, did 和 context 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.SENDEND.value,
+            "mid":config.streamSendend,
             "app_id": self.app_id,
             "msg":{
                 "did": did,
@@ -325,7 +330,7 @@ class ICPServer:
         if did is None or context is None or rl is None or pt is None or file is None:
             raise ValueError("did, context, rl, pt 和 file 不能为空！请提供有效的数据。")
         message = {
-            "mid":MessageID.SENDFILE.value,
+            "mid":config.sendFile,
             "app_id": self.app_id,
             "msg":{
                 "did": did,
@@ -336,5 +341,33 @@ class ICPServer:
             }
         }
         self.send(message)
+        
+class ICPClient:
+    def __init__(self,topic = ""):
+        """
+        初始化 ICPClient 类，连接到指定端口。
+        """
+        self.port = config.recv_pub_port
+        self.ip = config.selfip
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.SUB)
+        self.socket.connect(f"tcp://{self.ip}:{self.port}")
+        self.socket.setsockopt_string(zmq.SUBSCRIBE, topic)
+        #print(f"Client connected to port {self.port}")
+        
+    def recv_message(self):
+        """
+        接收消息方法：支持带 topic 和不带 topic 的情况
+        """
+        message = self.socket.recv_string()
+        try:
+            # 判断是否可能包含 topic（按第一个空格拆分）
+            topic, json_part = message.split(" ", 1)
+            parsed_message = json.loads(json_part)
+            return parsed_message
+        except json.JSONDecodeError:
+            print(f"[!] Failed to decode message: {message}")
+            return None
 
 icp_server = ICPServer(AppConfig.app_id)
+icp_client = ICPClient(AppConfig.topic)

@@ -3,22 +3,21 @@ from dataclasses import dataclass
 import json
 import logging
 import random
-from types import CoroutineType
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from src.mes.message import NotifyAct, SubscribeAct
-from src.mes.transactionHandler import transactionHandler
+from mes.message import NotifyAct, SubscribeAct
+from mes.transactionHandler import transactionHandler
 import zmq
 from zmq.asyncio import Context
-from src.config import CONFIG
+from config import AppConfig
 
 from enum import IntEnum, auto
 
 from utils.asyncVariable import AsyncVariable
 from utils.common import mstime
 
-from src.mes.mid import MessageID
+from mes.messageID import MessageID
 from cachetools import LRUCache
 
 class CContextCotorState(IntEnum):
@@ -156,8 +155,8 @@ class DataCache:
                    acc=acc)
 
 
-from src.mes.message import BroadcastPubMessage, Message, NotifyMessage, SendMessage, SubscribeMessage
-from src.mes.message import BroadcastSubNtyMessage, BroadcastSubMessage
+from mes.message import BroadcastPubMessage, Message, NotifyMessage, SendMessage, SubscribeMessage
+from mes.message import BroadcastSubNtyMessage, BroadcastSubMessage
 from config import AppConfig
 
 class MessageHandler:
@@ -175,7 +174,7 @@ class MessageHandler:
         self.subscribing_set = set() # 正在订阅的cctx
         self.subscribed_set = set() # 正在被订阅的cctx
 
-        self.cid_counter = random.randint(1, 100000)
+        self.cid_counter = random.randint(1, 1 << 20)
 
         self.data_cache = LRUCache(AppConfig.data_cache_size)  # 他车数据的缓存
 
@@ -185,9 +184,9 @@ class MessageHandler:
     async def dispatch(self):
         while True:
             msg = await self.msg_queue.get()
-            self._handle_message(msg)
+            self.dispatch_message(msg)
 
-    async def _handle_message(self, msg: Message):
+    async def dispatch_message(self, msg: Message):
         mid = msg.header.mid
         if mid == MessageID.APPREG:
             await self.recv_appreg(msg)
@@ -322,7 +321,7 @@ class MessageHandler:
 
     # ============== ctx loop ====================#
     async def ctx_loop(self, ctx: Union[CContext, BCContext, CSContext], 
-                       handler_table: Dict[MessageID, Callable[[Message], CoroutineType[Any, Any, None]]],
+                       handler_table: Dict[MessageID, Callable[[Message], Coroutine[Any, Any, None]]],
                        rem_ctx: Callable[[Union[CContext, BCContext, CSContext]], None]):
         while ctx.is_alive():
             msg = await self.wait_with_timeout(ctx.queue.get(), 100) # 随便取的100ms
@@ -648,16 +647,7 @@ class MessageHandler:
         logging.info(f"Received SEND message: {msg}")
 
     async def recv_recv(self, msg):
-        """处理流数据接收 (MID.RECV)"""
-        sid = msg.get('sid')
-        data = bytes.fromhex(msg.get('data', ''))
-
-        if sid not in self.stream_ctx:
-            self.stream_ctx[sid] = {'buffer': b''}
-
-        self.stream_ctx[sid]['buffer'] += data
-        if len(data) < CONFIG.get('stream_chunk_size', 1024):
-            await self._process_stream(sid)
+        logging.info(f"Received RECV message: {msg}")
 
     async def recv_sendend(self, msg):
         logging.info(f"Received SENDEND message: {msg}")

@@ -4,8 +4,8 @@ from typing import Optional, Type, Dict, Any
 import json
 from datetime import datetime
 import zmq
-from src.config import CONFIG, AppConfig
-from src.mes.mid import MessageID
+from config import CONFIG, AppConfig
+from mes.messageID import MessageID
 
 class MessageError(Exception):
     """消息解析异常基类"""
