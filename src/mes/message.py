@@ -4,7 +4,7 @@ from typing import Optional, Type, Dict, Any
 import json
 from datetime import datetime
 import zmq
-from src.config import CONFIG
+from src.config import CONFIG, AppConfig
 from src.mes.mid import MessageID
 
 class MessageError(Exception):
@@ -60,16 +60,16 @@ class Message:
             MessageID.BROCASTSUBNTY: BroadcastSubNtyMessage,
             MessageID.SUBSCRIBE: SubscribeMessage,
             MessageID.NOTIFY: NotifyMessage,
-            MessageID.SENDREQ: StreamReqMessage,
-            MessageID.SENDRDY: StreamRdyMessage,
-            MessageID.RECVRDY: StreamRdyMessage,
-            MessageID.SEND: StreamDataMessage,
-            MessageID.RECV: StreamDataMessage,
+            MessageID.SENDREQ: SendReqMessage,
+            MessageID.SENDRDY: SendRdyMessage,
+            MessageID.RECVRDY: SendRdyMessage,
+            MessageID.SEND: SendMessage,
+            MessageID.RECV: SendMessage,
             MessageID.SENDEND: StreamEndMessage,
             MessageID.RECVEND: StreamEndMessage,
-            MessageID.SENDFILE: FileReqMessage,
-            MessageID.SENDFIN: FileFinMessage,
-            MessageID.RECVFILE: FileRecvMessage,
+            MessageID.SENDFILE: SendFileMessage,
+            MessageID.SENDFIN: SendFinMessage,
+            MessageID.RECVFILE: RecvFileMessage,
         }
         if msg_class := mapping.get(mid):
             return msg_class
@@ -190,13 +190,18 @@ class BroadcastSubNtyMessage(Message):
             bearcap=msg_body.get("bearcap")
         )
 
+
+class SubscribeAct(IntEnum):
+    FIN = 0
+    ACKUPD = 1
+
 @dataclass
 class SubscribeMessage(Message):
     """能力订购 (MID.SUBSCRIBE)"""
     oid: int
     # did 无
     topic: int
-    action: int
+    act: SubscribeAct
     context: int
     coopmap: bytes
     bearinfo: bool
@@ -214,13 +219,18 @@ class SubscribeMessage(Message):
             bearinfo=bool(msg_body.get("bearinfo", 0))
         )
 
+class NotifyAct(IntEnum):
+    NTY = 0
+    ACK = 1
+    FIN = 2
+
 @dataclass
 class NotifyMessage(Message):
     """订购通知 (MID.NOTIFY)"""
     oid: int
     # did 无
     topic: int
-    action: int
+    act: NotifyAct
     context: int
     coopmap: bytes
     bearcap: int
@@ -242,53 +252,88 @@ class NotifyMessage(Message):
 # 流传输消息实现
 # ----------------------------
 @dataclass
-class StreamReqMessage(Message):
+class SendReqMessage(Message):
     """流发送请求 (MID.SENDREQ)"""
-    destination_id: int
-    context: int
-    qos: int
-    data_type: int
-    
+    did: AppConfig.id_t
+    context: AppConfig.cid_t
+    rl: int
+    pt: int
+    aoi: int
+    mode: int
+
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "StreamReqMessage":
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendReqMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            destination_id=msg_body["did"],
+            did=msg_body["did"],
             context=msg_body["context"],
-            qos=msg_body["rl"],
-            data_type=msg_body["pt"]
+            rl=msg_body["rl"],
+            pt=msg_body["pt"],
+            aoi=msg_body["aoi"],
+            mode=msg_body["mode"]
         )
 
 @dataclass
-class StreamRdyMessage(Message):
+class SendRdyMessage(Message):
     """流准备就绪 (MID.SENDRDY/MID.RECVRDY)"""
-    stream_id: int
-    context: int
-    partner_id: int
+    did: AppConfig.id_t
+    context: AppConfig.cid_t
+    sid: AppConfig.sid_t
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "StreamRdyMessage":
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendRdyMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            stream_id=msg_body["sid"],
+            did=msg_body["did"],
             context=msg_body["context"],
-            partner_id=msg_body["did"] if header.mid == MessageID.SENDRDY else msg_body["oid"]
+            sid=msg_body["sid"],
         )
 
 @dataclass
-class StreamDataMessage(Message):
-    """流数据消息基类"""
-    stream_id: int
-    data: bytes
-    
+class RecvRdyMessage(Message):
+    oid: AppConfig.id_t
+    context: AppConfig.cid_t
+    sid: AppConfig.sid_t
+
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "StreamDataMessage":
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvRdyMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            stream_id=msg_body["sid"],
+            oid=msg_body["oid"],
+            context=msg_body["context"],
+            sid=msg_body["sid"],
+        )
+
+@dataclass
+class SendMessage(Message):
+    """流数据消息基类"""
+    sid: AppConfig.id_t
+    data: bytes
+
+    @classmethod
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendMessage":
+        return cls(
+            header=header,
+            direction=MessageID.get_direction(header.mid),
+            sid=msg_body["sid"],
+            data=bytes.fromhex(msg_body["data"])
+        )
+
+@dataclass
+class RecvMessage(Message):
+    """流数据消息基类"""
+    sid: AppConfig.id_t
+    data: bytes
+
+    @classmethod
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvMessage":
+        return cls(
+            header=header,
+            direction=MessageID.get_direction(header.mid),
+            sid=msg_body["sid"],
             data=bytes.fromhex(msg_body["data"])
         )
 
@@ -311,48 +356,52 @@ class StreamEndMessage(Message):
 # 文件传输消息实现
 # ----------------------------
 @dataclass
-class FileReqMessage(Message):
+class SendFileMessage(Message):
     """文件发送请求 (MID.SENDFILE)"""
-    destination_id: int
-    context: int
-    file_path: str
-    qos: int
+    did: AppConfig.id_t
+    context: AppConfig.cid_t
+    rl: int
+    pt: int
+    file: str
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "FileReqMessage":
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendFileMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
             destination_id=msg_body["did"],
             context=msg_body["context"],
-            file_path=msg_body["file"],
-            qos=msg_body["rl"]
+            rl=msg_body["rl"],
+            pt=msg_body["pt"],
+            file=msg_body["file"],
         )
 
 @dataclass
-class FileFinMessage(Message):
+class SendFinMessage(Message):
     """文件传输完成 (MID.SENDFIN)"""
+    did: AppConfig.id_t
     context: int
-    file_path: str
+    file: str
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "FileFinMessage":
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendFinMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
+            did=msg_body["did"],
             context=msg_body["context"],
-            file_path=msg_body["file"]
+            file=msg_body["file"]
         )
 
 @dataclass
-class FileRecvMessage(Message):
+class RecvFileMessage(Message):
     """文件接收通知 (MID.RECVFILE)"""
     origin_id: str
     context: int
     file_path: str
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "FileRecvMessage":
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvFileMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),

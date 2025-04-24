@@ -15,15 +15,6 @@ class txContext:
         self.tid = tid
         self.queue = asyncio.Queue(1)
 
-class subscribeAct(IntEnum):
-    FIN = 0
-    ACKUPD = 1
-
-class notifyAct(IntEnum):
-    NTY = 0
-    ACK = 1
-    FIN = 2
-
 
 class transactionHandler:
     def __init__(self, message_queue: asyncio.Queue):
@@ -34,7 +25,6 @@ class transactionHandler:
         self.icp_client = ICPClient()
         self.running = True
         self.message_queue = message_queue
-        self.tx_timeout = 1000 # ms
 
     def new_tid(self):
         self.tid_counter += 1

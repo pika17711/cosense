@@ -1,9 +1,14 @@
 import asyncio
+from dataclasses import dataclass
 import json
 import logging
 import random
-from typing import Dict, List, Optional, Tuple, Union
-from src.mes.transactionHandler import notifyAct, subscribeAct, transactionHandler
+from types import CoroutineType
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+from src.mes.message import NotifyAct, SubscribeAct
+from src.mes.transactionHandler import transactionHandler
 import zmq
 from zmq.asyncio import Context
 from src.config import CONFIG
@@ -14,6 +19,7 @@ from utils.asyncVariable import AsyncVariable
 from utils.common import mstime
 
 from src.mes.mid import MessageID
+from cachetools import LRUCache
 
 class CContextCotorState(IntEnum):
     """协作对话状态枚举"""
@@ -28,23 +34,26 @@ class CContextCoteeState(IntEnum):
     SUBSCRIBING = auto()     # 订阅中
     CLOSED = auto()          # 已终止
 
-class CContextSetState(IntEnum):
+class BCContextState(IntEnum):
     PENDING = auto()            # 初始状态
     WAITBNTY = auto()        # 已发送广播订阅等待广播订阅通知
     CLOSED = auto()          # 已终止
+
+class CSContextState(IntEnum):
+    CLOSED = auto()
 
 """
 CollaborationContext
 """
 class CContext:
-    def __init__(self, cid: str, cotor, cotee, cctxset):
-        self.cid = cid               # 对话ID
-        self.cotor = cotor           # 协作者ID
-        self.cotee = cotee           # 被协作者ID
-        self.state = None
-        self.cctxset: CContextSet = cctxset       # 协作对话集
-        self.last_active = mstime()  # 最后活跃时间
-        self.start_time = mstime()   # 开始时间
+    def __init__(self, cid: str, cotor, cotee, bcctx):
+        self.cid = cid                   # 对话ID
+        self.cotor = cotor               # 协作者ID
+        self.cotee = cotee               # 被协作者ID
+        self.state = CContextCotorState.PENDING if self.is_cotor() else CContextCoteeState.PENDING
+        self.bcctx: BCContext = bcctx    # 广播协作对话
+        self.last_active = mstime()      # 最后活跃时间
+        self.start_time = mstime()       # 开始时间
         self.queue = asyncio.Queue()
 
     def is_cotor(self):
@@ -54,20 +63,31 @@ class CContext:
         return not self.is_cotor()
 
     def is_expired(self) -> bool:
+        # 用上一次活跃的时间检查是否存活
         return (mstime() - self.last_active) > AppConfig.cctx_keepalive
 
+    def update_active(self):
+        self.last_active = mstime()
+
     def is_alive(self) -> bool:
-        return self.state in (CContextCoteeState.CLOSED, CContextCotorState.CLOSED)
+        return self.state not in (CContextCoteeState.CLOSED, CContextCotorState.CLOSED)
+
+    def force_close(self):
+        """
+            强行关闭
+            无论当前状态是什么
+        """
+        self.state = CContextCoteeState.CLOSED if self.is_cotee() else CContextCotorState.CLOSED
 
 """
 BroadcastCollaborationContext
 """
-class CContextSet:
+class BCContext:
     def __init__(self, cid):
         self.cid = cid
         self.set = set()
         self.start_time = mstime()
-        self.state = CContextSetState.PENDING
+        self.state = BCContextState.PENDING
         self.queue = asyncio.Queue()
 
     def add_cctx(self, cctx: CContext):
@@ -77,10 +97,14 @@ class CContextSet:
         self.set.remove(cctx)
 
     def is_expired(self) -> bool:
-        return mstime() - self.start_time > AppConfig.cctxset_keepalive
+        # 用开始时间计算是否存活
+        return mstime() - self.start_time > AppConfig.bcctx_keepalive
 
     def is_alive(self) -> bool:
-        return self.state == CContextSetState.CLOSED
+        return self.state != BCContextState.CLOSED
+
+    def force_close(self):
+        self.state = BCContextState.CLOSED
 
 """
 CollaborationStreamContext
@@ -89,10 +113,50 @@ class CSContext:
     def __init__(self, sid, cctx):
         self.sid = sid
         self.cctx = cctx
-        self.state = CContextSetState.PENDING
+        self.state = BCContextState.PENDING
+        self.start_time = mstime()
         self.queue = asyncio.Queue()
 
-from src.mes.message import BroadcastPubMessage, Message, NotifyMessage, SubscribeMessage
+    def is_expired(self) -> bool:
+        return mstime() - self.start_time > AppConfig.csctx_keepalive
+
+    def is_alive(self) -> bool:
+        return self.state != CSContextState.CLOSED
+
+    def force_close(self):
+        self.state = CSContextState.CLOSED
+
+"""
+"""
+@dataclass
+class PointPillarsFeatType:
+    pass
+
+"""
+DataCache
+"""
+@dataclass
+class DataCache:
+    id: AppConfig.id_t
+    lidar2world: np.ndarray
+    camera2world: np.ndarray
+    feat: PointPillarsFeatType
+    speed: np.ndarray
+    pos: np.ndarray
+    acc: np.ndarray
+
+    @classmethod
+    def from_raw(cls, id, lidar2world, camera2world, feat, speed, pos, acc):
+        return cls(id=id, 
+                   lidar2world=lidar2world, 
+                   camera2world=camera2world, 
+                   feat=feat, 
+                   speed=speed, 
+                   pos=pos, 
+                   acc=acc)
+
+
+from src.mes.message import BroadcastPubMessage, Message, NotifyMessage, SendMessage, SubscribeMessage
 from src.mes.message import BroadcastSubNtyMessage, BroadcastSubMessage
 from config import AppConfig
 
@@ -101,21 +165,24 @@ class MessageHandler:
         self.msg_queue = asyncio.Queue()
         self.tx_handler: transactionHandler = transactionHandler(self.msg_queue)
 
-        self.cctx_table: Dict[Tuple[AppConfig.cid_t, AppConfig.id_t, AppConfig.id_t], CContext] = dict() # (cid, cotor, cotee) -> cctx
-        self.cctxset_table: Dict[AppConfig.cid_t, CContextSet] = dict() # cid -> cctxset
-        self.sctx_table: Dict[AppConfig.sid_t, CSContext] = dict() # sid -> csctx
+        # (cid, cotor, cotee) -> cctx
+        self.cctx_table: Dict[Tuple[AppConfig.cid_t, AppConfig.id_t, AppConfig.id_t], CContext] = dict()
+        # cid -> bcctx
+        self.bcctx_table: Dict[AppConfig.cid_t, BCContext] = dict()
+        # sid -> csctx
+        self.sctx_table: Dict[AppConfig.sid_t, CSContext] = dict()
 
         self.subscribing_set = set() # 正在订阅的cctx
         self.subscribed_set = set() # 正在被订阅的cctx
 
         self.cid_counter = random.randint(1, 100000)
 
+        self.data_cache = LRUCache(AppConfig.data_cache_size)  # 他车数据的缓存
 
     async def recv_loop(self):
         await self.tx_handler.recv_loop()
 
     async def dispatch(self):
-        """消息路由分发"""
         while True:
             msg = await self.msg_queue.get()
             self._handle_message(msg)
@@ -166,20 +233,32 @@ class MessageHandler:
     def check_cctx_exist(self, cid, cotor, cotee):
         return self.get_cctx(cid, cotor, cotee) is not None
 
-    def get_cctx(self, cid, cotor, cotee) -> CContext:
+    def get_cctx(self, cid, cotor, cotee) -> Optional[CContext]:
         ctable = self.cctx_table
-        try:
-            cctx = ctable[(cid, cotor, cotee)]
-        except KeyError:
+        t = (cid, cotor, cotee)
+        if t in ctable:
+            cctx = ctable[t]
+        else:
             cctx = None
+        return cctx
 
+    def get_cctx_or_panic(self, cid, cotor, cotee) -> CContext:
+        """
+            得到cctx，若不存在，则panic
+        """
+        ctable = self.cctx_table
+        t = (cid, cotor, cotee)
+        if t in ctable:
+            cctx = ctable[t]
+        else:
+            assert False
         return cctx
 
     def rem_cctx(self, cctx: CContext):
         self.cctx_table.pop(cctx.cid, cctx.cotor, cctx.cotee)
-        cctxset = cctx.cctxset
-        if cctxset is not None:
-            cctxset.rem_cctx(cctx)
+        bcctx = cctx.bcctx
+        if bcctx is not None:
+            bcctx.rem_cctx(cctx)
         # 断开连接
     
     async def get_cctx_and_put(self, cid, cotor, cotee, msg: Message):
@@ -188,12 +267,12 @@ class MessageHandler:
             return
         await cctx.queue.put(msg)
 
-    # ============== cctxset ====================#
-    def add_cctxset(self, cctxset: CContextSet):
-        self.cctxset_table[cctxset.cid] = cctxset
+    # ============== bcctx ====================#
+    def add_bcctx(self, bcctx: BCContext):
+        self.bcctx_table[bcctx.cid] = bcctx
 
-    def get_cctxset(self, cid: AppConfig.cid_t) -> CContextSet:
-        ctable = self.cctxset_table
+    def get_bcctx(self, cid: AppConfig.cid_t) -> BCContext:
+        ctable = self.bcctx_table
         try:
             cctx_set = ctable[cid]
         except KeyError:
@@ -201,8 +280,8 @@ class MessageHandler:
 
         return cctx_set
 
-    def rem_cctxset(self, cctxset: CContextSet):
-        self.cctxset_table.pop(cctxset.cid)
+    def rem_bcctx(self, bcctx: BCContext):
+        self.bcctx_table.pop(bcctx.cid)
 
     # ============== sub ====================#
     def add_subscribing(self, cctx: CContext):
@@ -227,9 +306,8 @@ class MessageHandler:
     def check_need_pub(self, msg):
         # TODO 逻辑
         return True
-    
-    
-    def check_need(self, cctxset: CContextSet, msg: Message):
+
+    def check_need(self, bcctx: BCContext, msg: Message):
         # 检查是否需要的逻辑
         return True
 
@@ -242,145 +320,235 @@ class MessageHandler:
         self.cid_counter += 1
         return str(AppConfig.app_id) + str(mstime()) + str(self.cid_counter)
 
+    # ============== ctx loop ====================#
+    async def ctx_loop(self, ctx: Union[CContext, BCContext, CSContext], 
+                       handler_table: Dict[MessageID, Callable[[Message], CoroutineType[Any, Any, None]]],
+                       rem_ctx: Callable[[Union[CContext, BCContext, CSContext]], None]):
+        while ctx.is_alive():
+            msg = await self.wait_with_timeout(ctx.queue.get(), 100) # 随便取的100ms
+            if msg.header.mid in handler_table:
+                await handler_table[msg.header.mid](msg)
+            if ctx.is_expired():
+                ctx.force_close()
+        rem_ctx(ctx)
 
-    # ============== custom loop ====================#
-    async def cctxset_loop(self, cctxset: CContextSet):
+    async def bcctx_loop(self, bcctx: BCContext):
         handler_table = {BroadcastSubMessage: self.broadcastsub_service,
                          BroadcastSubNtyMessage: self.broadcastsubnty_service}
-        while cctxset.is_alive():
-            msg = await self.wait_with_timeout(cctxset.queue.get(), 100) # 随便取的100ms
-            msg: Union[BroadcastSubMessage, BroadcastSubNtyMessage]
-            try:
-                await handler_table[msg.header.mid](msg)
-            except KeyError:
-                assert False
-
-            if cctxset.is_expired():
-                self.rem_cctxset(cctxset)
+        await self.ctx_loop(bcctx, handler_table, self.rem_bcctx)
 
     async def cctx_loop(self, cctx: CContext):
         handler_table = {SubscribeMessage: self.subscribe_service,
                          NotifyMessage: self.notify_service}
-        while cctx.is_alive():
-            msg = await self.wait_with_timeout(cctx.queue.get(), 100) # 随便取的100ms
-            msg: Union[SubscribeMessage, NotifyMessage]
-            if msg.header.mid in handler_table:
-                handler_table[msg.header.mid](msg)
-            else:
-                assert False
-            if cctx.is_expired():
-                self.rem_cctx(cctx)
+        await self.ctx_loop(cctx, handler_table, self.rem_cctx)
+
+    async def csctx_loop(self, csctx: CContext):
+        handler_table = {SendMessage: self.subscribe_service,
+                         NotifyMessage: self.notify_service}
 
     # ============== 发消息逻辑 ====================#
     async def broadcastsub_send(self):
+        """
+            广播订阅
+            描述：local开启一个新广播会话bcctx
+                 启动一个新协程bcctx_loop(bcctx)，进行消息接收和处理
+        """
         cid = self.cid_gen()
         coopMap = None
         coopMapType = None
         bearCap = 1
-        cctxset = CContextSet(cid)
-        cctxset.state = CContextSetState.PENDING
-        self.add_cctxset(cctxset)
+        bcctx = BCContext(cid)
+        bcctx.state = BCContextState.PENDING
+        self.add_bcctx(bcctx)
         await self.tx_handler.brocastsub(AppConfig.id, AppConfig.topic, cid, coopMap, coopMapType, bearCap)
-        cctxset.state = CContextSetState.WAITBNTY
-        asyncio.create_task(self.cctxset_loop(cctxset))
+        bcctx.state = BCContextState.WAITBNTY
+        asyncio.create_task(self.bcctx_loop(bcctx))
 
     async def broadcastpub_send(self):
+        """
+            广播推送
+            描述：只需发送广播推送
+        """
         coopMap = None
         coopMapType = None
         await self.tx_handler.brocastpub(AppConfig.id, AppConfig.topic, coopMap, coopMapType)
 
-    async def subscribe_send(self, did: Union[List[AppConfig.id_t], AppConfig.id_t], act=subscribeAct.ACKUPD):
+    async def subscribe_send(self, did: Union[List[AppConfig.id_t], AppConfig.id_t], act:SubscribeAct=SubscribeAct.ACKUPD):
+        """
+            订阅
+            描述：
+                1. act = SubscribeAct.ACKUPD
+                    订阅请求
+                    local开启一个新会话cctx
+                    启动一个新协程cctx_loop(cctx)，进行消息接收和处理
+                2. act = SubscribeAct.FIN
+                    订阅关闭
+                    local是cotee，remote是cotor，不然就是代码逻辑错误
+
+            参数：
+                1. did
+                    目标id列表或目标id
+                2. act
+                    订阅请求或订阅关闭
+        """
         if type(did) is AppConfig.id_t:
             did = [did]
         for didi in did:
-            cid = self.cid_gen()
-            cctx = CContext(cid, AppConfig.id, didi, None)
-            cctx.state = CContextCoteeState.PENDING
-            self.add_cctx(cctx)
+            if act == SubscribeAct.ACKUPD:
+                cid = self.cid_gen()
+                cctx = CContext(cid, AppConfig.id, didi, None)
+                cctx.state = CContextCoteeState.PENDING
+                self.add_cctx(cctx)
+                coopMap = None
+                coopMapType = None
+                bearCap = 1
+                await self.tx_handler.subscribe(AppConfig.id, didi, AppConfig.topic, act, cid, coopMap, coopMapType, bearCap)
+                cctx.state = CContextCoteeState.WAITNTY
+                await asyncio.create_task(self.cctx_loop(cctx.cid, cctx.cotor, cctx.cotee, self.notify_service))
+            else:
+                cctx = self.get_cctx(cid, AppConfig.id, didi)
+                await self.tx_handler.subscribe(AppConfig.id, didi, AppConfig.topic, act, cid, None, None, 0)
+                cctx.force_close()
+                self.rem_cctx(cctx)
+
+    async def notify_send(self, cid, did, act=NotifyAct.ACK):
+        """
+            通知
+            描述：
+                1. act = NotifyAct.ACK
+                    确认订购
+                    对话cctx在收到订阅消息时新建
+                    找到对应cctx，发送确认订购后，改变cctx状态
+                2. act = NotifyAct.NTY
+                    对话内通知
+                    未实现，没理解作用
+                2. act = NotifyAct.FIN
+                    取消订购
+                    对话cctx在收到订阅消息时新建
+                    找到对应cctx，发送取消订购后，改变cctx状态
+            参数：
+                1. did
+                2. act
+        """
+        cctx = self.get_cctx_or_panic(cid, did, AppConfig.id)
+        if act == NotifyAct.ACK:
             coopMap = None
             coopMapType = None
             bearCap = 1
-            await self.tx_handler.subscribe(AppConfig.id, didi, AppConfig.topic, act, cid, coopMap, coopMapType, bearCap)
-            cctx.state = CContextCoteeState.WAITNTY
-            await asyncio.create_task(self.cctx_loop(cctx.cid, cctx.cotor, cctx.cotee, self.notify_service))
-
-    async def notify_send(self, cid, did, act=notifyAct.ACK):
-        cctx = self.get_cctx(cid, did, AppConfig.id)
-        coopMap = None
-        coopMapType = None
-        bearCap = 1
-        await self.tx_handler.notify(AppConfig.id, did, AppConfig.topic, act, cid, coopMap, coopMapType, bearCap)
-        if act == notifyAct.ACK:
+            await self.tx_handler.notify(AppConfig.id, did, AppConfig.topic, act, cid, coopMap, coopMapType, bearCap)
             cctx.state = CContextCotorState.SUBSCRIBED
-        elif act == notifyAct.NTY:
+        elif act == NotifyAct.NTY:
             pass
-        elif act == notifyAct.FIN:
+        elif act == NotifyAct.FIN:
             cctx.state = CContextCotorState.CLOSED
+            self.rem_cctx(cctx)
 
     # ============== 处理收到的消息逻辑 ==============#
     async def broadcastpub_service(self, msg: BroadcastPubMessage):
+        """
+            收到广播推送
+            1. 判断是否接受
+            2. 如果接受，创建cctx，发送订阅请求
+        """
         need = await self.check_need_pub(msg)
         if need:
             cid = self.cid_gen()
             cctx = CContext(cid, msg.oid, AppConfig.id, None)
-            cctx.state = CContextCoteeState.PENDING
             self.add_cctx(cctx)
             await self.subscribe_send(msg.oid)
             cctx.state = CContextCoteeState.WAITNTY
-            asyncio.create_task(self.cctx_loop(cid, msg.oid, AppConfig.id, self.notify_service()))
+            asyncio.create_task(self.cctx_loop(cctx))
 
     async def broadcastsub_service(self, msg: BroadcastSubMessage):
+        """
+            收到广播订阅
+            1. 判断是否接受
+            2. 如果接受，创建cctx，发送广播订阅通知
+        """
         subed = await self.check_subscribed()
-        if subed:
-            coodMap = None # TODO
-            coodMapType = None # TODO
-            bearcap = 1
-            status = self.tx_handler.brocastsubnty(AppConfig.id, msg.oid, AppConfig.topic, msg.context, 
-                                          coodMap, coodMapType, bearcap)
-            if not status:
-                # 事务失败了，说明从应用到通信模块发送失败了 
-                # TODO 重试机制
-                pass
+        if not subed:
+            return
+        coodMap = None # TODO
+        coodMapType = None # TODO
+        bearcap = 1
+        self.tx_handler.brocastsubnty(AppConfig.id, msg.oid, AppConfig.topic, msg.context, 
+                                        coodMap, coodMapType, bearcap)
 
     async def broadcastsubnty_service(self, msg: BroadcastSubNtyMessage):
-        cctxset = self.get_cctxset(msg.context)
-        if cctxset == None:
-            # 输出警告
+        """
+            收到广播订阅通知
+            1. 寻找广播对话，因为收到了广播订阅，这个广播会话是自身创建的
+            2. 检查是否需要对话
+            3. 如果需要，创建cctx
+        """
+        bcctx = self.get_bcctx(msg.context)
+        if bcctx == None:
+            # 有可能是广播对话超时，有可能是消息发送错误
+            # TODO 输出警告
             return
 
-        if cctxset.state == CContextSetState.WAITBNTY:
-            need = self.check_need(cctxset, msg)
+        assert bcctx.state != BCContextState.PENDING
+        if bcctx.state == BCContextState.WAITBNTY:
+            need = self.check_need(bcctx, msg)
             if need:
-                cctx = CContext(cctxset.cid, msg.oid, AppConfig.id, cctxset)
-                cctx.state = CContextCotorState.SENDNTY
-                cctxset.add_cctx(cctx)
+                cctx = CContext(bcctx.cid, msg.oid, AppConfig.id, bcctx)
+                self.add_cctx(cctx)
+                bcctx.add_cctx(cctx)
+                self.subscribe_send(AppConfig.id, msg.oid, SubscribeAct.ACKUPD)
+                cctx.state = CContextCoteeState.WAITNTY
             else:
-                # 输出警告
+                # 不需要
+                # TODO 输出警告
                 pass
-        elif cctxset.state == CContextSetState.PENDING:
-            assert False
-            # 加入错误信息
-        elif cctxset.state == CContextSetState.CLOSED:
+        elif bcctx.state == BCContextState.CLOSED:
             # 已经关闭，不再接收连接
+            # TODO 输出警告
             pass
 
     async def notify_service(self, msg: NotifyMessage):
+        """
+            收到notify
+            1. 寻找cctx，cctx是自车发送订阅通知时创建的，自车一定是cotee
+            2. 根据消息内容，更新状态
+        """
         cctx = self.get_cctx(msg.context, msg.oid, AppConfig.id)
         if cctx == None:
             # 输出警告
             return
-        if cctx.is_cotee():
-            if cctx.state == CContextCoteeState.WAITNTY:
+        if cctx.is_cotor():
+            # 消息错误或者代码逻辑错误
+            return
+        assert cctx.state != CContextCoteeState.PENDING
+
+        cctx.last_active = mstime()
+        if cctx.state == CContextCoteeState.WAITNTY:
+            if msg.act == NotifyAct.ACK:
                 cctx.state == CContextCoteeState.SUBSCRIBING
-                cctx.last_active = mstime()
-            else:
-                # 自车是被协助者，收到notify时是其他状态是不可能的，消息不合理
+            elif msg.act == NotifyAct.FIN:
+                cctx.state == CContextCoteeState.CLOSED
+                self.rem_cctx(cctx)
+            elif msg.act == NotifyAct.NTY:
+                # TODO 输出警告：当前状态是WAITNTY，不应该收到notify:nty
                 pass
-        else:
-            # 自车是协助者，不可能收到notify
-            pass
+        elif cctx.state == CContextCoteeState.SUBSCRIBING:
+            if msg.act == NotifyAct.ACK:
+                # TODO 输出警告：当前状态是SUBSCRIBING，不应该收到notify:ACK
+                pass
+            elif msg.act == NotifyAct.FIN:
+                cctx.state == CContextCoteeState.CLOSED
+                self.rem_cctx(cctx)
+            elif msg.act == NotifyAct.NTY:
+                # 收到这个消息是合理的，未实现
+                pass
 
     async def subscribe_ackupd_service(self, msg: SubscribeMessage):
+        """
+            收到订阅消息，act=subscribeAct=ACKUPD
+            1. 此时自车不应该有cctx
+            2. 创建cctx，自车作为cotor
+            3. 判断是否被订阅
+            4. 发送notify
+        """
         cctx = self.get_cctx(msg.context, AppConfig.id, msg.oid)
         if cctx is not None:
             # 输出警告
@@ -389,26 +557,36 @@ class MessageHandler:
         cctx.state = CContextCotorState.SENDNTY
         if await self.check_subscribed():
             self.add_cctx(cctx)
-            coopMap = None # TODO
-            coopMapType = None # TODO
-            bearcap = 1
-            await self.tx_handler.notify(AppConfig.id, msg.oid, AppConfig.topic, notifyAct.ACK, msg.context, coopMap, coopMapType, bearcap)
+            await self.notify_send(cctx.cid, msg.oid)
             cctx.state = CContextCotorState.SUBSCRIBED
 
-
     async def subscribe_fin_service(self, msg: SubscribeMessage):
+        """
+            收到订阅消息，act=subscribeAct=FIN
+            1. 此时自车应该有cctx
+            2. 找到cctx
+            3. 根据cctx状态行动
+        """
         cctx = self.get_cctx(msg.context, AppConfig.id, msg.oid)
         if cctx is None:
             # 输出警告
             return
-        if cctx.state == CContextCotorState.SUBSCRIBED:
+        if cctx.state == CContextCotorState.PENDING:
+            # TODO 输出警告 代码错误 或消息错误
+            pass
+        elif cctx.state == CContextCotorState.SENDNTY:
             cctx.state = CContextCotorState.CLOSED
             self.rem_cctx(cctx)
+        elif cctx.state == CContextCotorState.SUBSCRIBED:
+            cctx.state = CContextCotorState.CLOSED
+            self.rem_cctx(cctx)
+        elif cctx.state == CContextCotorState.CLOSED:
+            pass
 
     async def subscribe_service(self, msg: SubscribeMessage):
-        if msg.action == subscribeAct.ACKUPD:
+        if msg.act == SubscribeAct.ACKUPD:
             self.subscribe_ackupd_service(msg)
-        elif msg.action == subscribeAct.FIN:
+        elif msg.act == SubscribeAct.FIN:
             self.subscribe_fin_service(msg)
         else:
             assert False
@@ -432,10 +610,10 @@ class MessageHandler:
 
     async def recv_broadcastsubnty(self, msg: BroadcastSubNtyMessage):
         logging.info(f"Received BROCASTSUB message: {msg}")
-        cctxset = self.get_cctxset(msg.context)
-        if cctxset is None:
+        bcctx = self.get_bcctx(msg.context)
+        if bcctx is None:
             return
-        await cctxset.queue.put(msg)
+        await bcctx.queue.put(msg)
 
     async def recv_subscribe(self, msg: SubscribeMessage):
         """
@@ -446,9 +624,9 @@ class MessageHandler:
                 与现有的cctx关联
         """
         logging.info(f"Received SUBSCRIBE message: {msg}")
-        if msg.action == subscribeAct.ACKUPD:
+        if msg.act == SubscribeAct.ACKUPD:
             await asyncio.create_task(self.subscribe_ackupd_service(msg))
-        elif msg.action == subscribeAct.FIN:
+        elif msg.act == SubscribeAct.FIN:
             self.get_cctx_and_put(msg.context, msg.oid, AppConfig.id)
         else:
             pass

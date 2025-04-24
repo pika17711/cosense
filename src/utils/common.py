@@ -1,12 +1,17 @@
 import asyncio
 import datetime
 from typing import Optional, Any, Tuple
+import traceback
 
 import numpy as np
 
 
 def mstime() -> float:
     return datetime.datetime.now().timestamp()
+
+def panic():
+    traceback.print_exc()
+    assert False
 
 import numpy as np
 from scipy.ndimage import zoom

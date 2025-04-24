@@ -41,9 +41,12 @@ class AppConfig:
     ros_pcd_topic = 'rslidar_points'
     ros_queue_size = 10
 
-    tx_keepalive = 5 * 1000  # transaction keepalive time ms
-    cctxset_keepalive = 5 * 1000 # ms
-    cctx_keepalive = 2 * 1000 # ms
+    data_cache_size = 1000
+
+    tx_keepalive = 5 * 1000      # transaction keepalive time ms
+    bcctx_keepalive = 5 * 1000 # ms
+    cctx_keepalive = 2 * 1000    # ms
+    csctx_keepalive = 1000       # ms
 
     id_t = str
     cid_t = int
