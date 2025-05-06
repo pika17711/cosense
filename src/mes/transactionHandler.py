@@ -24,6 +24,7 @@ class transactionHandler:
         self.icp_client = icp_client
         self.running = True
         self.message_queue = message_queue
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     def new_tid(self):
         self.tid_counter += 1
@@ -34,8 +35,8 @@ class transactionHandler:
 
     async def recv_icp(self):
         loop = asyncio.get_running_loop()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = loop.run_in_executor(executor, self.icp_client.recv_message)
+        while self.running:
+            future = loop.run_in_executor(self.executor, self.icp_client.recv_message)
             result = await future
             await self.recv_queue.put(result)
 
