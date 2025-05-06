@@ -3,10 +3,10 @@ from dataclasses import dataclass
 import json
 import logging
 import random
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
-from mes.message import NotifyAct, SubscribeAct
+from mes.message import NotifyAct, RecvFileMessage, SendFinMessage, SubscribeAct
 from mes.transactionHandler import transactionHandler
 import zmq
 from zmq.asyncio import Context
@@ -15,7 +15,7 @@ from config import AppConfig
 from enum import IntEnum, auto
 
 from utils.asyncVariable import AsyncVariable
-from utils.common import mstime
+from utils.common import load_json, mstime
 
 from mes.messageID import MessageID
 from cachetools import LRUCache
@@ -34,7 +34,7 @@ class CContextCoteeState(IntEnum):
     CLOSED = auto()          # 已终止
 
 class BCContextState(IntEnum):
-    PENDING = auto()            # 初始状态
+    PENDING = auto()         # 初始状态
     WAITBNTY = auto()        # 已发送广播订阅等待广播订阅通知
     CLOSED = auto()          # 已终止
 
@@ -71,6 +71,17 @@ class CContext:
     def is_alive(self) -> bool:
         return self.state not in (CContextCoteeState.CLOSED, CContextCotorState.CLOSED)
 
+    def to_sendnty(self):
+        assert self.is_cotor(), "上下文角色必须是协作者"
+        assert self.state == CContextCotorState.PENDING
+        self.state = CContextCotorState.SENDNTY
+
+    def to_subscribed(self):
+        assert self.is_cotor(), "上下文角色必须是协作者"
+        assert self.state == CContextCotorState.SENDNTY
+        self.state = CContextCotorState.SUBSCRIBED
+
+
     def force_close(self):
         """
             强行关闭
@@ -101,6 +112,15 @@ class BCContext:
 
     def is_alive(self) -> bool:
         return self.state != BCContextState.CLOSED
+
+    def to_waitbnnty(self):
+        assert self.state == BCContextState.PENDING, "必须发送了广播订阅后，才能等待广播通知消息"
+        self.state = BCContextState.WAITBNTY
+    
+    def to_close(self):
+        if self.state == BCContextState.PENDING:
+            logging.warning("广播会话未发送广播订阅消息即被关闭")
+        self.state = BCContextState.CLOSED
 
     def force_close(self):
         self.state = BCContextState.CLOSED
@@ -145,14 +165,14 @@ class DataCache:
     acc: np.ndarray
 
     @classmethod
-    def from_raw(cls, id, lidar2world, camera2world, feat, speed, pos, acc):
-        return cls(id=id, 
-                   lidar2world=lidar2world, 
-                   camera2world=camera2world, 
-                   feat=feat, 
-                   speed=speed, 
-                   pos=pos, 
-                   acc=acc)
+    def from_raw(cls, raw):
+        return cls(id=raw["id"], 
+                   lidar2world=raw["lidar2world"], 
+                   camera2world=raw["camera2world"], 
+                   feat=raw["feat"], 
+                   speed=raw["speed"], 
+                   pos=raw["pos"], 
+                   acc=raw["acc"])
 
 
 from mes.message import BroadcastPubMessage, Message, NotifyMessage, SendMessage, SubscribeMessage
@@ -162,7 +182,7 @@ from config import AppConfig
 class MessageHandler:
     def __init__(self):
         self.msg_queue = asyncio.Queue()
-        self.tx_handler: transactionHandler = transactionHandler(self.msg_queue)
+        self.tx_handler = transactionHandler(self.msg_queue)
 
         # (cid, cotor, cotee) -> cctx
         self.cctx_table: Dict[Tuple[AppConfig.cid_t, AppConfig.id_t, AppConfig.id_t], CContext] = dict()
@@ -171,8 +191,8 @@ class MessageHandler:
         # sid -> csctx
         self.sctx_table: Dict[AppConfig.sid_t, CSContext] = dict()
 
-        self.subscribing_set = set() # 正在订阅的cctx
-        self.subscribed_set = set() # 正在被订阅的cctx
+        self.subscribing_set: Set[AppConfig.id_t] = set() # 正在订阅的cctx
+        self.subscribed_set = Set[AppConfig.id_t] # 正在被订阅的cctx
 
         self.cid_counter = random.randint(1, 1 << 20)
 
@@ -189,39 +209,39 @@ class MessageHandler:
     async def dispatch_message(self, msg: Message):
         mid = msg.header.mid
         if mid == MessageID.APPREG:
-            await self.recv_appreg(msg)
+            await self.appreg_recv(msg)
         elif mid == MessageID.APPRSP:
-            await self.recv_apprsp(msg)
+            await self.apprsp_recv(msg)
         elif mid == MessageID.BROCASTPUB:
-            await self.recv_broadcastpub(msg)
+            await self.broadcastpub_recv(msg)
         elif mid == MessageID.BROCASTSUB:
-            await self.recv_broadcastsub(msg)
+            await self.broadcastsub_recv(msg)
         elif mid == MessageID.BROCASTSUBNTY:
-            await self.recv_broadcastsubnty(msg)
+            await self.broadcastsubnty_recv(msg)
         elif mid == MessageID.SUBSCRIBE:
-            await self.recv_subscribe(msg)
+            await self.subscribe_recv(msg)
         elif mid == MessageID.NOTIFY:
-            await self.recv_notify(msg)
+            await self.notify_recv(msg)
         elif mid == MessageID.SENDREQ:
-            await self.recv_sendreq(msg)
+            await self.sendreq_recv(msg)
         elif mid == MessageID.SENDRDY:
-            await self.recv_sendrdy(msg)
+            await self.sendrdy_recv(msg)
         elif mid == MessageID.RECVRDY:
-            await self.recv_recvrdy(msg)
+            await self.recvrdy_recv(msg)
         elif mid == MessageID.SEND:
-            await self.recv_send(msg)
+            await self.send_recv(msg)
         elif mid == MessageID.RECV:
             await self.recv_recv(msg)
         elif mid == MessageID.SENDEND:
-            await self.recv_sendend(msg)
+            await self.sendend_recv(msg)
         elif mid == MessageID.RECVEND:
-            await self.recv_recvend(msg)
+            await self.recvend_recv(msg)
         elif mid == MessageID.SENDFILE:
-            await self.recv_sendfile(msg)
+            await self.sendfile_recv(msg)
         elif mid == MessageID.SENDFIN:
-            await self.recv_sendfin(msg)
+            await self.sendfin_recv(msg)
         elif mid == MessageID.RECVFILE:
-            await self.recv_recvfile(msg)
+            await self.recvfile_recv(msg)
         else:
             logging.warning(f"Unhandled message type: {MessageID.get_name(mid.value)}")
 
@@ -442,6 +462,9 @@ class MessageHandler:
             cctx.state = CContextCotorState.CLOSED
             self.rem_cctx(cctx)
 
+    async def sendreq_send(self, did, cid, rl, pt, aoi, mode):
+        self.tx_handler.sendfile(did, cid, rl, pt, aoi, mode)
+
     # ============== 处理收到的消息逻辑 ==============#
     async def broadcastpub_service(self, msg: BroadcastPubMessage):
         """
@@ -590,31 +613,40 @@ class MessageHandler:
         else:
             assert False
 
+    async def recvfile_service(self, msg: RecvFileMessage):
+        cctx = self.get_cctx_or_panic(msg.context, AppConfig.id, msg.oid)
+        assert cctx.state == CContextCoteeState.SUBSCRIBING
+        data = load_json(msg.file)
+        self.data_cache[cctx.cid] = DataCache.from_raw(data)
+
+    async def sendfin_service(self, msg: SendFinMessage):
+        pass
+
     # ============== 回调处理 ==============#
-    async def recv_appreg(self, msg):
+    async def appreg_recv(self, msg):
         print(f"Received APPREG message: {msg}")
 
-    async def recv_apprsp(self, msg):
+    async def apprsp_recv(self, msg):
         """处理注册响应 (MID.APPRSP)"""
         if result := msg.get('result'):
             print(f"注册{'成功' if result else '失败'}")
 
-    async def recv_broadcastpub(self, msg):
+    async def broadcastpub_recv(self, msg):
         logging.info(f"Received BROCASTPUB message: {msg}")
         await asyncio.create_task(self.broadcastpub_service(msg))
 
-    async def recv_broadcastsub(self, msg: BroadcastSubMessage):
+    async def broadcastsub_recv(self, msg: BroadcastSubMessage):
         logging.info(f"Received BROCASTSUBNTY message: {msg}")
         await asyncio.create_task(self.broadcastsub_service(msg))
 
-    async def recv_broadcastsubnty(self, msg: BroadcastSubNtyMessage):
+    async def broadcastsubnty_recv(self, msg: BroadcastSubNtyMessage):
         logging.info(f"Received BROCASTSUB message: {msg}")
         bcctx = self.get_bcctx(msg.context)
         if bcctx is None:
             return
         await bcctx.queue.put(msg)
 
-    async def recv_subscribe(self, msg: SubscribeMessage):
+    async def subscribe_recv(self, msg: SubscribeMessage):
         """
             收到subscribe消息
             1. ACKUPD
@@ -630,44 +662,37 @@ class MessageHandler:
         else:
             pass
 
-    async def recv_notify(self, msg: NotifyMessage):
+    async def notify_recv(self, msg: NotifyMessage):
         logging.info(f"Received NOTIFY message: {msg}")
         self.get_cctx_and_put(msg.context, msg.oid, AppConfig.id)
 
-    async def recv_sendreq(self, msg):
+    async def sendreq_recv(self, msg):
         logging.info(f"Received SENDREQ message: {msg}")
 
-    async def recv_sendrdy(self, msg):
+    async def sendrdy_recv(self, msg):
         logging.info(f"Received SENDRDY message: {msg}")
 
-    async def recv_recvrdy(self, msg):
+    async def recvrdy_recv(self, msg):
         logging.info(f"Received RECVRDY message: {msg}")
 
-    async def recv_send(self, msg):
+    async def send_recv(self, msg):
         logging.info(f"Received SEND message: {msg}")
 
     async def recv_recv(self, msg):
         logging.info(f"Received RECV message: {msg}")
 
-    async def recv_sendend(self, msg):
+    async def sendend_recv(self, msg):
         logging.info(f"Received SENDEND message: {msg}")
 
-    async def recv_recvend(self, msg):
+    async def recvend_recv(self, msg):
         logging.info(f"Received RECVEND message: {msg}")
 
-    async def recv_sendfile(self, msg):
+    async def sendfile_recv(self, msg):
         logging.info(f"Received SENDFILE message: {msg}")
 
-    async def recv_sendfin(self, msg):
+    async def sendfin_recv(self, msg):
         logging.info(f"Received SENDFIN message: {msg}")
 
-    async def recv_recvfile(self, msg):
+    async def recvfile_recv(self, msg):
         """处理文件接收 (MID.RECVFILE)"""
-        file_path = msg.get('file')
-        logging.info(f"收到文件保存至: {file_path}")
-
-    async def _process_stream(self, sid: int):
-        """处理完整流数据"""
-        data = self.stream_ctx[sid]['buffer']
-        logging.info(f"处理流数据 {sid} 长度: {len(data)}")
-        del self.stream_ctx[sid]
+        await asyncio.create_task(self.recvfile_service(msg))

@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 from typing import Optional, Any, Tuple
 import traceback
 
@@ -12,6 +13,11 @@ def mstime() -> float:
 def panic():
     traceback.print_exc()
     assert False
+
+def load_json(file_path: str):
+    fp = open(file_path, "r")
+    d = json.load(fp)
+    return d
 
 import numpy as np
 from scipy.ndimage import zoom

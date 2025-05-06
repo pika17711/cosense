@@ -6,7 +6,7 @@ from typing import Dict, List
 from config import AppConfig
 from mes.messageID import MessageID
 from mes.message import AckMessage, Message, AppRspMessage
-from ICP.ICPServer import icp_client, icp_server
+from ICP.ICP import icp_client, icp_server
 import concurrent.futures
 
 """transactionHandler"""
@@ -129,3 +129,7 @@ class transactionHandler:
     async def notify(self, oid: str, did: str, topic: int, act: int, 
                    context: str, coopMap: str, coopMapType: int, bearCap: int):
         return self.submit_transaction(self.notify_handler(oid, did, topic, act, context, coopMap, coopMapType, bearCap))
+
+    async def sendfile(self, did: str, context: str, rl: int, pt: int, file: str):
+        """ 不需要事务 """
+        self.icp_server.sendFile(did, context, rl, pt, file)

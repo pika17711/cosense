@@ -4,7 +4,7 @@ from typing import Optional, Type, Dict, Any
 import json
 from datetime import datetime
 import zmq
-from config import CONFIG, AppConfig
+from config import AppConfig
 from mes.messageID import MessageID
 
 class MessageError(Exception):
@@ -396,9 +396,9 @@ class SendFinMessage(Message):
 @dataclass
 class RecvFileMessage(Message):
     """文件接收通知 (MID.RECVFILE)"""
-    origin_id: str
+    oid: str
     context: int
-    file_path: str
+    file: str
     
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvFileMessage":

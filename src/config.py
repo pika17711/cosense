@@ -1,30 +1,6 @@
-
-CONFIG = {
-    "id": 12345678,
-    "app_ver": 1,
-    "app_id": 131,
-    "mode": "CO",
-    "keepalive_timeout": 1,
-    "zmq": {
-        "in_port": 5555,
-        "in_ip": 'localhost',
-        "out_port": 5556,
-    },
-    "ros": {
-        "pointcloud_topic": "rslidar_points",
-        "queue_size": 10
-    },
-    "processing": {
-        "interval": 1,
-        "max_workers": 4,
-        "overlap_threshold": 0.3,
-        "H": 100,
-        "W": 100,
-    }
-}
-
 from dataclasses import dataclass
-
+import importlib
+import importlib.util
 
 @dataclass
 class AppConfig:
@@ -51,3 +27,18 @@ class AppConfig:
     id_t = str
     cid_t = int
     sid_t = int
+
+    broadcastpub_period = 1000 # ms
+    broadcastsub_period = 1000 # ms
+
+
+def parse_config_file(file_path):
+    spec = importlib.util.spec_from_file_location("config", file_path)
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+
+    for attr_name in dir(config_module):
+        if not attr_name.startswith("__"):
+            attr_value = getattr(config_module, attr_name)
+            if hasattr(AppConfig, attr_name):
+                setattr(AppConfig, attr_name, attr_value)
