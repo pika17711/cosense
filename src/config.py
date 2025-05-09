@@ -8,7 +8,7 @@ class AppConfig:
     app_ver = 1
     app_id = 131
     mode = "CO"
-    topic = "where2comm"
+    topic = ""
     zmq_in_port = 5555
     zmq_in_host = '127.0.0.1'
     zmq_out_port = 5556
@@ -30,6 +30,9 @@ class AppConfig:
 
     broadcastpub_period = 1000 # ms
     broadcastsub_period = 1000 # ms
+    send_data_period = 1000 # ms
+
+    tx_timeout = 5000 # ms
 
 
 def parse_config_file(file_path):

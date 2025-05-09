@@ -1,9 +1,10 @@
 import asyncio
 import datetime
+import hashlib
 import json
-from typing import Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Union
 import traceback
-
+import concurrent.futures
 import numpy as np
 
 
@@ -18,6 +19,87 @@ def load_json(file_path: str):
     fp = open(file_path, "r")
     d = json.load(fp)
     return d
+
+def server_assert(expr, info=''):
+    assert expr, info
+
+def sync_to_async(sync_func):
+    async def wrapper(*args, **kwargs):
+        loop = asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, sync_func, *args, **kwargs)
+        return result
+    return wrapper
+
+def read_binary_file(file_path: str, chunk_size: int = None, max_bytes: int = None) -> Union[bytes, List[bytes]]:
+    """
+    读取二进制文件的工具方法，支持全量读取或分块读取
+    
+    参数:
+        file_path: 文件路径
+        chunk_size: 分块读取时的块大小(字节)，为None时全量读取
+        max_bytes: 最大读取字节数，超过时截断
+    
+    返回:
+        bytes: 全量读取模式返回完整字节流
+        list[bytes]: 分块读取模式返回字节块列表
+    
+    异常:
+        FileNotFoundError: 文件不存在
+        PermissionError: 无读取权限
+        IsADirectoryError: 路径指向目录
+        OSError: 其他文件操作错误
+    """
+    try:
+        with open(file_path, 'rb') as file:
+            # 全量读取模式
+            if chunk_size is None:
+                data = file.read(max_bytes)
+                return data
+            
+            # 分块读取模式
+            else:
+                chunks = []
+                bytes_read = 0
+                
+                while True:
+                    # 计算本次读取大小(考虑max_bytes限制)
+                    current_size = chunk_size
+                    if max_bytes is not None:
+                        remaining = max_bytes - bytes_read
+                        if remaining <= 0:
+                            break
+                        current_size = min(current_size, remaining)
+                    
+                    chunk = file.read(current_size)
+                    if not chunk:
+                        break
+                        
+                    chunks.append(chunk)
+                    bytes_read += len(chunk)
+                    
+                    # 达到最大字节数时提前退出
+                    if max_bytes is not None and bytes_read >= max_bytes:
+                        break
+                
+                return chunks
+                
+    except FileNotFoundError:
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+    except PermissionError:
+        raise PermissionError(f"无读取权限: {file_path}")
+    except IsADirectoryError:
+        raise IsADirectoryError(f"路径指向目录而非文件: {file_path}")
+    except OSError as e:
+        raise OSError(f"文件操作错误: {e}")
+    
+def string_to_32_hex(input_string):
+    # 创建 md5 对象
+    md5_hash = hashlib.md5()
+    # 对输入的字符串进行编码，并更新 md5 对象
+    md5_hash.update(input_string.encode('utf-8'))
+    # 获取十六进制的哈希值
+    return md5_hash.hexdigest()
 
 import numpy as np
 from scipy.ndimage import zoom

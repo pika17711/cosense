@@ -1,11 +1,17 @@
 from dataclasses import dataclass
 from enum import IntEnum
+import logging
 from typing import Optional, Type, Dict, Any
 import json
 from datetime import datetime
 import zmq
 from config import AppConfig
-from mes.messageID import MessageID
+from collaboration.messageID import MessageID
+
+"""
+接收到的消息
+"""
+
 
 class MessageError(Exception):
     """消息解析异常基类"""
@@ -23,16 +29,12 @@ class UnknownMessageType(MessageError):
 class MessageHeader:
     """消息头基类"""
     mid: MessageID
-    appid: int
-    tid: Optional[int] = None  # 仅控制消息存在
     
     @classmethod
     def from_dict(cls, data: Dict) -> "MessageHeader":
         try:
             return cls(
                 mid=MessageID(data["mid"]),
-                appid=data["appid"],
-                tid=data.get("tid", None)
             )
         except KeyError as e:
             raise InvalidMessageFormat(f"Missing header field: {e}")
@@ -46,7 +48,7 @@ class Message:
     @classmethod
     def parse(cls, raw_data: Dict) -> "Message":
         """工厂方法：从原始字典创建具体消息对象"""
-        header = MessageHeader.from_dict(raw_data.get("header", {}))
+        header = MessageHeader.from_dict(raw_data)
         msg_class = cls._get_message_class(header.mid)
         return msg_class.from_raw(header, raw_data.get("msg", {}))
 
@@ -65,8 +67,8 @@ class Message:
             MessageID.RECVRDY: SendRdyMessage,
             MessageID.SEND: SendMessage,
             MessageID.RECV: SendMessage,
-            MessageID.SENDEND: StreamEndMessage,
-            MessageID.RECVEND: StreamEndMessage,
+            MessageID.SENDEND: SendEndMessage,
+            MessageID.RECVEND: SendEndMessage,
             MessageID.SENDFILE: SendFileMessage,
             MessageID.SENDFIN: SendFinMessage,
             MessageID.RECVFILE: RecvFileMessage,
@@ -136,15 +138,15 @@ class BroadcastPubMessage(Message):
     topic: int
     coopmap: bytes
     extra: Optional[dict] = None
-    
+
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "BroadcastPubMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            origin_id=msg_body["oid"],
+            oid=msg_body["oid"],
             topic=msg_body["topic"],
-            coopmap=bytes.fromhex(msg_body["coopmap"]),
+            coopmap=msg_body["coopmap"],
             extra=msg_body.get("extra")
         )
 
@@ -276,7 +278,6 @@ class SendReqMessage(Message):
 
 @dataclass
 class SendRdyMessage(Message):
-    """流准备就绪 (MID.SENDRDY/MID.RECVRDY)"""
     did: AppConfig.id_t
     context: AppConfig.cid_t
     sid: AppConfig.sid_t
@@ -309,7 +310,6 @@ class RecvRdyMessage(Message):
 
 @dataclass
 class SendMessage(Message):
-    """流数据消息基类"""
     sid: AppConfig.id_t
     data: bytes
 
@@ -324,7 +324,6 @@ class SendMessage(Message):
 
 @dataclass
 class RecvMessage(Message):
-    """流数据消息基类"""
     sid: AppConfig.id_t
     data: bytes
 
@@ -338,18 +337,28 @@ class RecvMessage(Message):
         )
 
 @dataclass
-class StreamEndMessage(Message):
-    """流结束消息 (MID.SENDEND/MID.RECVEND)"""
-    stream_id: int
-    context: int
-    
+class SendEndMessage(Message):
+    sid: int
+
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "StreamEndMessage":
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendEndMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
             stream_id=msg_body["sid"],
             context=msg_body["context"]
+        )
+
+@dataclass
+class RecvEndMessage(Message):
+    sid: int
+
+    @classmethod
+    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvEndMessage":
+        return cls(
+            header=header,
+            direction=MessageID.get_direction(header.mid),
+            stream_id=msg_body["sid"],
         )
 
 # ----------------------------

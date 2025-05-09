@@ -4,8 +4,8 @@ import logging
 import random
 from typing import Dict, List
 from config import AppConfig
-from mes.messageID import MessageID
-from mes.message import AckMessage, Message, AppRspMessage
+from collaboration.messageID import MessageID
+from collaboration.message import AckMessage, Message, AppRspMessage
 from ICP.ICP import icp_client, icp_server
 import concurrent.futures
 
@@ -26,6 +26,10 @@ class transactionHandler:
         self.message_queue = message_queue
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
+    def force_close(self):
+        self.executor.shutdown()
+        self.running = False
+
     def new_tid(self):
         self.tid_counter += 1
         return self.tid_counter
@@ -45,6 +49,7 @@ class transactionHandler:
         while self.running:
             resp = await self.recv_queue.get()
             mes = Message.parse(resp)
+            logging.debug(f"recv message: {mes}")
             if mes.header.mid == MessageID.ACK:
                 await self.ack_resp_handler(mes)
             else:
@@ -70,16 +75,16 @@ class transactionHandler:
         except asyncio.TimeoutError:
             return None
         
-    async def xxx_handler(self, func, name):
+    async def transaction_message_handler(self, func, name):
         tid = self.new_tid()
         func(tid)
         txctx = txContext(tid)
-        resp_mes: AckMessage = await self.wait_with_timeout(txctx.queue, self.tx_timeout/1000)
+        resp_mes: AckMessage = await self.wait_with_timeout(txctx.queue, AppConfig.tx_timeout/1000)
         if resp_mes is None:
             try:
                 self.tx_table.pop(tid)
             except KeyError:
-                assert False
+                pass
             logging.warning(f'{name}:{tid} timeout')
             return False
         elif resp_mes.code != 0:
@@ -88,49 +93,61 @@ class transactionHandler:
         return True
 
     async def appreg_handler(self, CapID:int, CapVersion:int, CapConfig:int, act:int) -> bool:
-        return self.xxx_handler(lambda tid: self.icp_server.AppMessage(CapID, CapVersion, CapConfig, act, tid), 'APPREG')
+        return await self.transaction_message_handler(lambda tid: self.icp_server.AppMessage(CapID, CapVersion, CapConfig, act, tid), 'APPREG')
 
     async def appreg(self, CapID:int, CapVersion:int, CapConfig:int, act:int):
-        return self.submit_transaction(self.appreg_handler(CapID, CapVersion, CapConfig, act))
+        return await self.submit_transaction(self.appreg_handler(CapID, CapVersion, CapConfig, act))
 
     async def brocastpub_handler(self, oid: str, topic: int, coopMap: str, coopMapType: int) -> bool:
-        return self.xxx_handler(lambda tid: self.icp_server.brocastPub(tid, oid, topic, coopMap, coopMapType), 'BROCASTPUB')
+        return await self.transaction_message_handler(lambda tid: self.icp_server.brocastPub(tid, oid, topic, coopMap, coopMapType), 'BROCASTPUB')
 
     async def brocastpub(self, oid: str, topic: int, coopMap: str, coopMapType: int):
-        return self.submit_transaction(self.brocastpub_handler(oid, topic, coopMap, coopMapType))
+        return await self.submit_transaction(self.brocastpub_handler(oid, topic, coopMap, coopMapType))
 
     async def brocastsub_handler(self, oid: str, topic: int, context: str, coopMap: str, 
                                  coopMapType: int, bearCap: int) -> bool:
-        return self.xxx_handler(lambda tid: self.icp_server.brocastSub(tid, oid, topic, context, coopMap, coopMapType, bearCap), 'BROADCASTSUB')
+        return await self.transaction_message_handler(lambda tid: self.icp_server.brocastSub(tid, oid, topic, context, coopMap, coopMapType, bearCap), 'BROADCASTSUB')
 
     async def brocastsub(self, oid: str, topic: int, context: str, coopMap: str, 
                          coopMapType: int, bearCap: int):
-        return self.submit_transaction(self.brocastsub_handler(oid, topic, context, coopMap, coopMapType, bearCap))
+        return await self.submit_transaction(self.brocastsub_handler(oid, topic, context, coopMap, coopMapType, bearCap))
 
     async def brocastsubnty_handler(self, oid: str, did: str, topic: int, context: str, 
                                   coopMap: str, coopMapType: int, bearcap: int) -> bool:
-        return self.xxx_handler(lambda tid: self.icp_server.brocastSubnty(tid, oid, did, topic, context, coopMap, coopMapType, bearcap), 'BROCASTSUBNTY')
+        return await self.transaction_message_handler(lambda tid: self.icp_server.brocastSubnty(tid, oid, did, topic, context, coopMap, coopMapType, bearcap), 'BROCASTSUBNTY')
 
     async def brocastsubnty(self, oid: str, did: str, topic: int, context: str, 
                           coopMap: str, coopMapType: int, bearcap: int):
-        return self.submit_transaction(self.brocastsubnty_handler(oid, did, topic, context, coopMap, coopMapType, bearcap))
+        return await self.submit_transaction(self.brocastsubnty_handler(oid, did, topic, context, coopMap, coopMapType, bearcap))
 
     async def subscribe_handler(self, oid: str, did: List[str], topic: int, act: int, 
                               context: str, coopMap: str, coopMapType: int, bearInfo: int) -> bool:
-        return self.xxx_handler(lambda tid: self.icp_server.subMessage(tid, oid, did, topic, act, context, coopMap, coopMapType, bearInfo), 'SUBSCRIBE')
+        return await self.transaction_message_handler(lambda tid: self.icp_server.subMessage(tid, oid, did, topic, act, context, coopMap, coopMapType, bearInfo), 'SUBSCRIBE')
 
     async def subscribe(self, oid: str, did: List[str], topic: int, act: int, 
                       context: str, coopMap: str, coopMapType: int, bearInfo: int):
-        return self.submit_transaction(self.subscribe_handler(oid, did, topic, act, context, coopMap, coopMapType, bearInfo))
+        return await self.submit_transaction(self.subscribe_handler(oid, did, topic, act, context, coopMap, coopMapType, bearInfo))
 
     async def notify_handler(self, oid: str, did: str, topic: int, act: int, 
                            context: str, coopMap: str, coopMapType: int, bearCap: int) -> bool:
-        return self.xxx_handler(lambda tid: self.icp_server.notifyMessage(tid, oid, did, topic, act, context, coopMap, coopMapType, bearCap), 'NOTIFY')
+        return await self.transaction_message_handler(lambda tid: self.icp_server.notifyMessage(tid, oid, did, topic, act, context, coopMap, coopMapType, bearCap), 'NOTIFY')
 
     async def notify(self, oid: str, did: str, topic: int, act: int, 
                    context: str, coopMap: str, coopMapType: int, bearCap: int):
-        return self.submit_transaction(self.notify_handler(oid, did, topic, act, context, coopMap, coopMapType, bearCap))
-
+        return await self.submit_transaction(self.notify_handler(oid, did, topic, act, context, coopMap, coopMapType, bearCap))
+    
     async def sendfile(self, did: str, context: str, rl: int, pt: int, file: str):
         """ 不需要事务 """
         self.icp_server.sendFile(did, context, rl, pt, file)
+
+    async def sendreq(self, did: str, context: str, rl: int, pt: int, aoi: int, mode: int):
+        """ 不需要事务 """
+        self.icp_server.streamSendreq(did, context, rl, pt)
+
+    async def send(self, sid:str, data:bytes):
+        """ 不需要事务 """
+        self.icp_server.streamSend(sid, data) # TODO
+
+    async def sendend(self, sid:str):
+        """ 不需要事务 """
+        self.icp_server.streamSendend(None, None, sid) # TODO
