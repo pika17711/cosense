@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import pickle
-from typing import Dict
+from typing import Dict, Optional
 from config import AppConfig
 import numpy as np
 
@@ -9,8 +9,8 @@ class InfoDTO:
     type: int
     id: AppConfig.id_t # id
     lidar2world: np.ndarray # 雷达到世界的外参矩阵
-    camera2world: np.ndarray # 相机到世界的外参矩阵
-    camera_intrinsic: np.ndarray # 相机的内参矩阵
+    camera2world: Optional[np.ndarray] # 相机到世界的外参矩阵
+    camera_intrinsic: Optional[np.ndarray] # 相机的内参矩阵
 
     feat: Dict[str, np.ndarray] # 特征 {'voxel_features': array, 'voxel_coords': array, 'voxel_num_points': array}
     ts_feat: int # 时间戳
@@ -54,7 +54,7 @@ class InfoDTOSerializer:
             return b''
     
     @staticmethod
-    def deserialize(binary_data: bytes, decompress: bool = False) -> InfoDTO:
+    def deserialize(binary_data: bytes, decompress: bool = False) -> Optional[InfoDTO]:
         """
         从二进制数据反序列化为 InfoDTO 对象
         

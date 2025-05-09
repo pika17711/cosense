@@ -1,9 +1,12 @@
 import logging
+from typing import Dict, Tuple
+from config import AppConfig
 import grpc
 import numpy as np
 
 from rpc import Service_pb2
 from rpc import Service_pb2_grpc
+from utils.common import mstime
 
 
 class PerceptionClient:                                 # 感知子系统的Client类，用于向感知子系统的服务器请求服务
@@ -13,7 +16,9 @@ class PerceptionClient:                                 # 感知子系统的Clie
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         self.__perception_stub = Service_pb2_grpc.PerceptionServiceStub(perception_channel)
 
-    def get_my_feature(self):  # 从感知子系统获取自车特征
+    def get_my_feature(self) -> Tuple[AppConfig.timestamp_t, Dict[str, np.ndarray]]:  # 从感知子系统获取自车特征
+        return mstime(), {'voxel_features': np.array([1]), 'voxel_coords': np.array([1]), 'voxel_num_points': np.array(1)}
+
         try:
             response = self.__perception_stub.GetMyFeature(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
@@ -66,7 +71,9 @@ class PerceptionClient:                                 # 感知子系统的Clie
                                      dtype=response.my_comm_mask.dtype).reshape(response.my_comm_mask.shape)
         return timestamp, my_comm_mask
 
-    def get_my_pva_info(self):  # 从感知子系统获取自车位置、速度、加速度信息
+    def get_my_pva_info(self) -> Tuple[AppConfig.timestamp_t, np.ndarray, np.ndarray, np.ndarray]:  # 从感知子系统获取自车位置、速度、加速度信息
+        return mstime(), np.array([1, 2, 3]), np.array([1]), np.array([1])
+
         try:
             response = self.__perception_stub.GetMyPVAInfo(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
@@ -85,7 +92,9 @@ class PerceptionClient:                                 # 感知子系统的Clie
                                      dtype=response.acceleration.dtype).reshape(response.acceleration.shape)
         return timestamp, pose, velocity, acceleration
 
-    def get_my_extrinsic_matrix(self):  # 从感知子系统获取自车外参矩阵
+    def get_my_extrinsic_matrix(self) -> Tuple[AppConfig.timestamp_t, np.ndarray]:  # 从感知子系统获取自车外参矩阵
+        return mstime(), np.eye(4)
+
         try:
             response = self.__perception_stub.GetMyExtrinsicMatrix(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常

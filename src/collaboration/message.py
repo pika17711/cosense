@@ -29,7 +29,7 @@ class UnknownMessageType(MessageError):
 class MessageHeader:
     """消息头基类"""
     mid: MessageID
-    tid: int
+    tid: Optional[int]
     
     @classmethod
     def from_dict(cls, data: Dict) -> "MessageHeader":
@@ -55,7 +55,7 @@ class Message:
         return msg_class.from_raw(header, raw_data.get("msg", {}))
 
     @classmethod
-    def _get_message_class(cls, mid: MessageID) -> Type["Message"]:
+    def _get_message_class(cls, mid: MessageID) -> "Message":
         mapping = {
             MessageID.APPREG: AppRegMessage,
             MessageID.APPRSP: AppRspMessage,
@@ -157,9 +157,9 @@ class BroadcastPubMessage(Message):
 @dataclass
 class BroadcastSubMessage(Message):
     """广播订购 (MID.BROCASTSUB)"""
-    oid: int
+    oid: AppConfig.id_t
     topic: int
-    context: int
+    context: AppConfig.cid_t
     coopmap: bytes
     coopmaptype: int
     bearcap: int
@@ -245,7 +245,7 @@ class NotifyMessage(Message):
     context: AppConfig.cid_t
     coopmap: bytes
     coopmaptype: int
-    bearcap: int
+    bearcap: Optional[int]
     
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "NotifyMessage":
@@ -350,6 +350,7 @@ class RecvMessage(Message):
 @dataclass
 class SendEndMessage(Message):
     sid: int
+    context: Optional[AppConfig.cid_t]
 
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendEndMessage":
@@ -357,7 +358,7 @@ class SendEndMessage(Message):
             header=header,
             direction=MessageID.get_direction(header.mid),
             sid=msg_body["sid"],
-            context=msg_body["context"]
+            context=msg_body.get("context")
         )
 
 @dataclass

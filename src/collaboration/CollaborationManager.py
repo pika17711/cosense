@@ -22,7 +22,11 @@ class CollaborationManager:
         self.running = False
 
     async def loop(self):
-        tasks = [self.message_handler.recv_loop(), self.broadcastpub_loop(), self.broadcastsub_loop(), self.command_loop()]
+        tasks = [self.message_handler.recv_loop(), 
+                 self.broadcastpub_loop(), 
+                 self.broadcastsub_loop(), 
+                 self.command_loop(),
+                 self.subscribed_send_loop()]
         await asyncio.gather(*tasks)
 
     async def handle_command(self, argv):
@@ -113,5 +117,6 @@ class CollaborationManager:
         while self.running:
             for subed in self.message_handler.get_subscribed():
                 data = await sync_to_async(self.get_all_data)()
-                await asyncio.create_task(subed.send_data(data))
-                await asyncio.sleep(AppConfig.send_data_period)
+                asyncio.create_task(subed.send_data(data))
+
+            await asyncio.sleep(AppConfig.send_data_period)

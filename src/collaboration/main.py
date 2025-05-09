@@ -16,13 +16,16 @@ async def main():
         parse_config_file(sys.argv[0])
 
     collaborationManager = CollaborationManager()
-    logging.basicConfig(level=logging.DEBUG, filename='collaboration.log')
+    logging.basicConfig(level=logging.DEBUG, 
+                        filename='collaboration.log',
+                        filemode='w',
+                        format='%(asctime)s - %(levelname)s - %(message)s')
     logging.info("协同模块启动")
     try:
         await collaborationManager.loop()
     except KeyboardInterrupt:
         collaborationManager.force_close()
-        logging("接收到 Ctrl + C，程序退出。")
+        logging.info("接收到 Ctrl + C，程序退出。")
 
 if __name__ == "__main__":
     asyncio.run(main())

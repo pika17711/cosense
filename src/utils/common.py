@@ -5,11 +5,12 @@ import json
 from typing import List, Optional, Any, Tuple, Union
 import traceback
 import concurrent.futures
+from config import AppConfig
 import numpy as np
 
 
-def mstime() -> float:
-    return datetime.datetime.now().timestamp()
+def mstime() -> AppConfig.timestamp_t:
+    return AppConfig.timestamp_t(datetime.datetime.now().timestamp() * 1000)
 
 def panic():
     traceback.print_exc()
@@ -31,7 +32,7 @@ def sync_to_async(sync_func):
         return result
     return wrapper
 
-def read_binary_file(file_path: str, chunk_size: int = None, max_bytes: int = None) -> Union[bytes, List[bytes]]:
+def read_binary_file(file_path: str, max_bytes: int = -1) -> bytes:
     """
     读取二进制文件的工具方法，支持全量读取或分块读取
     
@@ -53,37 +54,8 @@ def read_binary_file(file_path: str, chunk_size: int = None, max_bytes: int = No
     try:
         with open(file_path, 'rb') as file:
             # 全量读取模式
-            if chunk_size is None:
-                data = file.read(max_bytes)
-                return data
-            
-            # 分块读取模式
-            else:
-                chunks = []
-                bytes_read = 0
-                
-                while True:
-                    # 计算本次读取大小(考虑max_bytes限制)
-                    current_size = chunk_size
-                    if max_bytes is not None:
-                        remaining = max_bytes - bytes_read
-                        if remaining <= 0:
-                            break
-                        current_size = min(current_size, remaining)
-                    
-                    chunk = file.read(current_size)
-                    if not chunk:
-                        break
-                        
-                    chunks.append(chunk)
-                    bytes_read += len(chunk)
-                    
-                    # 达到最大字节数时提前退出
-                    if max_bytes is not None and bytes_read >= max_bytes:
-                        break
-                
-                return chunks
-                
+            data = file.read(max_bytes)
+            return data
     except FileNotFoundError:
         raise FileNotFoundError(f"文件不存在: {file_path}")
     except PermissionError:
