@@ -167,7 +167,7 @@ class BroadcastSubMessage(Message):
             oid=msg_body["oid"],
             topic=msg_body["topic"],
             context=msg_body["context"],
-            coopmap=bytes.fromhex(msg_body["coopmap"]),
+            coopmap=msg_body["coopmap"],
             bearcap=msg_body["bearcap"]
         )
 
@@ -217,7 +217,7 @@ class SubscribeMessage(Message):
             topic=msg_body["topic"],
             action=msg_body["act"],
             context=msg_body["context"],
-            coopmap=bytes.fromhex(msg_body["coopmap"]),
+            coopmap=msg_body["coopmap"],
             bearinfo=bool(msg_body.get("bearinfo", 0))
         )
 
@@ -246,7 +246,7 @@ class NotifyMessage(Message):
             topic=msg_body["topic"],
             action=msg_body["act"],
             context=msg_body["context"],
-            coopmap=bytes.fromhex(msg_body["coopmap"]),
+            coopmap=msg_body["coopmap"],
             bearcap=msg_body.get("bearcap")
         )
 
@@ -319,7 +319,7 @@ class SendMessage(Message):
             header=header,
             direction=MessageID.get_direction(header.mid),
             sid=msg_body["sid"],
-            data=bytes.fromhex(msg_body["data"])
+            data=msg_body["data"]
         )
 
 @dataclass
@@ -333,7 +333,7 @@ class RecvMessage(Message):
             header=header,
             direction=MessageID.get_direction(header.mid),
             sid=msg_body["sid"],
-            data=bytes.fromhex(msg_body["data"])
+            data=msg_body["data"]
         )
 
 @dataclass
