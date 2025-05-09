@@ -29,12 +29,14 @@ class UnknownMessageType(MessageError):
 class MessageHeader:
     """消息头基类"""
     mid: MessageID
+    tid: int
     
     @classmethod
     def from_dict(cls, data: Dict) -> "MessageHeader":
         try:
             return cls(
                 mid=MessageID(data["mid"]),
+                tid=data.get("tid")
             )
         except KeyError as e:
             raise InvalidMessageFormat(f"Missing header field: {e}")
@@ -137,6 +139,7 @@ class BroadcastPubMessage(Message):
     oid: str
     topic: int
     coopmap: bytes
+    coopmaptype: int
     extra: Optional[dict] = None
 
     @classmethod
@@ -147,6 +150,7 @@ class BroadcastPubMessage(Message):
             oid=msg_body["oid"],
             topic=msg_body["topic"],
             coopmap=msg_body["coopmap"],
+            coopmaptype=msg_body.get("coopmaptype", 1),
             extra=msg_body.get("extra")
         )
 
@@ -157,6 +161,7 @@ class BroadcastSubMessage(Message):
     topic: int
     context: int
     coopmap: bytes
+    coopmaptype: int
     bearcap: int
     
     @classmethod
@@ -168,16 +173,18 @@ class BroadcastSubMessage(Message):
             topic=msg_body["topic"],
             context=msg_body["context"],
             coopmap=msg_body["coopmap"],
+            coopmaptype=msg_body.get("coopmaptype", 1),
             bearcap=msg_body["bearcap"]
         )
 
 @dataclass
 class BroadcastSubNtyMessage(Message):
     """广播订购通知 (MID.BROCASTSUBNTY)"""
-    oid: int
+    oid: AppConfig.id_t
     topic: int
-    context: int
+    context: AppConfig.cid_t
     coopmap: bytes
+    coopmaptype: int
     bearcap: int
     
     @classmethod
@@ -189,7 +196,8 @@ class BroadcastSubNtyMessage(Message):
             topic=msg_body["topic"],
             context=msg_body["context"],
             coopmap=msg_body["coopmap"],
-            bearcap=msg_body.get("bearcap")
+            coopmaptype=msg_body.get("coopmaptype", 1),
+            bearcap=msg_body["bearcap"]
         )
 
 
@@ -200,13 +208,13 @@ class SubscribeAct(IntEnum):
 @dataclass
 class SubscribeMessage(Message):
     """能力订购 (MID.SUBSCRIBE)"""
-    oid: int
-    # did 无
+    oid: AppConfig.id_t
     topic: int
     act: SubscribeAct
-    context: int
+    context: AppConfig.cid_t
     coopmap: bytes
-    bearinfo: bool
+    coopmaptype: int
+    bearcap: int
     
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SubscribeMessage":
@@ -215,10 +223,11 @@ class SubscribeMessage(Message):
             direction=MessageID.get_direction(header.mid),
             oid=msg_body["oid"],
             topic=msg_body["topic"],
-            action=msg_body["act"],
+            act=SubscribeAct(msg_body["act"]),
             context=msg_body["context"],
             coopmap=msg_body["coopmap"],
-            bearinfo=bool(msg_body.get("bearinfo", 0))
+            coopmaptype=msg_body.get("coopmaptype", 1),
+            bearcap=msg_body.get("bearcap", 0)
         )
 
 class NotifyAct(IntEnum):
@@ -229,12 +238,13 @@ class NotifyAct(IntEnum):
 @dataclass
 class NotifyMessage(Message):
     """订购通知 (MID.NOTIFY)"""
-    oid: int
+    oid: AppConfig.id_t
     # did 无
     topic: int
     act: NotifyAct
-    context: int
+    context: AppConfig.cid_t
     coopmap: bytes
+    coopmaptype: int
     bearcap: int
     
     @classmethod
@@ -244,9 +254,10 @@ class NotifyMessage(Message):
             direction=MessageID.get_direction(header.mid),
             oid=msg_body["oid"],
             topic=msg_body["topic"],
-            action=msg_body["act"],
+            act=NotifyAct(msg_body["act"]),
             context=msg_body["context"],
             coopmap=msg_body["coopmap"],
+            coopmaptype=msg_body.get("coopmaptype", 1),
             bearcap=msg_body.get("bearcap")
         )
 
@@ -345,7 +356,7 @@ class SendEndMessage(Message):
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            stream_id=msg_body["sid"],
+            sid=msg_body["sid"],
             context=msg_body["context"]
         )
 
@@ -358,7 +369,7 @@ class RecvEndMessage(Message):
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            stream_id=msg_body["sid"],
+            sid=msg_body["sid"],
         )
 
 # ----------------------------
@@ -378,7 +389,7 @@ class SendFileMessage(Message):
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            destination_id=msg_body["did"],
+            did=msg_body["did"],
             context=msg_body["context"],
             rl=msg_body["rl"],
             pt=msg_body["pt"],
@@ -414,7 +425,7 @@ class RecvFileMessage(Message):
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            origin_id=msg_body["oid"],
+            oid=msg_body["oid"],
             context=msg_body["context"],
-            file_path=msg_body["file"]
+            file=msg_body["file"]
         )
