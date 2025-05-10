@@ -35,7 +35,7 @@ class CollaborationManager:
             pass
         elif len(argv) == 1 and argv[0] == 'exit':
             return False
-        elif len(argv) == 2 and argv[0] == 'broadcastpub':
+        elif len(argv) == 2 and argv[0] == 'bpub':
             if argv[1] == 'open':
                 self.broadcastpub_open()
                 print('ok')
@@ -44,7 +44,7 @@ class CollaborationManager:
                 print('ok')
             else:
                 print('syntax error')
-        elif len(argv) == 2 and argv[0] == 'broadcastsub':
+        elif len(argv) == 2 and argv[0] == 'bsub':
             if argv[1] == 'open':
                 self.broadcastsub_open()
                 print('ok')
@@ -53,6 +53,11 @@ class CollaborationManager:
                 print('ok')
             else:
                 print('syntax error')
+        elif len(argv) == 2 and argv[0] == 'show':
+            if argv[1] == 'subing':
+                print([cctx.remote_id() for cctx in self.message_handler.get_subscribing()])
+            elif argv[1] == 'subed':
+                print([cctx.remote_id() for cctx in self.message_handler.get_subscribed()])
         else:
             print('syntax error')
         return True

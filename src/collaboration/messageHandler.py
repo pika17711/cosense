@@ -4,7 +4,7 @@ import random
 from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import numpy as np
-from collaboration.message import NotifyAct, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, SubscribeAct
+from collaboration.message import NotifyAct, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, SendReqMessage, SubscribeAct
 from collaboration.transactionHandler import transactionHandler
 from utils import InfoDTO
 import zmq
@@ -92,6 +92,7 @@ class CContext:
         server_assert(self.state == CContextCoteeState.WAITNTY)
         self.update_active()
         self.message_handler.rem_waitnty(self)
+        logging.info(f"{self.remote_id()} {self.cid} 会话建立")
         self.state = CContextCoteeState.SUBSCRIBING
         self.message_handler.add_subscribing(self)
 
@@ -107,6 +108,7 @@ class CContext:
         server_assert(self.state == CContextCotorState.SENDNTY)
         self.update_active()
         self.message_handler.rem_sendnty(self)
+        logging.info(f"{self.remote_id()} {self.cid} 会话建立")
         self.state = CContextCotorState.SUBSCRIBED
         self.message_handler.add_subscribed(self)
 
@@ -396,17 +398,17 @@ class MessageHandler:
         self.sendnty_table[cctx.cotee] = cctx
 
     def rem_sendnty(self, cctx: CContext):
-        server_assert(cctx.cotee in self.waitnty_table)
+        server_assert(cctx.cotee in self.sendnty_table)
         self.sendnty_table.pop(cctx.cotee)
 
     def get_sendnty_by_id(self, cotee_id):
-        return self.waitnty_table[cotee_id] if cotee_id in self.waitnty_table else None
+        return self.sendnty_table[cotee_id] if cotee_id in self.sendnty_table else None
 
     def add_subscribed(self, cctx: CContext):
         self.subscribed_table[cctx.cotee] = cctx
 
     def rem_subscribed(self, cctx: CContext):
-        server_assert(cctx.cotee in self.waitnty_table)
+        server_assert(cctx.cotee in self.subscribed_table)
         self.subscribed_table.pop(cctx.cotee)
 
     def get_subscribed(self) -> Iterable[CContext]:
@@ -451,19 +453,22 @@ class MessageHandler:
                        handler_table: Dict[MessageID, Callable[[Message], Coroutine[Any, Any, None]]]):
         while ctx.is_alive():
             msg = await self.wait_with_timeout(ctx.msg_queue.get(), 100) # 随便取的100ms，只会影响超时的准确性
+            if msg is not None:
+                logging.info(f"{msg.header.mid} {msg.header.mid in handler_table}")
             if msg is not None and msg.header.mid in handler_table:
                 await handler_table[msg.header.mid](msg)
             if ctx.is_expired():
                 ctx.force_close()
 
     async def bcctx_loop(self, bcctx: BCContext):
-        handler_table = {BroadcastSubMessage: self.broadcastsub_service,
-                         BroadcastSubNtyMessage: self.broadcastsubnty_service}
+        handler_table = {MessageID.BROCASTSUB: self.broadcastsub_service,
+                         MessageID.BROCASTSUBNTY: self.broadcastsubnty_service}
         await self.ctx_loop(bcctx, handler_table)
 
     async def cctx_loop(self, cctx: CContext):
-        handler_table = {SubscribeMessage: self.subscribe_service,
-                         NotifyMessage: self.notify_service}
+        handler_table = {MessageID.SUBSCRIBE: self.subscribe_service,
+                         MessageID.NOTIFY: self.notify_service,
+                         MessageID.SENDRDY: self.sendrdy_service,}
         await self.ctx_loop(cctx, handler_table)
 
     # ============== 发消息逻辑 ====================#
@@ -516,7 +521,7 @@ class MessageHandler:
         for didi in did:
             if act == SubscribeAct.ACKUPD:
                 cid = self.cid_gen()
-                cctx = CContext(cid, AppConfig.id, didi, None, self)
+                cctx = CContext(cid, didi, AppConfig.id, None, self)
                 self.add_cctx(cctx)
                 coopMap = await self.get_my_conf_map()
                 coopMapType = 1
@@ -561,12 +566,13 @@ class MessageHandler:
             coopMapType = 1
             bearCap = 1
             await self.tx_handler.notify(AppConfig.id, did, AppConfig.topic, act, cid, coopMap, coopMapType, bearCap)
-            cctx.to_subscribed()
         elif act == NotifyAct.NTY:
             pass
         elif act == NotifyAct.FIN:
-            cctx.to_closed()
-            self.rem_cctx(cctx)
+            fakecoopMap = np.array([1]).tobytes()
+            coopMapType = 1
+            bearCap = 1 
+            await self.tx_handler.notify(AppConfig.id, did, AppConfig.topic, act, cid, fakecoopMap, coopMapType, bearCap) # TODO 这里不需要传协作图
 
     async def sendreq_send(self, did, cid, rl, pt, aoi, mode):
         await self.tx_handler.sendreq(did, cid, rl, pt, aoi, mode)
@@ -764,7 +770,7 @@ class MessageHandler:
 
     # ============== 回调处理 ==============#
     async def appreg_recv(self, msg):
-        print(f"Received APPREG message: {msg}")
+        pass
 
     async def apprsp_recv(self, msg):
         """处理注册响应 (MID.APPRSP)"""
@@ -772,15 +778,12 @@ class MessageHandler:
             print(f"注册{'成功' if result else '失败'}")
 
     async def broadcastpub_recv(self, msg):
-        logging.info(f"Received BROCASTPUB message: {msg}")
         asyncio.create_task(self.broadcastpub_service(msg))
 
     async def broadcastsub_recv(self, msg: BroadcastSubMessage):
-        logging.info(f"Received BROCASTSUBNTY message: {msg}")
         asyncio.create_task(self.broadcastsub_service(msg))
 
     async def broadcastsubnty_recv(self, msg: BroadcastSubNtyMessage):
-        logging.info(f"Received BROCASTSUB message: {msg}")
         bcctx = self.get_bcctx(msg.context)
         if bcctx is None:
             return
@@ -796,7 +799,7 @@ class MessageHandler:
         """
         logging.info(f"Received SUBSCRIBE message: {msg}")
         if msg.act == SubscribeAct.ACKUPD:
-            await asyncio.create_task(self.subscribe_ackupd_service(msg))
+            asyncio.create_task(self.subscribe_ackupd_service(msg))
         elif msg.act == SubscribeAct.FIN:
             await self.get_cctx_and_put(msg.context, AppConfig.id, msg.oid, msg)
         else:

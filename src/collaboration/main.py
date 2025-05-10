@@ -21,6 +21,7 @@ async def main():
                         filemode='w',
                         format='%(asctime)s - %(levelname)s - %(message)s')
     logging.info("协同模块启动")
+    
     try:
         await collaborationManager.loop()
     except KeyboardInterrupt:
@@ -28,4 +29,5 @@ async def main():
         logging.info("接收到 Ctrl + C，程序退出。")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.get_event_loop().set_debug(True)
+    asyncio.run(main(), debug=True)
