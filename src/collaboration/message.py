@@ -363,7 +363,7 @@ class SendEndMessage(Message):
 
 @dataclass
 class RecvEndMessage(Message):
-    sid: int
+    sid: AppConfig.sid_t
 
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvEndMessage":
