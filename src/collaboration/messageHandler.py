@@ -24,7 +24,7 @@ class CContextCotorState(IntEnum):
     CLOSED = auto()          # 已终止
 
     def __str__(self):
-        return self.name
+        return "CContextCotorState." + self.name
 
     def handle(self, 
                pending_func: Optional[Callable[[], None]],
@@ -52,7 +52,7 @@ class CContextCoteeState(IntEnum):
     CLOSED = auto()          # 已终止
 
     def __str__(self):
-        return self.name
+        return "CContextCoteeState." + self.name
 
     def handle(self,
                pending_func: Optional[Callable[[], None]],
@@ -78,7 +78,7 @@ class BCContextState(IntEnum):
     CLOSED = auto()          # 已终止
 
     def __str__(self):
-        return self.name
+        return "BCContextState." + self.name
 
 class CSContextCotorState(IntEnum):
     PENDING = auto()         # 初始状态
@@ -87,7 +87,7 @@ class CSContextCotorState(IntEnum):
     SENDEND = auto()         # 已经发出SENDEND
 
     def __str__(self):
-        return self.name
+        return 'CSContextCotorState.' + self.name
 
     def handle(self,
                pending_func: Optional[Callable[[], None]],
@@ -114,7 +114,7 @@ class CSContextCoteeState(IntEnum):
     RECVEND = auto()         # 已经收到RECVEND
 
     def __str__(self):
-        return self.name
+        return "CSContextCotorState." + self.name
 
     def handle(self,
                pending_func: Optional[Callable[[], None]],
@@ -649,7 +649,6 @@ class MessageHandler:
         coopMapType = 1
         bearCap = 1
         bcctx = BCContext(cid, self)
-        bcctx.state = BCContextState.PENDING
         self.add_bcctx(bcctx)
         await self.tx_handler.brocastsub(AppConfig.id, AppConfig.topic, cid, coopMap, coopMapType, bearCap)
         bcctx.to_waitbnnty()
@@ -800,7 +799,7 @@ class MessageHandler:
         bcctx = self.get_bcctx(msg.context)
         if bcctx == None:
             # 可能是超时或消息发送错误
-            logging.warning(f"收到BROADCASTSUBNTY, 广播对话context:{msg.context}不存在")
+            logging.warning(f"收到BROADCASTSUBNTY, 广播对话 context:{msg.context} 不存在")
             return
         server_assert(bcctx.state != BCContextState.PENDING)
 
@@ -816,7 +815,7 @@ class MessageHandler:
             else:
                 logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUBNTY")
         elif bcctx.state == BCContextState.CLOSED:
-            logging.warning(f"收到BROADCASTSUBNTY, 但对应context:{msg.context}已超时")
+            logging.warning(f"收到BROADCASTSUBNTY, 但对应 context:{msg.context} 已超时")
             pass
 
     async def notify_service(self, msg: NotifyMessage):
@@ -828,10 +827,10 @@ class MessageHandler:
         logging.debug(f"APP serve message {msg}")
         cctx = self.get_cctx(msg.context, msg.oid, AppConfig.id)
         if cctx == None:
-            server_logic_error(f"收到NOTIFY, 但对应context:{msg.context}不存在")
+            server_logic_error(f"收到NOTIFY, 但对应 context:{msg.context} 不存在")
             return
         if cctx.is_cotor():
-            server_logic_error(f"收到NOTIFY, 但对应context:{msg.context}中local是cotor")
+            server_logic_error(f"收到NOTIFY, 但对应 context:{msg.context} 中local是cotor")
             return
         server_assert(cctx.state != CContextCoteeState.PENDING)
 
@@ -841,14 +840,14 @@ class MessageHandler:
             elif msg.act == NotifyAct.FIN:
                 cctx.to_closed()
             elif msg.act == NotifyAct.NTY:
-                server_logic_error(f"收到NOTIFY.NTY, 但对应context:{msg.context}中状态是WAITNTY, 不应该收到NOTIFY.NTY")
+                server_logic_error(f"收到NOTIFY.NTY, 但对应 context:{msg.context} 中状态是WAITNTY, 不应该收到NOTIFY.NTY")
         elif cctx.state == CContextCoteeState.SUBSCRIBING:
             if msg.act == NotifyAct.ACK:
-                server_logic_error(f"收到NOTIFY.ACK, 但对应context:{msg.context}中状态是SUBSCRIBING, 不应该收到NOTIFY.ACK")
+                server_logic_error(f"收到NOTIFY.ACK, 但对应 context:{msg.context} 中状态是SUBSCRIBING, 不应该收到NOTIFY.ACK")
             elif msg.act == NotifyAct.FIN:
                 cctx.to_closed()
             elif msg.act == NotifyAct.NTY:
-                server_not_implemented(f"收到NOTIFY.ACK, 对应context:{msg.context}中状态是SUBSCRIBING")
+                server_not_implemented(f"收到NOTIFY.ACK, 对应 context:{msg.context} 中状态是SUBSCRIBING")
 
     async def subscribe_ackupd_service(self, msg: SubscribeMessage):
         """

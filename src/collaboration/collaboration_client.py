@@ -13,6 +13,21 @@ class CollaborationClient:          # 协同感知子系统的Client类，用于
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         self.__collaboration_stub = Service_pb2_grpc.CollaborationServiceStub(collaboration_channel)
 
+    def get_others_poses_and_pcds(self):  # 从协同感知子系统获取所有他车雷达位姿和点云
+        try:
+            response = self.__collaboration_stub.GetOthersPosesAndPCDs(Service_pb2.Empty(), timeout=10)  # 请求协同感知子系统并获得响应
+        except grpc.RpcError as e:  # 捕获grpc异常
+            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            return -1, -1, -1, -1
+
+        ids = response.ids  # 所有他车的id
+        timestamps = response.timestamps  # 所有他车传递协作图对应的时间戳
+        # 所有他车的雷达位姿
+        others_poses = np.frombuffer(response.poses.data, dtype=response.poses.dtype).reshape(response.poses.shape)
+        # 所有他车的点云
+        others_pcds = np.frombuffer(response.PCDs.data, dtype=response.PCDs.dtype).reshape(response.PCDs.shape)
+        return ids, timestamps, others_poses, others_pcds
+
     def get_others_info(self):  # 从协同感知子系统获取所有他车信息
         try:
             response = self.__collaboration_stub.GetOthersInfo(Service_pb2.Empty(), timeout=10)  # 请求协同感知子系统并获得响应

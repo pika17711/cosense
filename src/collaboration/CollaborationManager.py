@@ -114,7 +114,7 @@ class CollaborationManager:
         ts1, pose, velocity, acceleration = self.perception_client.get_my_pva_info()
         ts2, extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
         ts3, feat = self.perception_client.get_my_feature()
-        infodto = InfoDTO.InfoDTO(1, AppConfig.id, extrinsic_matrix, None, None, feat, ts3, velocity, ts1, pose, ts1, acceleration, ts2)
+        infodto = InfoDTO.InfoDTO(1, AppConfig.id, extrinsic_matrix, None, None, feat, ts3, velocity, ts1, pose, ts1, acceleration, ts2, None, None)
         data = InfoDTO.InfoDTOSerializer.serialize(infodto)
         return data
 

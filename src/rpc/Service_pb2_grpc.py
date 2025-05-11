@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from rpc import Service_pb2 as Service__pb2
+from . import Service_pb2 as Service__pb2
 
 GRPC_GENERATED_VERSION = '1.70.0'
 GRPC_VERSION = grpc.__version__
@@ -35,36 +35,60 @@ class PerceptionServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.GetMyPCD = channel.unary_unary(
+                '/service.PerceptionService/GetMyPCD',
+                request_serializer=Service__pb2.Empty.SerializeToString,
+                response_deserializer=Service__pb2.PCD.FromString,
+                _registered_method=True)
+        self.GetMyPoseAndPCD = channel.unary_unary(
+                '/service.PerceptionService/GetMyPoseAndPCD',
+                request_serializer=Service__pb2.Empty.SerializeToString,
+                response_deserializer=Service__pb2.PoseAndPCD.FromString,
+                _registered_method=True)
         self.GetMyFeature = channel.unary_unary(
                 '/service.PerceptionService/GetMyFeature',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.MyFeature.FromString,
+                response_deserializer=Service__pb2.Feature.FromString,
                 _registered_method=True)
         self.GetMyConfMap = channel.unary_unary(
                 '/service.PerceptionService/GetMyConfMap',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.MyConfMap.FromString,
+                response_deserializer=Service__pb2.ConfMap.FromString,
                 _registered_method=True)
         self.GetMyCommMask = channel.unary_unary(
                 '/service.PerceptionService/GetMyCommMask',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.MyCommMask.FromString,
+                response_deserializer=Service__pb2.CommMask.FromString,
                 _registered_method=True)
         self.GetMyPVAInfo = channel.unary_unary(
                 '/service.PerceptionService/GetMyPVAInfo',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.MyPVAInfo.FromString,
+                response_deserializer=Service__pb2.PVAInfo.FromString,
                 _registered_method=True)
         self.GetMyExtrinsicMatrix = channel.unary_unary(
                 '/service.PerceptionService/GetMyExtrinsicMatrix',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.MyExtrinsicMatrix.FromString,
+                response_deserializer=Service__pb2.ExtrinsicMatrix.FromString,
                 _registered_method=True)
 
 
 class PerceptionServiceServicer(object):
     """感知子系统
     """
+
+    def GetMyPCD(self, request, context):
+        """向其他进程提供“获取自车点云”的服务
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetMyPoseAndPCD(self, request, context):
+        """向其他进程提供“获取自车雷达位姿点云”的服务
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetMyFeature(self, request, context):
         """向其他进程提供“获取自车特征”的服务
@@ -104,30 +128,40 @@ class PerceptionServiceServicer(object):
 
 def add_PerceptionServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'GetMyPCD': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMyPCD,
+                    request_deserializer=Service__pb2.Empty.FromString,
+                    response_serializer=Service__pb2.PCD.SerializeToString,
+            ),
+            'GetMyPoseAndPCD': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMyPoseAndPCD,
+                    request_deserializer=Service__pb2.Empty.FromString,
+                    response_serializer=Service__pb2.PoseAndPCD.SerializeToString,
+            ),
             'GetMyFeature': grpc.unary_unary_rpc_method_handler(
                     servicer.GetMyFeature,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.MyFeature.SerializeToString,
+                    response_serializer=Service__pb2.Feature.SerializeToString,
             ),
             'GetMyConfMap': grpc.unary_unary_rpc_method_handler(
                     servicer.GetMyConfMap,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.MyConfMap.SerializeToString,
+                    response_serializer=Service__pb2.ConfMap.SerializeToString,
             ),
             'GetMyCommMask': grpc.unary_unary_rpc_method_handler(
                     servicer.GetMyCommMask,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.MyCommMask.SerializeToString,
+                    response_serializer=Service__pb2.CommMask.SerializeToString,
             ),
             'GetMyPVAInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.GetMyPVAInfo,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.MyPVAInfo.SerializeToString,
+                    response_serializer=Service__pb2.PVAInfo.SerializeToString,
             ),
             'GetMyExtrinsicMatrix': grpc.unary_unary_rpc_method_handler(
                     servicer.GetMyExtrinsicMatrix,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.MyExtrinsicMatrix.SerializeToString,
+                    response_serializer=Service__pb2.ExtrinsicMatrix.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -140,6 +174,60 @@ def add_PerceptionServiceServicer_to_server(servicer, server):
 class PerceptionService(object):
     """感知子系统
     """
+
+    @staticmethod
+    def GetMyPCD(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/service.PerceptionService/GetMyPCD',
+            Service__pb2.Empty.SerializeToString,
+            Service__pb2.PCD.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetMyPoseAndPCD(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/service.PerceptionService/GetMyPoseAndPCD',
+            Service__pb2.Empty.SerializeToString,
+            Service__pb2.PoseAndPCD.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def GetMyFeature(request,
@@ -157,7 +245,7 @@ class PerceptionService(object):
             target,
             '/service.PerceptionService/GetMyFeature',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.MyFeature.FromString,
+            Service__pb2.Feature.FromString,
             options,
             channel_credentials,
             insecure,
@@ -184,7 +272,7 @@ class PerceptionService(object):
             target,
             '/service.PerceptionService/GetMyConfMap',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.MyConfMap.FromString,
+            Service__pb2.ConfMap.FromString,
             options,
             channel_credentials,
             insecure,
@@ -211,7 +299,7 @@ class PerceptionService(object):
             target,
             '/service.PerceptionService/GetMyCommMask',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.MyCommMask.FromString,
+            Service__pb2.CommMask.FromString,
             options,
             channel_credentials,
             insecure,
@@ -238,7 +326,7 @@ class PerceptionService(object):
             target,
             '/service.PerceptionService/GetMyPVAInfo',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.MyPVAInfo.FromString,
+            Service__pb2.PVAInfo.FromString,
             options,
             channel_credentials,
             insecure,
@@ -265,7 +353,7 @@ class PerceptionService(object):
             target,
             '/service.PerceptionService/GetMyExtrinsicMatrix',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.MyExtrinsicMatrix.FromString,
+            Service__pb2.ExtrinsicMatrix.FromString,
             options,
             channel_credentials,
             insecure,
@@ -287,6 +375,11 @@ class CollaborationServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.GetOthersPosesAndPCDs = channel.unary_unary(
+                '/service.CollaborationService/GetOthersPosesAndPCDs',
+                request_serializer=Service__pb2.Empty.SerializeToString,
+                response_deserializer=Service__pb2.OthersPosesAndPCDs.FromString,
+                _registered_method=True)
         self.GetOthersInfo = channel.unary_unary(
                 '/service.CollaborationService/GetOthersInfo',
                 request_serializer=Service__pb2.Empty.SerializeToString,
@@ -302,6 +395,13 @@ class CollaborationServiceStub(object):
 class CollaborationServiceServicer(object):
     """协同感知子系统
     """
+
+    def GetOthersPosesAndPCDs(self, request, context):
+        """向其他进程提供“获取所有他车雷达位姿和点云”的服务
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetOthersInfo(self, request, context):
         """向其他进程提供“获取所有他车信息”的服务
@@ -320,6 +420,11 @@ class CollaborationServiceServicer(object):
 
 def add_CollaborationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'GetOthersPosesAndPCDs': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetOthersPosesAndPCDs,
+                    request_deserializer=Service__pb2.Empty.FromString,
+                    response_serializer=Service__pb2.OthersPosesAndPCDs.SerializeToString,
+            ),
             'GetOthersInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.GetOthersInfo,
                     request_deserializer=Service__pb2.Empty.FromString,
@@ -341,6 +446,33 @@ def add_CollaborationServiceServicer_to_server(servicer, server):
 class CollaborationService(object):
     """协同感知子系统
     """
+
+    @staticmethod
+    def GetOthersPosesAndPCDs(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/service.CollaborationService/GetOthersPosesAndPCDs',
+            Service__pb2.Empty.SerializeToString,
+            Service__pb2.OthersPosesAndPCDs.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def GetOthersInfo(request,
@@ -410,17 +542,22 @@ class DetectionServiceStub(object):
         self.GetFusedFeature = channel.unary_unary(
                 '/service.DetectionService/GetFusedFeature',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.FusedFeature.FromString,
+                response_deserializer=Service__pb2.Feature.FromString,
                 _registered_method=True)
         self.GetFusedCommMask = channel.unary_unary(
                 '/service.DetectionService/GetFusedCommMask',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.FusedCommMask.FromString,
+                response_deserializer=Service__pb2.CommMask.FromString,
                 _registered_method=True)
         self.GetLatestPredBox = channel.unary_unary(
                 '/service.DetectionService/GetLatestPredBox',
                 request_serializer=Service__pb2.Empty.SerializeToString,
                 response_deserializer=Service__pb2.PredBox.FromString,
+                _registered_method=True)
+        self.PCD2Feature = channel.unary_unary(
+                '/service.DetectionService/PCD2Feature',
+                request_serializer=Service__pb2.PCD.SerializeToString,
+                response_deserializer=Service__pb2.Feature.FromString,
                 _registered_method=True)
         self.PCD2FeatureAndConfMap = channel.unary_unary(
                 '/service.DetectionService/PCD2FeatureAndConfMap',
@@ -429,12 +566,12 @@ class DetectionServiceStub(object):
                 _registered_method=True)
         self.Feature2ConfMap = channel.unary_unary(
                 '/service.DetectionService/Feature2ConfMap',
-                request_serializer=Service__pb2.FeatureRequest.SerializeToString,
+                request_serializer=Service__pb2.Feature.SerializeToString,
                 response_deserializer=Service__pb2.ConfMap.FromString,
                 _registered_method=True)
         self.Feature2PredBox = channel.unary_unary(
                 '/service.DetectionService/Feature2PredBox',
-                request_serializer=Service__pb2.FeatureRequest.SerializeToString,
+                request_serializer=Service__pb2.Feature.SerializeToString,
                 response_deserializer=Service__pb2.PredBox.FromString,
                 _registered_method=True)
 
@@ -459,6 +596,13 @@ class DetectionServiceServicer(object):
 
     def GetLatestPredBox(self, request, context):
         """向其他进程提供“获取最新检测框”的服务
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PCD2Feature(self, request, context):
+        """向其他进程提供“根据点云获取特征”的服务
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -491,17 +635,22 @@ def add_DetectionServiceServicer_to_server(servicer, server):
             'GetFusedFeature': grpc.unary_unary_rpc_method_handler(
                     servicer.GetFusedFeature,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.FusedFeature.SerializeToString,
+                    response_serializer=Service__pb2.Feature.SerializeToString,
             ),
             'GetFusedCommMask': grpc.unary_unary_rpc_method_handler(
                     servicer.GetFusedCommMask,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.FusedCommMask.SerializeToString,
+                    response_serializer=Service__pb2.CommMask.SerializeToString,
             ),
             'GetLatestPredBox': grpc.unary_unary_rpc_method_handler(
                     servicer.GetLatestPredBox,
                     request_deserializer=Service__pb2.Empty.FromString,
                     response_serializer=Service__pb2.PredBox.SerializeToString,
+            ),
+            'PCD2Feature': grpc.unary_unary_rpc_method_handler(
+                    servicer.PCD2Feature,
+                    request_deserializer=Service__pb2.PCD.FromString,
+                    response_serializer=Service__pb2.Feature.SerializeToString,
             ),
             'PCD2FeatureAndConfMap': grpc.unary_unary_rpc_method_handler(
                     servicer.PCD2FeatureAndConfMap,
@@ -510,12 +659,12 @@ def add_DetectionServiceServicer_to_server(servicer, server):
             ),
             'Feature2ConfMap': grpc.unary_unary_rpc_method_handler(
                     servicer.Feature2ConfMap,
-                    request_deserializer=Service__pb2.FeatureRequest.FromString,
+                    request_deserializer=Service__pb2.Feature.FromString,
                     response_serializer=Service__pb2.ConfMap.SerializeToString,
             ),
             'Feature2PredBox': grpc.unary_unary_rpc_method_handler(
                     servicer.Feature2PredBox,
-                    request_deserializer=Service__pb2.FeatureRequest.FromString,
+                    request_deserializer=Service__pb2.Feature.FromString,
                     response_serializer=Service__pb2.PredBox.SerializeToString,
             ),
     }
@@ -546,7 +695,7 @@ class DetectionService(object):
             target,
             '/service.DetectionService/GetFusedFeature',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.FusedFeature.FromString,
+            Service__pb2.Feature.FromString,
             options,
             channel_credentials,
             insecure,
@@ -573,7 +722,7 @@ class DetectionService(object):
             target,
             '/service.DetectionService/GetFusedCommMask',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.FusedCommMask.FromString,
+            Service__pb2.CommMask.FromString,
             options,
             channel_credentials,
             insecure,
@@ -601,6 +750,33 @@ class DetectionService(object):
             '/service.DetectionService/GetLatestPredBox',
             Service__pb2.Empty.SerializeToString,
             Service__pb2.PredBox.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PCD2Feature(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/service.DetectionService/PCD2Feature',
+            Service__pb2.PCD.SerializeToString,
+            Service__pb2.Feature.FromString,
             options,
             channel_credentials,
             insecure,
@@ -653,7 +829,7 @@ class DetectionService(object):
             request,
             target,
             '/service.DetectionService/Feature2ConfMap',
-            Service__pb2.FeatureRequest.SerializeToString,
+            Service__pb2.Feature.SerializeToString,
             Service__pb2.ConfMap.FromString,
             options,
             channel_credentials,
@@ -680,7 +856,7 @@ class DetectionService(object):
             request,
             target,
             '/service.DetectionService/Feature2PredBox',
-            Service__pb2.FeatureRequest.SerializeToString,
+            Service__pb2.Feature.SerializeToString,
             Service__pb2.PredBox.FromString,
             options,
             channel_credentials,

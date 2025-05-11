@@ -8,7 +8,76 @@ from rpc import Service_pb2
 from rpc import Service_pb2_grpc
 
 
+class SharedOthersInfo:
+    def __init__(self):
+        self.__ids = []               # 初始化为空数组
+        self.__timestamps = []        # 初始化为空数组
+        self.__poses = np.array([])   # 初始化为空数组
+        self.__pcds = np.array([])    # 初始化为空数组
+
+        self.__ids_lock = threading.Lock()
+        self.__timestamps_lock = threading.Lock()
+        self.__poses_lock = threading.Lock()
+        self.__pcds_lock = threading.Lock()
+
+    def update_ids(self, ids):
+        with self.__ids_lock:
+            self.__ids = ids  # 线程安全更新
+
+    def update_timestamps(self, timestamps):
+        with self.__timestamps_lock:
+            self.__timestamps = timestamps  # 线程安全更新
+
+    def update_poses(self, poses):
+        with self.__poses_lock:
+            self.__poses = poses  # 线程安全更新
+
+    def update_pcds(self, pcds):
+        with self.__pcds_lock:
+            self.__pcds = pcds  # 线程安全更新
+
+    def get_ids_copy(self):
+        with self.__ids_lock:
+            return self.__ids.copy()
+
+    def get_timestamps_copy(self):
+        with self.__timestamps_lock:
+            return self.__timestamps.copy()
+
+    def get_poses_copy(self):
+        with self.__poses_lock:
+            return self.__poses.copy() if self.__poses.size > 0 else self.__poses
+
+    def get_pcds_copy(self):
+        with self.__pcds_lock:
+            return self.__pcds.copy() if self.__pcds.size > 0 else self.__pcds
+
+
 class CollaborationService(Service_pb2_grpc.CollaborationServiceServicer):  # 协同感知子系统的Service类
+    def __init__(self, others_info):
+        self.others_info = others_info
+
+    def GetOthersPosesAndPCDs(self, request, context):  # 协同感知子系统向其他进程提供“获取所有他车雷达位姿和点云”的服务
+        ids = self.others_info.get_ids_copy()
+        timestamps = self.others_info.get_timestamps_copy()
+        poses = self.others_info.get_poses_copy()
+        pcds = self.others_info.get_pcds_copy()
+
+        return Service_pb2.OthersPosesAndPCDs(  # 序列化并返回所有他车雷达位姿和点云
+            ids=ids,
+            timestamps=timestamps,
+            poses=Service_pb2.NdArray(
+                data=poses.tobytes(),
+                dtype=str(poses.dtype),
+                shape=list(poses.shape)
+            ),
+            PCDs=Service_pb2.NdArray(
+                data=pcds.tobytes(),
+                dtype=str(pcds.dtype),
+                shape=list(pcds.shape)
+            )
+        )
+
     def GetOthersInfo(self, request, context):  # 协同感知子系统向其他进程提供“获取所有他车信息”的服务
         ids = []                # 所有他车的id
         timestamps = []         # 所有他车传递信息对应的时间戳
@@ -104,11 +173,15 @@ class CollaborationService(Service_pb2_grpc.CollaborationServiceServicer):  # �
 
 
 class CollaborationServerThread(threading.Thread):                          # 协同感知子系统的Server线程
+    def __init__(self, others_info):
+        super().__init__()
+        self.others_info = others_info
+
     def run(self):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),                     # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_CollaborationServiceServicer_to_server(CollaborationService(), server)
+        Service_pb2_grpc.add_CollaborationServiceServicer_to_server(CollaborationService(self.others_info), server)
         server.add_insecure_port('[::]:50052')
         server.start()                              # 非阻塞, 会实例化一个新线程来处理请求
         print("Collaboration Server is up and running on port 50052.")

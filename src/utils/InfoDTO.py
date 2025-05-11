@@ -11,18 +11,18 @@ class InfoDTO:
     lidar2world: np.ndarray # 雷达到世界的外参矩阵
     camera2world: Optional[np.ndarray] # 相机到世界的外参矩阵
     camera_intrinsic: Optional[np.ndarray] # 相机的内参矩阵
-
     feat: Dict[str, np.ndarray] # 特征 {'voxel_features': array, 'voxel_coords': array, 'voxel_num_points': array}
-    ts_feat: int # 时间戳
+    ts_feat: AppConfig.timestamp_t # 时间戳
     speed: np.ndarray # 速度
-    ts_speed: int # 时间戳
+    ts_speed: AppConfig.timestamp_t # 时间戳
     pos: np.ndarray # 位置
-    ts_pos: int # 时间戳
+    ts_pos: AppConfig.timestamp_t # 时间戳
     acc: np.ndarray # 加速度
-    ts_acc: int # 时间戳
+    ts_acc: AppConfig.timestamp_t # 时间戳
+    pcd: Optional[np.ndarray] # 点云 for vis and debug
+    ts_pcd: AppConfig.timestamp_t # 时间戳
 
 class InfoDTOSerializer:
-    
     @staticmethod
     def serialize(info_dto: InfoDTO, protocol: int = 4, compress: bool = False) -> bytes:
         """

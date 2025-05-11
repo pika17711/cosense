@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import hashlib
 import json
+import logging
 from typing import List, Optional, Any, Tuple, Union
 import traceback
 import concurrent.futures
@@ -23,6 +24,12 @@ def load_json(file_path: str):
 
 def server_assert(expr, info=''):
     assert expr, info
+
+def server_logic_error(info: str):
+    logging.warning(info)
+
+def server_not_implemented(info: str):
+    logging.warning(info)
 
 def sync_to_async(sync_func):
     async def wrapper(*args, **kwargs):
