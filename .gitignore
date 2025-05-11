@@ -173,10 +173,12 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# custom
 .vscode
 logs
 pids
 datasets
 *.egg-info
+src/*.egg-info
 *.tar
 *.tar.gz
