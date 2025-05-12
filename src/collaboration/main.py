@@ -5,15 +5,11 @@ sys.path.append(parent_dir)
 import asyncio
 import logging
 from collaboration.CollaborationManager import CollaborationManager
-from config import parse_config_file
 
 async def main():
     if len(sys.argv) > 1:
-        logging.info("Usage: python main.py [configpath]")
+        logging.info("Usage: python main.py")
         exit(-1)
-
-    if len(sys.argv) == 1:
-        parse_config_file(sys.argv[0])
 
     collaborationManager = CollaborationManager()
     logging.basicConfig(level=logging.DEBUG, 

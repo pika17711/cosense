@@ -1,4 +1,2 @@
-co
-mes
-sense
+collaboration
 utils

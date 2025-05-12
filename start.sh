@@ -7,10 +7,10 @@
 COLLABORATION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/rospy/bin/python3"
 COLLABORATION_MAIN="src/collaboration/main.py"
 
-DETECTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/interoepra/bin/python3"
+DETECTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/cosense_detection/bin/python3"
 DETECTION_MAIN="src/detection/main.py"
 
-PERCEPTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/interoepra/bin/python3"
+PERCEPTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/cosense_detection/bin/python3"
 PERCEPTION_MAIN="src/perception/main.py"
 
 PRESENTATION_PYTHON="/path/to/presentation/python"
@@ -181,9 +181,9 @@ case "$command" in
             echo -e "${GREEN}正在启动所有服务...${NC}"
             
             # 先启动后台服务
-            start_service "detection" "$DETECTION_PYTHON" "$DETECTION_MAIN" "$DETECTION_PID" "false"
             start_service "perception" "$PERCEPTION_PYTHON" "$PERCEPTION_MAIN" "$PERCEPTION_PID" "false"
-            start_service "presentation" "$PRESENTATION_PYTHON" "$PRESENTATION_MAIN" "$PRESENTATION_PID" "false"
+            start_service "detection" "$DETECTION_PYTHON" "$DETECTION_MAIN" "$DETECTION_PID" "false"
+            # start_service "presentation" "$PRESENTATION_PYTHON" "$PRESENTATION_MAIN" "$PRESENTATION_PID" "false"
             
             # 最后启动前台服务
             echo -e "${GREEN}现在启动 collaboration 模块（前台运行）...${NC}"

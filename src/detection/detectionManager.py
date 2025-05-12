@@ -135,7 +135,7 @@ class DetectionManager:
             last_t = t
 
             my_timestamp, my_pose, my_pcd = self.perception_client.get_my_pose_and_pcd()
-            if my_timestamp:
+            if my_timestamp == -1:
                 print("perception子系统未启动")
                 continue
             # print(my_pose)
@@ -178,7 +178,7 @@ class DetectionManager:
 
                 pred_box_tensor, pred_score = \
                     inference_utils.inference_intermediate_fusion(batch_data, self.model, self.dataset)
-            print(len(pred_box_tensor))
+            print(pred_box_tensor, file=open('result', 'w'))
             if self.opt.show_vis:
                 pcd = o3d.geometry.PointCloud()
                 origin_lidar = np.asarray(batch_data['ego']['origin_lidar'].cpu())[:, :3]
@@ -212,7 +212,7 @@ class DetectionManager:
                 # 渲染场景
                 self.vis.poll_events()
                 self.vis.update_renderer()
-                # save_path = 'vis.png'
+                save_path = 'vis.png'
                 # 截图并保存
-                # self.vis.capture_screen_image(save_path)
-                # print(f"Saved visualization to {save_path}")
+                self.vis.capture_screen_image(save_path, do_render=True)
+                print(f"Saved visualization to {save_path}")

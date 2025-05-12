@@ -1,9 +1,10 @@
 import asyncio
+from dataclasses import fields
 import datetime
 import hashlib
 import json
 import logging
-from typing import List, Optional, Any, Tuple, Union
+from typing import List, Optional, Any, Tuple, Type, TypeVar, Union
 import traceback
 import concurrent.futures
 from config import AppConfig
@@ -18,9 +19,38 @@ def panic():
     assert False
 
 def load_json(file_path: str):
-    fp = open(file_path, "r")
-    d = json.load(fp)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+    except FileNotFoundError:
+        d = None
+    except json.JSONDecodeError as e:
+        d = None
     return d
+
+
+T = TypeVar('T')
+
+def load_config(cls: Type[T], file_path: str) -> T:
+    """
+    从JSON文件加载配置到数据类
+    
+    参数:
+        cls: 数据类类型
+        file_path: JSON配置文件路径
+        
+    返回:
+        数据类的实例，包含加载的配置
+    """
+    d = load_json(file_path)
+    if d is None:
+        config_data = {}
+    else:
+        config_data = d
+    field_types = {f.name: f.type for f in fields(cls)}
+
+    valid_fields = {k: v for k, v in config_data.items() if k in field_types}
+    return cls(**valid_fields)
 
 def server_assert(expr, info=''):
     assert expr, info

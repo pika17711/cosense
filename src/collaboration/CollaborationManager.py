@@ -123,7 +123,7 @@ class CollaborationManager:
         while self.running:
             subeds = self.message_handler.get_subscribed()
             data = await sync_to_async(self.get_all_data)()
-            logging.info(f"订阅者数据发送, 订阅者列表{list(subeds)}, 发送数据 {len(data)}B")
+            logging.info(f"订阅者数据发送, 订阅者列表{[remote_id for remote_id in subeds]}, 发送数据 {len(data)}B")
             for cctx in subeds:
                 asyncio.create_task(cctx.send_data(data))
             await asyncio.sleep(AppConfig.send_data_period/1000)

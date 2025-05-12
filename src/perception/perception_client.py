@@ -14,10 +14,12 @@ class PerceptionClient:                                 # 感知子系统的Clie
         self.__perception_stub = Service_pb2_grpc.PerceptionServiceStub(perception_channel)
 
     def get_my_pcd(self):       # 从感知子系统获取自车点云
+        return -1, -1
+
         try:
             response = self.__perception_stub.GetMyPCD(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -27,10 +29,12 @@ class PerceptionClient:                                 # 感知子系统的Clie
         return timestamp, my_pcd
 
     def get_my_pose_and_pcd(self):       # 从感知子系统获取自车雷达位姿和点云
+        return -1, -1, -1
+
         try:
             response = self.__perception_stub.GetMyPoseAndPCD(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -43,10 +47,11 @@ class PerceptionClient:                                 # 感知子系统的Clie
         return timestamp, my_pose, my_pcd
 
     def get_my_feature(self):  # 从感知子系统获取自车特征
+        return -1, -1
         try:
             response = self.__perception_stub.GetMyFeature(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -70,10 +75,11 @@ class PerceptionClient:                                 # 感知子系统的Clie
         return timestamp, my_feature
 
     def get_my_conf_map(self):  # 从感知子系统获取自车置信图
+        return -1, -1
         try:
             response = self.__perception_stub.GetMyConfMap(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -83,10 +89,11 @@ class PerceptionClient:                                 # 感知子系统的Clie
         return timestamp, my_conf_map
 
     def get_my_comm_mask(self):  # 从感知子系统获取自车协作图
+        return -1, -1
         try:
             response = self.__perception_stub.GetMyCommMask(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -96,10 +103,11 @@ class PerceptionClient:                                 # 感知子系统的Clie
         return timestamp, my_comm_mask
 
     def get_my_pva_info(self):  # 从感知子系统获取自车位置、速度、加速度信息
+        return -1, -1, -1, -1
         try:
             response = self.__perception_stub.GetMyPVAInfo(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1, -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -118,7 +126,7 @@ class PerceptionClient:                                 # 感知子系统的Clie
         try:
             response = self.__perception_stub.GetMyExtrinsicMatrix(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳

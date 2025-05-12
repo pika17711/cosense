@@ -40,7 +40,7 @@ class MessageID(IntEnum):
         return "应用->控制层" if msg_id in to_control else "控制层->应用"
     
     @classmethod
-    def is_control(cls, msg_id) -> str:
+    def is_control(cls, msg_id) -> bool:
         control_mids = {
             cls.APPREG, cls.APPRSP,
             cls.BROCASTPUB, cls.BROCASTSUB, cls.BROCASTSUBNTY,
