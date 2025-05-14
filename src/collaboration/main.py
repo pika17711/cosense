@@ -29,11 +29,11 @@ def main():
 
     cfg = CollaborationConfig()
     log_init(cfg)
-    ICP_init(cfg)
+    icp_client, icp_server = ICP_init(cfg)
 
     perception_client = PerceptionClient()
     ctable = CollaborationTable(cfg)
-    tx_handler = transactionHandlerSync(cfg)
+    tx_handler = transactionHandlerSync(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, tx_handler)
     message_handler = MessageHandlerSync(cfg, ctable, tx_handler, perception_client, collaboration_service)
     collaborationManager = CollaborationManager(cfg, ctable, message_handler, perception_client, collaboration_service)

@@ -12,6 +12,7 @@ from collaboration.messageHandlerSync import MessageHandlerSync
 from collaboration.collaborationConfig import CollaborationConfig
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
+from utils.common import ms2s
 
 class CollaborationManager:
     def __init__(self, 
@@ -113,7 +114,7 @@ class CollaborationManager:
         while self.running:
             if self.broadcastpub_event.is_set():
                 self.collaboration_service.broadcastpub_send()
-                sleep(self.cfg.broadcastpub_period/1000)
+                sleep(ms2s(self.cfg.broadcastpub_period))
             else:
                 self.broadcastpub_event.wait()
 
@@ -130,7 +131,7 @@ class CollaborationManager:
         while self.running:
             if self.broadcastsub_event.is_set():
                 self.collaboration_service.broadcastsub_send()
-                sleep(self.cfg.broadcastsub_period/1000)
+                sleep(ms2s(self.cfg.broadcastsub_period))
             else:
                 self.broadcastsub_event.wait()
 

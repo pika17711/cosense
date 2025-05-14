@@ -13,7 +13,7 @@ import AppType
 from collaboration.collaborationConfig import CollaborationConfig
 from collaboration.messageID import MessageID
 from collaboration.message import AckMessage, Message
-from collaboration.ICP import icp_client, icp_server
+from collaboration.ICP import ICPServer, ICPClient
 from utils.common import ms2s
 
 class txContext:
@@ -31,7 +31,11 @@ class transactionHandlerSync:
                 1. 保证消息在通信子系统向应用发送的消息可靠传输.
                 2. 失败重试
     """
-    def __init__(self, cfg: CollaborationConfig):
+    def __init__(self, 
+                 cfg: CollaborationConfig, 
+                 icp_server: ICPServer,
+                 icp_client: ICPClient,
+                 ):
         self.cfg = cfg
         self.recv_queue = Queue()
         self.tid_counter = random.randint(0, 1 << 20)
