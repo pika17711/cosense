@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+import logging
+from queue import Queue
+from threading import Thread
+from typing import Callable, Dict
+
+from collaboration.collaborationConfig import CollaborationConfig
+from collaboration.collaborationTable import CollaborationTable
+from collaboration.transactionHandlerSync import transactionHandlerSync
+from collaboration.collaborationService import CollaborationService
+
+from perception.perception_client import PerceptionClient
+
+from collaboration.message import Message, NotifyAct, SubscribeAct
+from collaboration.messageID import MessageID
+
+class MessageHandlerSync:
+    def __init__(self, 
+                 cfg: CollaborationConfig,
+                 ctable: CollaborationTable,
+                 tx_handler: transactionHandlerSync,
+                 perception_client: PerceptionClient,
+                 collaboration_service: CollaborationService):
+
+        self.cfg = cfg
+        self.ctable = ctable
+        self.tx_handler = tx_handler
+        self.collaboration_service = collaboration_service
+        self.perception_client= perception_client
+
+        self.max_workers = cfg.message_max_workers
+        self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
+        self.running = True
+        self.msg_queue = Queue()
+
+        self.route_table: Dict[MessageID, Callable[[Message], None]] = {
+            # MessageID.APPRSP: collaboration_service.
+
+            MessageID.BROCASTPUB: collaboration_service.broadcastpub_service,
+            MessageID.BROCASTSUB: collaboration_service.broadcastsub_service,
+            MessageID.BROCASTSUBNTY: collaboration_service.broadcastsubnty_service,
+            MessageID.SUBSCRIBE: collaboration_service.subscribe_service,
+            MessageID.NOTIFY: collaboration_service.notify_service,
+            
+            MessageID.SENDRDY: collaboration_service.sendrdy_service,
+            MessageID.RECV: collaboration_service.recv_service,
+            MessageID.RECVRDY: collaboration_service.recvrdy_service,
+            MessageID.RECVEND: collaboration_service.recvend_service,
+
+            MessageID.RECVFILE: collaboration_service.recvfile_service
+        }
+
+        self.recv_thread = Thread(target=self.recv_loop, name='messageHandler recv_loop', daemon=True)
+        self.recv_thread.start()
+
+    def close(self):
+        self.running = False
+        if self.recv_thread.is_alive():
+            self.recv_thread.join(1.0)
+        self.executor.shutdown()
+        for cctx in self.ctable.get_subscribing():
+            if cctx.have_sid():
+                self.collaboration_service.sendend_send(cctx.sid) # type: ignore
+            self.collaboration_service.subscribe_send(cctx.remote_id(), SubscribeAct.FIN)
+
+        for cctx in self.ctable.get_subscribed():
+            # if cctx.have_sid():
+                # self.collaboration_service.recvend_send(cctx.sid)
+            self.collaboration_service.notify_send(cctx.cid, cctx.remote_id(), NotifyAct.FIN)
+
+    def recv_loop(self):
+        while self.running:
+            msg = self.tx_handler.recv_message()
+            self.dispatch_message(msg)
+
+    def dispatch_message(self, msg: Message):
+        mid = msg.header.mid
+        if mid in self.route_table:
+            self.executor.submit(self.route_table[mid], msg)
+        else:
+            logging.warning(f"Unhandled message type: {MessageID.get_name(mid.value)}")

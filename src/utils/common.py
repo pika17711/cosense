@@ -18,6 +18,9 @@ def panic():
     traceback.print_exc()
     assert False
 
+def ms2s(s: int) -> float:
+    return s / 1000
+
 def load_json(file_path: str):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:

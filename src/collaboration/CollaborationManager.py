@@ -1,35 +1,57 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import concurrent.futures
-from config import AppConfig
-from collaboration.messageHandler import MessageHandler
-from perception.perception_client import PerceptionClient
+import threading
+from time import sleep
 from utils import InfoDTO
-from utils.common import sync_to_async
+from perception.perception_client import PerceptionClient
+
+from collaboration.messageHandlerSync import MessageHandlerSync
+from collaboration.collaborationConfig import CollaborationConfig
+from collaboration.collaborationTable import CollaborationTable
+from collaboration.collaborationService import CollaborationService
 
 class CollaborationManager:
-    def __init__(self):
-        self.perception_client = PerceptionClient()
-        self.message_handler = MessageHandler(self.perception_client)
-        self.broadcastpub_event = asyncio.Event()
-        self.broadcastsub_event = asyncio.Event()
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    def __init__(self, 
+                 cfg: CollaborationConfig,
+                 ctable: CollaborationTable,
+                 message_handler: MessageHandlerSync,
+                 perception_client: PerceptionClient,
+                 collaboration_service: CollaborationService):
+
+        self.cfg = cfg
+        self.perception_client = perception_client
+        self.message_handler = message_handler
+        self.ctable = ctable
+        self.collaboration_service = collaboration_service
+
+        self.broadcastpub_event = threading.Event()
+        self.broadcastsub_event = threading.Event()
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self.running = True
 
-    def force_close(self):
-        self.executor.shutdown()
-        self.message_handler.force_close()
+        self.broadcastpub_loop_thread = threading.Thread(target=self.broadcastpub_loop, name='broadcastpub_loop', daemon=True)
+        self.broadcastpub_loop_thread.start()
+
+        self.broadcastsub_loop_thread = threading.Thread(target=self.broadcastsub_loop, name='broadcastsub_loop', daemon=True)
+        self.broadcastsub_loop_thread.start()
+
+        self.subscribed_send_loop_thread = threading.Thread(target=self.subscribed_send_loop, name='subscribed_send_loop', daemon=True)
+        self.subscribed_send_loop_thread.start()
+
+    def close(self):
         self.running = False
+        self.executor.shutdown()
+        if self.broadcastpub_loop_thread.is_alive():
+            self.broadcastpub_loop_thread.join(1.0)
+        if self.broadcastsub_loop_thread.is_alive():
+            self.broadcastsub_loop_thread.join(1.0)
+        if self.subscribed_send_loop_thread.is_alive():
+            self.subscribed_send_loop_thread.join(1.0)
 
-    async def loop(self):
-        tasks = [self.message_handler.recv_loop(), 
-                 self.broadcastpub_loop(), 
-                 self.broadcastsub_loop(), 
-                 self.command_loop(),
-                 self.subscribed_send_loop()]
-        await asyncio.gather(*tasks)
-
-    async def handle_command(self, argv):
+    def handle_command(self, argv):
         logging.debug(f"输入的命令是: {argv}")
         if len(argv) == 0:
             pass
@@ -55,23 +77,21 @@ class CollaborationManager:
                 print('syntax error')
         elif len(argv) == 2 and argv[0] == 'show':
             if argv[1] == 'subing':
-                print([cctx.remote_id() for cctx in self.message_handler.get_subscribing()])
+                print([cctx.remote_id() for cctx in self.ctable.get_subscribing()])
             elif argv[1] == 'subed':
-                print([cctx.remote_id() for cctx in self.message_handler.get_subscribed()])
+                print([cctx.remote_id() for cctx in self.ctable.get_subscribed()])
         else:
             print('syntax error')
         return True
 
-    async def command_loop(self):
+    def command_loop(self):
         while self.running:
             try:
-                # 异步读取用户输入
-                print("$ ", end='')
-                command = await asyncio.get_event_loop().run_in_executor(self.executor, input)
+                command = input("$ ")
                 argv = command.split()
-                should_continue = await self.handle_command(argv)
+                should_continue = self.handle_command(argv)
                 if not should_continue:
-                    self.force_close()
+                    self.close()
                     break
             except EOFError:
                 break
@@ -82,16 +102,16 @@ class CollaborationManager:
     def broadcastpub_close(self):
         self.broadcastpub_event.clear()
 
-    async def broadcastpub_send(self):
-        await self.message_handler.broadcastpub_send()
+    def broadcastpub_send(self):
+        self.collaboration_service.broadcastpub_send()
 
-    async def broadcastpub_loop(self):
+    def broadcastpub_loop(self):
         while self.running:
             if self.broadcastpub_event.is_set():
-                await self.message_handler.broadcastpub_send()
-                await asyncio.sleep(AppConfig.broadcastpub_period/1000)
+                self.collaboration_service.broadcastpub_send()
+                sleep(self.cfg.broadcastpub_period/1000)
             else:
-                await self.broadcastpub_event.wait()
+                self.broadcastpub_event.wait()
 
     def broadcastsub_open(self):
         self.broadcastsub_event.set()
@@ -99,31 +119,32 @@ class CollaborationManager:
     def broadcastsub_close(self):
         self.broadcastsub_event.clear()
 
-    async def broadcastsub_send(self):
-        await self.message_handler.broadcastsub_send()
+    def broadcastsub_send(self):
+        self.collaboration_service.broadcastsub_send()
 
-    async def broadcastsub_loop(self):
+    def broadcastsub_loop(self):
         while self.running:
             if self.broadcastsub_event.is_set():
-                await self.message_handler.broadcastsub_send()
-                await asyncio.sleep(AppConfig.broadcastsub_period/1000)
+                self.collaboration_service.broadcastsub_send()
+                sleep(self.cfg.broadcastsub_period/1000)
             else:
-                await self.broadcastsub_event.wait()
+                self.broadcastsub_event.wait()
 
     def get_all_data(self):
         ts1, pose, velocity, acceleration = self.perception_client.get_my_pva_info()
         ts2, extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
         ts3, feat = self.perception_client.get_my_feature()
-        infodto = InfoDTO.InfoDTO(1, AppConfig.id, extrinsic_matrix, None, None, feat, ts3, velocity, ts1, pose, ts1, acceleration, ts2, None, None)
+        infodto = InfoDTO.InfoDTO(1, self.cfg.id, extrinsic_matrix, None, None, feat, ts3, velocity, ts1, pose, ts1, acceleration, ts2, None, None)
         data = InfoDTO.InfoDTOSerializer.serialize(infodto)
         return data
 
-    async def subscribed_send_loop(self):
+    def subscribed_send_loop(self):
         logging.info("订阅者数据发送循环启动")
         while self.running:
-            subeds = self.message_handler.get_subscribed()
-            data = await sync_to_async(self.get_all_data)()
+            subeds = self.ctable.get_subscribed()
+            data = self.get_all_data()
             logging.info(f"订阅者数据发送, 订阅者列表{[remote_id for remote_id in subeds]}, 发送数据 {len(data)}B")
             for cctx in subeds:
-                asyncio.create_task(cctx.send_data(data))
-            await asyncio.sleep(AppConfig.send_data_period/1000)
+                self.executor.submit(self.collaboration_service.send_data, cctx, data)
+
+            sleep(self.cfg.send_data_period/1000)
