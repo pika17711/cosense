@@ -14,6 +14,7 @@ from collaboration.collaborationConfig import CollaborationConfig
 from collaboration.messageID import MessageID
 from collaboration.message import AckMessage, Message
 from collaboration.ICP import ICPServer, ICPClient
+from config import AppConfig
 from utils.common import ms2s
 
 class txContext:
@@ -32,7 +33,7 @@ class transactionHandlerSync:
                 2. 失败重试
     """
     def __init__(self, 
-                 cfg: CollaborationConfig, 
+                 cfg: AppConfig, 
                  icp_server: ICPServer,
                  icp_client: ICPClient,
                  ):
@@ -46,8 +47,9 @@ class transactionHandlerSync:
         self.msg_queue = Queue()
         self.lock = Lock()
         self.executor = ThreadPoolExecutor(max_workers=100)
-
         self.recv_thread = Thread(target=self.recv_loop, name='transactionHandler recv_loop', daemon=True)
+
+    def start_recv(self):
         self.recv_thread.start()
 
     def close(self):
@@ -92,9 +94,10 @@ class transactionHandlerSync:
     
     def recv_message(self, timeout=None):
         try:
-            self.msg_queue.get(True, timeout)
+            msg = self.msg_queue.get(True, timeout)
         except queue.Empty:
             return None
+        return msg
 
     def submit(self, func: Callable[[], None]):
         self.executor.submit(func)

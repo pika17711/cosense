@@ -5,8 +5,9 @@ import logging
 import concurrent.futures
 import threading
 from time import sleep
+from config import AppConfig
 from utils import InfoDTO
-from perception.perception_client import PerceptionClient
+from perception.perceptionRPCClient import PerceptionClient
 
 from collaboration.messageHandlerSync import MessageHandlerSync
 from collaboration.collaborationConfig import CollaborationConfig
@@ -16,7 +17,7 @@ from utils.common import ms2s
 
 class CollaborationManager:
     def __init__(self, 
-                 cfg: CollaborationConfig,
+                 cfg: AppConfig,
                  ctable: CollaborationTable,
                  message_handler: MessageHandlerSync,
                  perception_client: PerceptionClient,
@@ -35,12 +36,14 @@ class CollaborationManager:
         self.running = True
 
         self.broadcastpub_loop_thread = threading.Thread(target=self.broadcastpub_loop, name='broadcastpub_loop', daemon=True)
-        self.broadcastpub_loop_thread.start()
 
         self.broadcastsub_loop_thread = threading.Thread(target=self.broadcastsub_loop, name='broadcastsub_loop', daemon=True)
-        self.broadcastsub_loop_thread.start()
 
         self.subscribed_send_loop_thread = threading.Thread(target=self.subscribed_send_loop, name='subscribed_send_loop', daemon=True)
+
+    def start_send_loop(self):
+        self.broadcastpub_loop_thread.start()
+        self.broadcastsub_loop_thread.start()
         self.subscribed_send_loop_thread.start()
 
     def close(self):

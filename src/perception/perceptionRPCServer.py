@@ -8,7 +8,7 @@ import time
 import numpy as np
 
 
-class PerceptionService(Service_pb2_grpc.PerceptionServiceServicer):  # 感知子系统的Service类
+class PerceptionRPCService(Service_pb2_grpc.PerceptionServiceServicer):  # 感知子系统的Service类
     def __init__(self, my_info):
         self.my_info = my_info
 
@@ -143,7 +143,7 @@ class PerceptionServerThread(threading.Thread):                                 
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),                 # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_PerceptionServiceServicer_to_server(PerceptionService(self.my_info), server)
+        Service_pb2_grpc.add_PerceptionServiceServicer_to_server(PerceptionRPCService(self.my_info), server)
         server.add_insecure_port('[::]:50051')
         server.start()                              # 非阻塞, 会实例化一个新线程来处理请求
         print("Perception Server is up and running on port 50051.")

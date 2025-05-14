@@ -7,12 +7,12 @@ import logging
 from typing import List, Optional, Any, Tuple, Type, TypeVar, Union
 import traceback
 import concurrent.futures
-from config import AppConfig
+import AppType
 import numpy as np
 
 
-def mstime() -> AppConfig.timestamp_t:
-    return AppConfig.timestamp_t(datetime.datetime.now().timestamp() * 1000)
+def mstime() -> AppType.timestamp_t:
+    return AppType.timestamp_t(datetime.datetime.now().timestamp() * 1000)
 
 def panic():
     traceback.print_exc()

@@ -16,6 +16,7 @@ from opencood.models import point_pillar_where2comm
 from opencood.data_utils.datasets import build_dataset
 from opencood.utils.transformation_utils import x1_to_x2
 from opencood.utils import box_utils
+from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils import eval_utils
 from opencood.visualization.vis_utils import color_encoding
 import matplotlib.pyplot as plt
@@ -24,11 +25,10 @@ import os
 import yaml
 import re
 
-from detection.detection_server import DetectionServerThread, pcd2feature
-from perception.perception_client import PerceptionClient
-from collaboration.collaboration_client import CollaborationClient
+from detection.detectionRPCServer import DetectionServerThread, pcd2feature, feature2pred_box
+from perception.perceptionRPCClient import PerceptionRPCClient
+from collaboration.collaborationRPCClient import CollaborationRPCClient
 from utils.sharedInfo import SharedInfo
-
 
 def fuse_pcd(my_timestamp, my_pcd, my_pose, timestamps, others_poses, others_pcds):
     fused_pcd = [my_pcd]
@@ -47,6 +47,26 @@ def fuse_pcd(my_timestamp, my_pcd, my_pose, timestamps, others_poses, others_pcd
     return fused_pcd
 
 
+def fuse_feature(my_feature, voxel_features, voxel_coords, voxel_num_points):
+    fused_voxel_features = [my_feature['voxel_features']]
+    fused_voxel_coords = [my_feature['voxel_coords']]
+    fused_voxel_num_points = [my_feature['voxel_num_points']]
+
+    if voxel_features.shape[0] > 0:
+        fused_voxel_features.append(voxel_features)
+        fused_voxel_coords.append(voxel_coords)
+        fused_voxel_num_points.append(voxel_num_points)
+
+    fused_voxel_features = np.vstack(fused_voxel_features)
+    fused_voxel_coords = np.vstack(fused_voxel_coords)
+    fused_voxel_num_points = np.hstack(fused_voxel_num_points)
+
+    fused_feature = {'voxel_features': fused_voxel_features,
+                     'voxel_coords': fused_voxel_coords,
+                     'voxel_num_points': fused_voxel_num_points}
+
+    return fused_feature
+
 class DetectionManager:
     def __init__(self, opt):
         self.opt = opt
@@ -54,10 +74,12 @@ class DetectionManager:
 
         self.hypes = yaml_utils.load_yaml(None, opt)
         self.dataset = self.__load_dataset()
+        self.pre_processor = build_preprocessor(self.hypes['preprocess'], False)
         self.model = self.__load_model()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         shared_info = SharedInfo()
+        shared_info.update_pre_processor(self.pre_processor)
         shared_info.update_model(self.model)
         shared_info.update_device(self.device)
         shared_info.update_hypes(self.hypes)
@@ -77,7 +99,7 @@ class DetectionManager:
         print('Dataset Building')
         opencood_dataset = build_dataset(self.hypes, visualize=True, train=False)
         # opencood_dataset = intermediate_fusion_dataset.IntermediateFusionDataset(self.hypes, visualize=True, train=False)
-        # print(f"{len(opencood_dataset)} samples found.")
+        print(f"{len(opencood_dataset)} samples found.")
 
         return opencood_dataset
 
@@ -101,8 +123,8 @@ class DetectionManager:
         detection_server_thread.setDaemon(True)
         detection_server_thread.start()
 
-        self.perception_client = PerceptionClient()
-        self.collaboration_client = CollaborationClient()
+        self.perception_client = PerceptionRPCClient()
+        self.collaboration_client = CollaborationRPCClient()
 
     def loop(self):
         record_len = torch.empty(0, dtype=torch.int32)
@@ -125,60 +147,78 @@ class DetectionManager:
 
         batch_data = {'ego': ego_data}
 
-        loop_time = 1
+        loop_time = 6
         last_t = 0
 
         while True:
             t = time.time()
             if t - last_t < loop_time:
                 time.sleep(loop_time + last_t - t)
-            last_t = t
+            last_t = time.time()
 
             my_timestamp, my_pose, my_pcd = self.perception_client.get_my_pose_and_pcd()
-            if my_timestamp == -1:
-                print("perception子系统未启动")
-                continue
-            # print(my_pose)
-            ids, others_timestamps, others_poses, others_pcds = self.collaboration_client.get_others_poses_and_pcds()
-            if ids != -1:
-                fused_pcd = fuse_pcd(my_timestamp, my_pcd, my_pose, others_timestamps, others_poses, others_pcds)
-            else:
-                fused_pcd = my_pcd
-            # _, fused_pcd = self.perception_client.get_my_pcd()
+            self.shared_info.update_pcd(my_pcd)
+            self.shared_info.update_pose(my_pose)
+            # # print(my_pose)
+            # # exit(0)
+            # ids, others_timestamps, others_poses, others_pcds = self.collaboration_client.get_others_poses_and_pcds()
+            # if ids != -1:
+            #     fused_pcd = fuse_pcd(my_timestamp, my_pcd, my_pose, others_timestamps, others_poses, others_pcds)
+            # else:
+            #     fused_pcd = my_pcd
+            # # _, fused_pcd = self.perception_client.get_my_pcd()
+            #
+            # processed_pcd, fused_feature = pcd2feature(fused_pcd, self.shared_info)
+            # timestamp, my_pcd = self.perception_client.get_my_pcd()
+            processed_pcd, my_feature = pcd2feature(my_pcd, self.shared_info)
 
-            processed_pcd, fused_feature = pcd2feature(fused_pcd, self.hypes)
+            print(my_feature['voxel_features'].shape)
+
+            ids, timestamps, _, _, _, features_lens, voxel_features, voxel_coords, voxel_num_points =\
+                self.collaboration_client.get_others_info()
+
+            fused_feature = my_feature
+            if ids != -1:
+                fused_feature = fuse_feature(my_feature, voxel_features, voxel_coords, voxel_num_points)
+
+            print(fused_feature['voxel_features'].shape)
+
+            pred_box = feature2pred_box(fused_feature, self.shared_info)
+            pred_box_tensor = torch.from_numpy(pred_box)
 
             processed_pcd = torch.from_numpy(processed_pcd)
-            fused_feature['voxel_features'] = torch.from_numpy(fused_feature['voxel_features'])
-
-            voxel_coords = np.pad(fused_feature['voxel_coords'], ((0, 0), (1, 0)), mode='constant', constant_values=0)
-            fused_feature['voxel_coords'] = torch.from_numpy(voxel_coords)
-
-            fused_feature['voxel_num_points'] = torch.from_numpy(fused_feature['voxel_num_points'])
-
+            # fused_feature['voxel_features'] = torch.from_numpy(fused_feature['voxel_features'])
+            #
+            # voxel_coords = np.pad(fused_feature['voxel_coords'], ((0, 0), (1, 0)), mode='constant', constant_values=0)
+            # fused_feature['voxel_coords'] = torch.from_numpy(voxel_coords)
+            #
+            # fused_feature['voxel_num_points'] = torch.from_numpy(fused_feature['voxel_num_points'])
+            #
             batch_data['ego']['origin_lidar'] = processed_pcd
-            batch_data['ego']['processed_lidar'] = fused_feature
+            # batch_data['ego']['processed_lidar'] = fused_feature
+            #
+            # # batch_data['other'] = batch_data['ego']
+            #
+            # with torch.no_grad():
+            #     batch_data = train_utils.to_device(batch_data, self.device)
+            #     # if self.opt.fusion_method == 'late':
+            #     #     with self.shared_info.model_lock:
+            #     #         pred_box_tensor, pred_score, gt_box_tensor = \
+            #     #         inference_utils.inference_late_fusion(batch_data, self.model, self.dataset)
+            #     # elif self.opt.fusion_method == 'early':
+            #     #     with self.shared_info.model_lock:
+            #     #         pred_box_tensor, pred_score, gt_box_tensor = \
+            #     #         inference_utils.inference_early_fusion(batch_data, self.model, self.dataset)
+            #     # elif self.opt.fusion_method == 'intermediate':
+            #     #     with self.shared_info.model_lock:
+            #     #         pred_box_tensor, pred_score, gt_box_tensor = \
+            #     #         inference_utils.inference_intermediate_fusion(batch_data, self.model, self.dataset)
+            #
+            #     pred_box_tensor, pred_score, _ = \
+            #         inference_utils.inference_intermediate_fusion(batch_data, self.model, self.dataset)
 
-            # batch_data['other'] = batch_data['ego']
 
-            with torch.no_grad():
-                batch_data = train_utils.to_device(batch_data, self.device)
-                # if self.opt.fusion_method == 'late':
-                #     with self.shared_info.model_lock:
-                #         pred_box_tensor, pred_score, gt_box_tensor = \
-                #         inference_utils.inference_late_fusion(batch_data, self.model, self.dataset)
-                # elif self.opt.fusion_method == 'early':
-                #     with self.shared_info.model_lock:
-                #         pred_box_tensor, pred_score, gt_box_tensor = \
-                #         inference_utils.inference_early_fusion(batch_data, self.model, self.dataset)
-                # elif self.opt.fusion_method == 'intermediate':
-                #     with self.shared_info.model_lock:
-                #         pred_box_tensor, pred_score, gt_box_tensor = \
-                #         inference_utils.inference_intermediate_fusion(batch_data, self.model, self.dataset)
 
-                pred_box_tensor, pred_score = \
-                    inference_utils.inference_intermediate_fusion(batch_data, self.model, self.dataset)
-            print(pred_box_tensor, file=open('result', 'w'))
             if self.opt.show_vis:
                 pcd = o3d.geometry.PointCloud()
                 origin_lidar = np.asarray(batch_data['ego']['origin_lidar'].cpu())[:, :3]
@@ -212,7 +252,7 @@ class DetectionManager:
                 # 渲染场景
                 self.vis.poll_events()
                 self.vis.update_renderer()
-                save_path = 'vis.png'
+                # save_path = 'vis.png'
                 # 截图并保存
-                self.vis.capture_screen_image(save_path, do_render=True)
-                print(f"Saved visualization to {save_path}")
+                # self.vis.capture_screen_image(save_path)
+                # print(f"Saved visualization to {save_path}")

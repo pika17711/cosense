@@ -5,7 +5,7 @@ sys.path.append(parent_dir)
 import time
 import numpy as np
 import open3d as o3d
-from perception import perception_server
+from perception import perceptionRPCServer
 from utils.sharedInfo import SharedInfo
 from opencood.hypes_yaml.yaml_utils import load_yaml
 
@@ -31,7 +31,7 @@ def load_pcd(i):
 
 shared_info = SharedInfo()
 
-service1_thread = perception_server.PerceptionServerThread(shared_info)
+service1_thread = perceptionRPCServer.PerceptionServerThread(shared_info)
 service1_thread.setDaemon(True)
 service1_thread.start()
 

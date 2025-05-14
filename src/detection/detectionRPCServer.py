@@ -9,49 +9,10 @@ from collections import OrderedDict
 from rpc import Service_pb2_grpc
 from rpc import Service_pb2
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points
+from opencood.utils.transformation_utils import x1_to_x2
+from opencood.utils import box_utils
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.tools import train_utils
-
-
-class SharedInfo:
-    def __init__(self, model, device, hypes, dataset):
-        self.model = model
-        self.device = device
-        self.hypes = hypes
-        self.dataset = dataset
-        self.fused_feature = {}     # 初始化为空字典
-        self.fused_comm_mask = np.array([])     # 初始化为空数组
-        self.pred_box = np.array([])     # 初始化为空数组
-
-        self.model_lock = threading.Lock()
-        self.dataset_lock = threading.Lock()
-        self.fused_feature_lock = threading.Lock()
-        self.fused_comm_mask_lock = threading.Lock()
-        self.pred_box_lock = threading.Lock()
-
-    def update_fused_feature(self, fused_feature):
-        with self.fused_feature_lock:
-            self.fused_feature = fused_feature  # 线程安全更新
-
-    def update_fused_comm_mask(self, fused_comm_mask):
-        with self.fused_comm_mask_lock:
-            self.fused_comm_mask = fused_comm_mask  # 线程安全更新
-
-    def update_pred_box(self, pred_box):
-        with self.pred_box_lock:
-            self.pred_box = pred_box  # 线程安全更新
-
-    def get_fused_feature_copy(self):
-        with self.fused_feature_lock:
-            return self.fused_feature
-
-    def get_fused_comm_mask_copy(self):
-        with self.fused_comm_mask_lock:
-            return self.fused_comm_mask.copy() if self.fused_comm_mask.size > 0 else self.fused_comm_mask
-
-    def get_pred_box_copy(self):
-        with self.pred_box_lock:
-            return self.pred_box.copy() if self.pred_box.size > 0 else self.pred_box
 
 
 def process_pcd(pcd, hypes):        # 对pcd点云数据进行预处理
@@ -61,17 +22,43 @@ def process_pcd(pcd, hypes):        # 对pcd点云数据进行预处理
     return processed_pcd
 
 
-def pcd2feature(pcd, hypes):  # 根据pcd点云数据获取特征
-    processed_pcd = process_pcd(pcd, hypes)
+def pcd2feature(pcd, shared_info):  # 根据pcd点云数据获取特征
+    processed_pcd = process_pcd(pcd, shared_info.get_hypes())
 
-    pre_processor = build_preprocessor(hypes['preprocess'], False)
-    feature = pre_processor.preprocess(processed_pcd)
+    with shared_info.pre_processor_lock:
+        feature = shared_info.get_pre_processor().preprocess(processed_pcd)
     return processed_pcd, feature
+
+def poses_to_projected_features(my_pose, my_pcd, poses, shared_info):
+    features_lens = []
+    voxel_features = []
+    voxel_coords = []
+    voxel_num_points = []
+    for pose in poses:
+        transformation_matrix = x1_to_x2(pose, my_pose)
+        projected_pcd = my_pcd.copy()
+        projected_pcd[:, :3] = box_utils.project_points_by_matrix_torch(projected_pcd[:, :3], transformation_matrix)
+        _, projected_feature = pcd2feature(projected_pcd, shared_info)
+        features_lens.append(projected_feature['voxel_features'].shape[0])
+        voxel_features.append(projected_feature['voxel_features'])
+        voxel_coords.append(projected_feature['voxel_coords'])
+        voxel_num_points.append(projected_feature['voxel_num_points'])
+    voxel_features = np.vstack(voxel_features)
+    voxel_coords = np.vstack(voxel_coords)
+    voxel_num_points = np.hstack(voxel_num_points)
+
+    projected_features = {
+        'features_lens': features_lens,
+        'voxel_features': voxel_features,
+        'voxel_coords': voxel_coords,
+        'voxel_num_points' : voxel_num_points
+    }
+    return projected_features
 
 
 def model_forward(feature, shared_info):              # 模型推理获取中间变量
-    model = shared_info.model
-    device = shared_info.device
+    model = shared_info.get_model()
+    device = shared_info.get_device()
 
     voxel_features = torch.from_numpy(feature['voxel_features'])
 
@@ -112,26 +99,41 @@ def model_forward(feature, shared_info):              # 模型推理获取中间
             # The ego feature is also compressed
             spatial_features_2d = model.naive_compressor(spatial_features_2d)
 
+        # if model.multi_scale:
+        #     # Bypass communication cost, communicate at high resolution, neither shrink nor compress
+        #     fused_feature, communication_rates, conf_map_tensor = model.fusion_net(batch_dict['spatial_features'],
+        #                                                                     psm_single,
+        #                                                                     record_len,
+        #                                                                     pairwise_t_matrix,
+        #                                                                     model.backbone)
+        #     if model.shrink_flag:
+        #         fused_feature = model.shrink_conv(fused_feature)
+        # else:
+        #     fused_feature, communication_rates, conf_map_tensor = model.fusion_net(spatial_features_2d,
+        #                                                                     psm_single,
+        #                                                                     record_len,
+        #                                                                     pairwise_t_matrix)
         if model.multi_scale:
             # Bypass communication cost, communicate at high resolution, neither shrink nor compress
-            fused_feature, communication_rates, conf_map_tensor = model.fusion_net(batch_dict['spatial_features'],
-                                                                            psm_single,
-                                                                            record_len,
-                                                                            pairwise_t_matrix,
-                                                                            model.backbone)
+            fused_feature, communication_rates = model.fusion_net(batch_dict['spatial_features'],
+                                                                 psm_single,
+                                                                 record_len,
+                                                                 pairwise_t_matrix,
+                                                                 model.backbone)
             if model.shrink_flag:
                 fused_feature = model.shrink_conv(fused_feature)
         else:
-            fused_feature, communication_rates, conf_map_tensor = model.fusion_net(spatial_features_2d,
-                                                                            psm_single,
-                                                                            record_len,
-                                                                            pairwise_t_matrix)
+            fused_feature, communication_rates = model.fusion_net(spatial_features_2d,
+                                                                 psm_single,
+                                                                 record_len,
+                                                                 pairwise_t_matrix)
 
         psm = model.cls_head(fused_feature)
         rm = model.reg_head(fused_feature)
 
     output_dict = {'psm': psm, 'rm': rm, 'com': communication_rates}
-    return output_dict, conf_map_tensor
+    # return output_dict, conf_map_tensor
+    return output_dict, 0
 
 
 def feature2conf_map(feature, shared_info):  # 根据特征获取置信图
@@ -141,8 +143,8 @@ def feature2conf_map(feature, shared_info):  # 根据特征获取置信图
 
 
 def feature2pred_box(feature, shared_info):      # 根据特征获取检测框
-    device = shared_info.device
-    dataset = shared_info.dataset
+    device = shared_info.get_device()
+    dataset = shared_info.get_dataset()
 
     transformation_matrix = np.eye(4, dtype=np.float32)
     transformation_matrix = torch.from_numpy(transformation_matrix)
@@ -162,13 +164,13 @@ def feature2pred_box(feature, shared_info):      # 根据特征获取检测框
     output_dict = OrderedDict()
     output_dict['ego'], _ = model_forward(feature, shared_info)
 
-    pred_box_tensor, _ = dataset.post_process(batch_data, output_dict)
+    pred_box_tensor, _, _ = dataset.post_process(batch_data, output_dict)
     pred_box = pred_box_tensor.cpu().data.numpy()
 
     return pred_box
 
 
-class DetectionService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检测子系统的Service类
+class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检测子系统的Service类
     def __init__(self, shared_info):
         super().__init__()
         self.shared_info = shared_info
@@ -229,7 +231,7 @@ class DetectionService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检�
 
         timestamp = request.timestamp
         # 特征
-        _, feature = pcd2feature(pcd, self.shared_info.hypes)
+        _, feature = pcd2feature(pcd, self.shared_info)
 
         return Service_pb2.Feature(
             timestamp=timestamp,
@@ -252,12 +254,40 @@ class DetectionService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检�
             )
         )
 
+    def Poses2ProjectedFeatures(self, request, context):
+        timestamps = request.timestamps
+        poses = np.frombuffer(request.poses.data, dtype=request.poses.dtype).reshape(request.poses.shape)
+        # 特征
+        my_pose = self.shared_info.get_pose_copy()
+        my_pcd = self.shared_info.get_pcd_copy()
+        projected_features = poses_to_projected_features(my_pose, my_pcd, poses, self.shared_info)
+
+        return Service_pb2.Features(
+            timestamps=timestamps,
+            features_lens=projected_features['features_lens'],
+            voxel_features=Service_pb2.NdArray(
+                data=projected_features['voxel_features'].tobytes(),
+                dtype=str(projected_features['voxel_features'].dtype),
+                shape=list(projected_features['voxel_features'].shape)
+            ),
+            voxel_coords=Service_pb2.NdArray(
+                data=projected_features['voxel_coords'].tobytes(),
+                dtype=str(projected_features['voxel_coords'].dtype),
+                shape=list(projected_features['voxel_coords'].shape)
+            ),
+            voxel_num_points=Service_pb2.NdArray(
+                data=projected_features['voxel_num_points'].tobytes(),
+                dtype=str(projected_features['voxel_num_points'].dtype),
+                shape=list(projected_features['voxel_num_points'].shape)
+            )
+        )
+
     def PCD2FeatureAndConfMap(self, request, context):      # 融合检测子系统向其他进程提供“根据点云获取特征和置信图”的服务
         pcd = np.frombuffer(request.pcd.data, dtype=request.pcd.dtype).reshape(request.pcd.shape)
 
         timestamp = request.timestamp
         # 特征
-        _, feature = pcd2feature(pcd, self.shared_info.hypes)
+        _, feature = pcd2feature(pcd, self.shared_info)
         # 置信图
         conf_map = feature2conf_map(feature, self.shared_info)
 
@@ -362,7 +392,7 @@ class DetectionServerThread(threading.Thread):  # 融合检测子系统的Server
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         Service_pb2_grpc.add_DetectionServiceServicer_to_server(
-            DetectionService(self.shared_info), server)
+            DetectionRPCService(self.shared_info), server)
         server.add_insecure_port('[::]:50053')
         server.start()  # 非阻塞, 会实例化一个新线程来处理请求
         print("Detection Server is up and running on port 50053.")

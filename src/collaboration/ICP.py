@@ -4,7 +4,7 @@ import InteroperationApp.config
 from InteroperationApp.module.zmq_server import ICPServer, ICPClient
 
 
-def ICP_init(cfg: CollaborationConfig):
+def ICP_init(cfg: AppConfig):
     InteroperationApp.config.source_id = cfg.id
 
     icp_server = ICPServer(cfg.app_id)

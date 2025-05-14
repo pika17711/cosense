@@ -1,8 +1,10 @@
 import threading
 import numpy as np
 
+
 class SharedInfo:
     def __init__(self):
+        self.__pre_processor = None
         self.__model = None
         self.__device = None
         self.__hypes = None
@@ -19,6 +21,7 @@ class SharedInfo:
         self.__acceleration = np.array([])  # 初始化为空数组
         self.__extrinsic_matrix = np.array([])  # 初始化为空数组
 
+        self.pre_processor_lock = threading.Lock()
         self.model_lock = threading.Lock()
         self.dataset_lock = threading.Lock()
         self.__fused_feature_lock = threading.Lock()
@@ -32,6 +35,9 @@ class SharedInfo:
         self.__velocity_lock = threading.Lock()
         self.__acceleration_lock = threading.Lock()
         self.__extrinsic_matrix_lock = threading.Lock()
+
+    def update_pre_processor(self, pre_processor):
+        self.__pre_processor = pre_processor
 
     def update_model(self, model):
         self.__model = model
@@ -88,6 +94,9 @@ class SharedInfo:
     def update_extrinsic_matrix(self, extrinsic_matrix):
         with self.__extrinsic_matrix_lock:
             self.__extrinsic_matrix = extrinsic_matrix  # 线程安全更新
+
+    def get_pre_processor(self):
+        return self.__pre_processor
 
     def get_model(self):
         return self.__model

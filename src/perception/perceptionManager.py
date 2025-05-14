@@ -1,5 +1,5 @@
 import time
-from perception.perception_server import PerceptionServerThread, MyInfo
+from perception.perceptionRPCServer import PerceptionServerThread, MyInfo
 
 def load_pcd(no):
     pcd_load = o3d.io.read_point_cloud('../dataset/0000'+str(no)+'.pcd')

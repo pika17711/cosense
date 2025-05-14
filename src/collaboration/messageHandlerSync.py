@@ -11,17 +11,18 @@ from collaboration.collaborationTable import CollaborationTable
 from collaboration.transactionHandlerSync import transactionHandlerSync
 from collaboration.collaborationService import CollaborationService
 
-from perception.perception_client import PerceptionClient
+from config import AppConfig
+from perception.perceptionRPCClient import PerceptionRPCClient
 
 from collaboration.message import Message, NotifyAct, SubscribeAct
 from collaboration.messageID import MessageID
 
 class MessageHandlerSync:
     def __init__(self, 
-                 cfg: CollaborationConfig,
+                 cfg: AppConfig,
                  ctable: CollaborationTable,
                  tx_handler: transactionHandlerSync,
-                 perception_client: PerceptionClient,
+                 perception_client: PerceptionRPCClient,
                  collaboration_service: CollaborationService):
 
         self.cfg = cfg
@@ -53,6 +54,8 @@ class MessageHandlerSync:
         }
 
         self.recv_thread = Thread(target=self.recv_loop, name='messageHandler recv_loop', daemon=True)
+
+    def start_recv(self):
         self.recv_thread.start()
 
     def close(self):

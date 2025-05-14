@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import IntEnum, auto
 import queue
 import AppType
-from collaboration.collaborationConfig import CollaborationConfig
+from config import AppConfig
 from utils.common import mstime
 
 class BCContextState(IntEnum):
@@ -16,7 +16,7 @@ class BCContextState(IntEnum):
 
 class BCContext:
     def __init__(self, 
-                 cfg: CollaborationConfig,
+                 cfg: AppConfig,
                  cid: AppType.cid_t,
                  ):
         self.cfg = cfg

@@ -10,16 +10,17 @@ from collaboration.collaborationTable import CollaborationTable
 from collaboration.contextGenerator import ContextGenerator
 from collaboration.message import BroadcastPubMessage, BroadcastSubMessage, BroadcastSubNtyMessage, Message, NotifyAct, NotifyMessage, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, SubscribeAct, SubscribeMessage
 from collaboration.transactionHandlerSync import transactionHandlerSync
-from perception.perception_client import PerceptionClient
+from config import AppConfig
+from perception.perceptionRPCClient import PerceptionRPCClient
 import numpy as np
 from utils import InfoDTO
 from utils.common import read_binary_file, server_assert, server_logic_error, server_not_implemented
 
 class CollaborationService():
     def __init__(self, 
-                 cfg: CollaborationConfig,
+                 cfg: AppConfig,
                  ctable: 'CollaborationTable',
-                 perception_client: 'PerceptionClient',
+                 perception_client: 'PerceptionRPCClient',
                  tx_handler: 'transactionHandlerSync'
                  ) -> None:
         self.cfg = cfg 
@@ -455,7 +456,7 @@ class CollaborationService():
         cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.oid)
         assert cctx.state == CContextCoteeState.SUBSCRIBING
         data = read_binary_file(msg.file)
-        self.ctable.data_cache[cctx.cid] = InfoDTO.InfoDTOSerializer.deserialize(data)
+        self.ctable.data_cache[cctx.remote_id()] = InfoDTO.InfoDTOSerializer.deserialize(data)
 
     def sendfin_service(self, msg: SendFinMessage):
         logging.debug(f"APP serve message {msg}")
