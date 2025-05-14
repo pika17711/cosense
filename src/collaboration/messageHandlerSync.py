@@ -58,7 +58,7 @@ class MessageHandlerSync:
     def close(self):
         self.running = False
         if self.recv_thread.is_alive():
-            self.recv_thread.join(1.0)
+            self.recv_thread.join(0.5)
         self.executor.shutdown()
         for cctx in self.ctable.get_subscribing():
             if cctx.have_sid():
@@ -72,7 +72,9 @@ class MessageHandlerSync:
 
     def recv_loop(self):
         while self.running:
-            msg = self.tx_handler.recv_message()
+            msg = self.tx_handler.recv_message(0.1)  # timeout for check self.running
+            if msg is None:
+                continue
             self.dispatch_message(msg)
 
     def dispatch_message(self, msg: Message):

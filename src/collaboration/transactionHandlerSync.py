@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import queue
 import random
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Lock, Thread
@@ -12,7 +13,7 @@ import AppType
 from collaboration.collaborationConfig import CollaborationConfig
 from collaboration.messageID import MessageID
 from collaboration.message import AckMessage, Message
-from ICP.ICP import icp_client, icp_server
+from collaboration.ICP import icp_client, icp_server
 from utils.common import ms2s
 
 class txContext:
@@ -86,7 +87,10 @@ class transactionHandlerSync:
                 continue  # 忽略超时异常，继续运行
     
     def recv_message(self, timeout=None):
-        return self.msg_queue.get(True, timeout)
+        try:
+            self.msg_queue.get(True, timeout)
+        except queue.Empty:
+            return None
 
     def submit(self, func: Callable[[], None]):
         self.executor.submit(func)

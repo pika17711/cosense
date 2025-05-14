@@ -29,6 +29,7 @@ class CollaborationManager:
 
         self.broadcastpub_event = threading.Event()
         self.broadcastsub_event = threading.Event()
+        self.subscribed_send_event = threading.Event()
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self.running = True
 
@@ -45,11 +46,14 @@ class CollaborationManager:
         self.running = False
         self.executor.shutdown()
         if self.broadcastpub_loop_thread.is_alive():
-            self.broadcastpub_loop_thread.join(1.0)
+            self.broadcastpub_event.set()
+            self.broadcastpub_loop_thread.join(0.5)
         if self.broadcastsub_loop_thread.is_alive():
-            self.broadcastsub_loop_thread.join(1.0)
+            self.broadcastsub_event.set()
+            self.broadcastsub_loop_thread.join(0.5)
         if self.subscribed_send_loop_thread.is_alive():
-            self.subscribed_send_loop_thread.join(1.0)
+            self.subscribed_send_event.set()
+            self.subscribed_send_loop_thread.join(0.5)
 
     def handle_command(self, argv):
         logging.debug(f"输入的命令是: {argv}")
@@ -146,5 +150,6 @@ class CollaborationManager:
             logging.info(f"订阅者数据发送, 订阅者列表{[remote_id for remote_id in subeds]}, 发送数据 {len(data)}B")
             for cctx in subeds:
                 self.executor.submit(self.collaboration_service.send_data, cctx, data)
-
-            sleep(self.cfg.send_data_period/1000)
+            self.subscribed_send_event.wait(self.cfg.send_data_period/1000)
+            if self.subscribed_send_event.is_set():
+                break
