@@ -6,12 +6,11 @@ from queue import Queue
 from threading import Thread
 from typing import Callable, Dict
 
-from collaboration.collaborationConfig import CollaborationConfig
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.transactionHandlerSync import transactionHandlerSync
 from collaboration.collaborationService import CollaborationService
 
-from config import AppConfig
+from appConfig import AppConfig
 from perception.perceptionRPCClient import PerceptionRPCClient
 
 from collaboration.message import Message, NotifyAct, SubscribeAct

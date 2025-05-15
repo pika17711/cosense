@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from enum import IntEnum, auto
 import queue
-import AppType
-from config import AppConfig
+import appType
+from appConfig import AppConfig
 from utils.common import mstime
 
 class BCContextState(IntEnum):
@@ -17,7 +17,7 @@ class BCContextState(IntEnum):
 class BCContext:
     def __init__(self, 
                  cfg: AppConfig,
-                 cid: AppType.cid_t,
+                 cid: appType.cid_t,
                  ):
         self.cfg = cfg
         self.cid = cid

@@ -17,7 +17,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.GetFusedFeature(Service_pb2.Empty(), timeout=5)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳

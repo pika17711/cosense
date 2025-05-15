@@ -5,12 +5,11 @@ import logging
 import concurrent.futures
 import threading
 from time import sleep
-from config import AppConfig
+from appConfig import AppConfig
 from utils import InfoDTO
-from perception.perceptionRPCClient import PerceptionClient
+from perception.perceptionRPCClient import PerceptionRPCClient
 
 from collaboration.messageHandlerSync import MessageHandlerSync
-from collaboration.collaborationConfig import CollaborationConfig
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
 from utils.common import ms2s
@@ -20,7 +19,7 @@ class CollaborationManager:
                  cfg: AppConfig,
                  ctable: CollaborationTable,
                  message_handler: MessageHandlerSync,
-                 perception_client: PerceptionClient,
+                 perception_client: PerceptionRPCClient,
                  collaboration_service: CollaborationService):
 
         self.cfg = cfg

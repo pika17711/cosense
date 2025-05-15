@@ -6,10 +6,9 @@ import queue
 import threading
 from typing import Callable, Optional, Union
 
-import AppType
+import appType
 
 from collaboration.transactionHandlerSync import transactionHandlerSync
-from collaboration.collaborationConfig import CollaborationConfig
 
 from utils.common import mstime, server_assert
 
@@ -137,14 +136,14 @@ CollaborationContext
 class CContext:
     def __init__(self, 
                  cfg: CollaborationConfig,
-                 cid: AppType.cid_t,
-                 cotor: AppType.id_t,
-                 cotee: AppType.id_t,
+                 cid: appType.cid_t,
+                 cotor: appType.id_t,
+                 cotee: appType.id_t,
                  ):
         self.cfg = cfg
-        self.cid: AppType.cid_t = cid                  # 对话ID
-        self.cotor: AppType.id_t = cotor               # 协作者ID
-        self.cotee: AppType.id_t = cotee               # 被协作者ID
+        self.cid: appType.cid_t = cid                  # 对话ID
+        self.cotor: appType.id_t = cotor               # 协作者ID
+        self.cotee: appType.id_t = cotee               # 被协作者ID
 
         self.state: Union[CContextCoteeState, CContextCotorState] = CContextCotorState.PENDING if self.is_cotor() else CContextCoteeState.PENDING
 
@@ -154,7 +153,7 @@ class CContext:
         self.lock = threading.Lock()
         self.sid_set_event = threading.Event()
         self.stream_state: Union[CSContextCoteeState, CSContextCotorState] = CSContextCotorState.PENDING if self.is_cotor() else CSContextCoteeState.PENDING
-        self.sid: Optional[AppType.sid_t] = None
+        self.sid: Optional[appType.sid_t] = None
 
 
     def is_cotor(self) -> bool:
@@ -167,10 +166,10 @@ class CContext:
         # 用上一次活跃的时间检查是否存活
         return (mstime() - self.last_active) > self.cfg.cctx_keepalive
 
-    def local_id(self) -> AppType.id_t:
+    def local_id(self) -> appType.id_t:
         return self.cotee if self.is_cotee() else self.cotor
 
-    def remote_id(self) -> AppType.id_t:
+    def remote_id(self) -> appType.id_t:
         return self.cotee if self.is_cotor() else self.cotor
 
     def update_active(self):

@@ -4,9 +4,9 @@ import logging
 from typing import Optional, Type, Dict, Any
 import json
 from datetime import datetime
-import AppType
+import appType
 import zmq
-from config import AppConfig
+from appConfig import AppConfig
 from collaboration.messageID import MessageID
 
 """
@@ -158,9 +158,9 @@ class BroadcastPubMessage(Message):
 @dataclass
 class BroadcastSubMessage(Message):
     """广播订购 (MID.BROCASTSUB)"""
-    oid: AppType.id_t
+    oid: appType.id_t
     topic: int
-    context: AppType.cid_t
+    context: appType.cid_t
     coopmap: bytes
     coopmaptype: int
     bearcap: int
@@ -181,9 +181,9 @@ class BroadcastSubMessage(Message):
 @dataclass
 class BroadcastSubNtyMessage(Message):
     """广播订购通知 (MID.BROCASTSUBNTY)"""
-    oid: AppType.id_t
+    oid: appType.id_t
     topic: int
-    context: AppType.cid_t
+    context: appType.cid_t
     coopmap: bytes
     coopmaptype: int
     bearcap: int
@@ -209,10 +209,10 @@ class SubscribeAct(IntEnum):
 @dataclass
 class SubscribeMessage(Message):
     """能力订购 (MID.SUBSCRIBE)"""
-    oid: AppType.id_t
+    oid: appType.id_t
     topic: int
     act: SubscribeAct
-    context: AppType.cid_t
+    context: appType.cid_t
     coopmap: bytes
     coopmaptype: int
     bearcap: int
@@ -239,11 +239,11 @@ class NotifyAct(IntEnum):
 @dataclass
 class NotifyMessage(Message):
     """订购通知 (MID.NOTIFY)"""
-    oid: AppType.id_t
+    oid: appType.id_t
     # did 无
     topic: int
     act: NotifyAct
-    context: AppType.cid_t
+    context: appType.cid_t
     coopmap: bytes
     coopmaptype: int
     bearcap: Optional[int]
@@ -268,8 +268,8 @@ class NotifyMessage(Message):
 @dataclass
 class SendReqMessage(Message):
     """流发送请求 (MID.SENDREQ)"""
-    did: AppType.id_t
-    context: AppType.cid_t
+    did: appType.id_t
+    context: appType.cid_t
     rl: int
     pt: int
     aoi: int
@@ -290,9 +290,9 @@ class SendReqMessage(Message):
 
 @dataclass
 class SendRdyMessage(Message):
-    did: AppType.id_t
-    context: AppType.cid_t
-    sid: AppType.sid_t
+    did: appType.id_t
+    context: appType.cid_t
+    sid: appType.sid_t
     
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendRdyMessage":
@@ -306,9 +306,9 @@ class SendRdyMessage(Message):
 
 @dataclass
 class RecvRdyMessage(Message):
-    oid: AppType.id_t
-    context: AppType.cid_t
-    sid: AppType.sid_t
+    oid: appType.id_t
+    context: appType.cid_t
+    sid: appType.sid_t
 
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvRdyMessage":
@@ -322,7 +322,7 @@ class RecvRdyMessage(Message):
 
 @dataclass
 class SendMessage(Message):
-    sid: AppType.id_t
+    sid: appType.id_t
     data: bytes
 
     @classmethod
@@ -336,7 +336,7 @@ class SendMessage(Message):
 
 @dataclass
 class RecvMessage(Message):
-    sid: AppType.id_t
+    sid: appType.id_t
     data: bytes
 
     @classmethod
@@ -351,7 +351,7 @@ class RecvMessage(Message):
 @dataclass
 class SendEndMessage(Message):
     sid: int
-    context: Optional[AppType.cid_t]
+    context: Optional[appType.cid_t]
 
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendEndMessage":
@@ -364,7 +364,7 @@ class SendEndMessage(Message):
 
 @dataclass
 class RecvEndMessage(Message):
-    sid: AppType.sid_t
+    sid: appType.sid_t
 
     @classmethod
     def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvEndMessage":
@@ -380,8 +380,8 @@ class RecvEndMessage(Message):
 @dataclass
 class SendFileMessage(Message):
     """文件发送请求 (MID.SENDFILE)"""
-    did: AppType.id_t
-    context: AppType.cid_t
+    did: appType.id_t
+    context: appType.cid_t
     rl: int
     pt: int
     file: str
@@ -401,7 +401,7 @@ class SendFileMessage(Message):
 @dataclass
 class SendFinMessage(Message):
     """文件传输完成 (MID.SENDFIN)"""
-    did: AppType.id_t
+    did: appType.id_t
     context: int
     file: str
     

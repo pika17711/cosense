@@ -1,7 +1,7 @@
 import logging
 import threading
 from collaboration.collaborationTable import CollaborationTable
-from config import AppConfig
+from appConfig import AppConfig
 import grpc
 import time
 import numpy as np
@@ -29,25 +29,27 @@ class SharedOthersInfo:
 
         self.__lock = threading.Lock()
 
-    def update_info(self, ids=None, timestamps=None, poses=None, pcds=None, velocities=None,
-                    accelerations=None, comm_masks=None,
-                    features_lens=None, voxel_features=None, voxel_coords=None, voxel_num_points=None):
-        with self.__lock:
-            self.__ids = ids if ids is not None else []
-            self.__timestamps = timestamps if timestamps is not None else []
-            self.__poses = poses if poses is not None else np.array([])
-            self.__pcds = pcds if pcds is not None else np.array([])
-            self.__velocities = velocities if velocities is not None else np.array([])
-            self.__accelerations = accelerations if accelerations is not None else np.array([])
+        self.ctable = ctable
 
-            self.__features_lens = features_lens if features_lens is not None else []
-            self.__voxel_features = voxel_features if voxel_features is not None else np.array([])
-            self.__voxel_coords = voxel_coords if voxel_coords is not None else np.array([])
-            self.__voxel_num_points = voxel_num_points if voxel_num_points is not None else np.array([])
+    def update_info(self):
+        with self.__lock:
+            infos = self.ctable.get_all_data()
+            self.__ids = [info.id for info in infos]
+            self.__timestamps = [info.ts_feat for info in infos]
+            self.__poses = [info.lidar_pos for info in infos]
+            self.__pcds = [info.pcd for info in infos]
+            self.__velocities = [info.speed for info in infos]
+            self.__accelerations = [info.acc for info in infos]
+
+            self.__features_lens = np.ndarray([len(infos)])
+            self.__voxel_features = np.stack([info.feat['voxel_features'] for info in infos])
+            self.__voxel_coords = np.stack([info.feat['voxel_coords'] for info in infos])
+            self.__voxel_num_points = np.stack([info.feat['voxel_num_points'] for info in infos])
 
             self.__comm_masks = comm_masks if comm_masks is not None else np.array([])
 
     def get_info_copy(self):
+        self.update_info()
         with self.__lock:
             ids_copy = self.__ids.copy()
             timestamps_copy = self.__timestamps.copy()
@@ -85,34 +87,41 @@ class SharedOthersInfo:
             return info_copy
 
     def get_ids_copy(self):
+        self.update_info()
         with self.__lock:
             return self.__ids.copy()
 
     def get_timestamps_copy(self):
+        self.update_info()
         with self.__lock:
             return self.__timestamps.copy()
 
     def get_poses_copy(self):
+        self.update_info()
         with self.__lock:
             poses_copy = self.__poses.copy() if self.__poses.size > 0 else self.__poses
             return self.__ids.copy(), self.__timestamps.copy(), poses_copy
 
     def get_pcds_copy(self):
+        self.update_info()
         with self.__lock:
             pcd_copy = self.__pcds.copy() if self.__pcds.size > 0 else self.__pcds
             return self.__ids.copy(), self.__timestamps.copy(), pcd_copy
 
     def get_velocities_copy(self):
+        self.update_info()
         with self.__lock:
             velocities_copy = self.__velocities.copy() if self.__velocities.size > 0 else self.__velocities
             return self.__ids.copy(), self.__timestamps.copy(), velocities_copy
 
     def get_accelerations_copy(self):
+        self.update_info()
         with self.__lock:
             accelerations_copy = self.__accelerations.copy() if self.__accelerations.size > 0 else self.__accelerations
             return self.__ids.copy(), self.__timestamps.copy(), accelerations_copy
 
     def get_features_copy(self):
+        self.update_info()
         with self.__lock:
             features_lens_copy = self.__features_lens.copy()
 
@@ -135,6 +144,7 @@ class SharedOthersInfo:
                 features_lens_copy, voxel_features_copy, voxel_coords_copy, voxel_num_points_copy
 
     def get_comm_masks_copy(self):
+        self.update_info()
         with self.__lock:
             comm_masks_copy = self.__comm_masks.copy() if self.__comm_masks.size > 0 else self.__comm_masks
             return self.__ids.copy(), self.__timestamps.copy(), comm_masks_copy

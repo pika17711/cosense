@@ -5,7 +5,7 @@ import numpy as np
 from rpc import Service_pb2
 from rpc import Service_pb2_grpc
 
-from src.config import AppConfig
+from appConfig import AppConfig
 
 class CollaborationRPCClient:          # 协同感知子系统的Client类，用于向协同感知子系统的服务器请求服务
     def __init__(self, cfg: AppConfig):

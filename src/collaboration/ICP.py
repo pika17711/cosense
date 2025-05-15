@@ -1,5 +1,4 @@
-from config import AppConfig
-from collaboration.collaborationConfig import CollaborationConfig
+from appConfig import AppConfig
 import InteroperationApp.config
 from InteroperationApp.module.zmq_server import ICPServer, ICPClient
 

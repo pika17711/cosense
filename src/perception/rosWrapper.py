@@ -2,7 +2,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import logging
 
-from config import AppConfig
+from appConfig import AppConfig
 import numpy as np
 import rospy
 from sensor_msgs.msg import PointCloud2

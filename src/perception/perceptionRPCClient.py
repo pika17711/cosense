@@ -1,4 +1,5 @@
 import logging
+from appConfig import AppConfig
 import grpc
 import numpy as np
 
@@ -7,18 +8,22 @@ from rpc import Service_pb2_grpc
 
 
 class PerceptionRPCClient:                                 # 感知子系统的Client类，用于向感知子系统的服务器请求服务
-    def __init__(self):
+    def __init__(self, cfg: AppConfig):
         perception_channel = grpc.insecure_channel('localhost:50051', options=[                 # 与感知子系统建立连接
             ('grpc.max_send_message_length', 64 * 1024 * 1024),                     # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         self.__perception_stub = Service_pb2_grpc.PerceptionServiceStub(perception_channel)
+        self.cfg = cfg
 
     def get_my_pcd(self):       # 从感知子系统获取自车点云
+        if self.cfg.rpc_perception_client_debug:
+            return 0, np.ones((1, 4))
+
         try:
             response = self.__perception_stub.GetMyPCD(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
-            return -1, -1
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
+            return None, None
 
         timestamp = response.timestamp  # 时间戳
         # 自车点云
@@ -27,11 +32,14 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         return timestamp, my_pcd
 
     def get_my_pose_and_pcd(self):       # 从感知子系统获取自车雷达位姿和点云
+        if self.cfg.rpc_perception_client_debug:
+            return 0, np.array((6, )), np.array((1, 4))
+
         try:
             response = self.__perception_stub.GetMyPoseAndPCD(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
-            return -1, -1, -1
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
+            return None, None, None
 
         timestamp = response.timestamp  # 时间戳
         # 自车雷达位姿
@@ -43,11 +51,14 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         return timestamp, my_pose, my_pcd
 
     def get_my_feature(self):  # 从感知子系统获取自车特征
+        if self.cfg.rpc_perception_client_debug:
+            return 0, {'voxel_features': np.ones((1, 1)), 'voxel_coords': np.ones((1, 1)), 'voxel_num_points': np.ones((1, 1))}
+
         try:
             response = self.__perception_stub.GetMyFeature(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
-            return -1, -1
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
+            return None, None
 
         timestamp = response.timestamp  # 时间戳
         # 体素特征
@@ -70,11 +81,14 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         return timestamp, my_feature
 
     def get_my_conf_map(self):  # 从感知子系统获取自车置信图
+        if self.cfg.rpc_perception_client_debug:
+            return 0, np.ones((1, 1))
+
         try:
             response = self.__perception_stub.GetMyConfMap(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
-            return -1, -1
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
+            return None, None
 
         timestamp = response.timestamp  # 时间戳
         # 自车置信图
@@ -83,11 +97,14 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         return timestamp, my_conf_map
 
     def get_my_comm_mask(self):  # 从感知子系统获取自车协作图
+        if self.cfg.rpc_perception_client_debug:
+            return 0, np.ones((1, 1))
+
         try:
             response = self.__perception_stub.GetMyCommMask(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
-            return -1, -1
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
+            return None, None
 
         timestamp = response.timestamp  # 时间戳
         # 自车协作图
@@ -96,11 +113,14 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         return timestamp, my_comm_mask
 
     def get_my_pva_info(self):  # 从感知子系统获取自车位置、速度、加速度信息
+        if self.cfg.rpc_perception_client_debug:
+            return 0, np.ones((1, 6)), np.ones((1, )), np.ones((1, ))
+
         try:
             response = self.__perception_stub.GetMyPVAInfo(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
-            return -1, -1, -1, -1
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
+            return None, None, None, None
 
         timestamp = response.timestamp  # 时间戳
         # 自车的位置
@@ -115,11 +135,14 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         return timestamp, pose, velocity, acceleration
 
     def get_my_extrinsic_matrix(self):  # 从感知子系统获取自车外参矩阵
+        if self.cfg.rpc_perception_client_debug:
+            return 0, np.ones((4, 4))
+
         try:
             response = self.__perception_stub.GetMyExtrinsicMatrix(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
-            return -1, -1
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
+            return None, None
 
         timestamp = response.timestamp  # 时间戳
         # 自车外参矩阵

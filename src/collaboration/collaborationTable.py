@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import copy
 import threading
 from typing import Dict, Iterable, Optional, Tuple
-import AppType
-from cachetools import LRUCache, TTLCache
+import appType
+from cachetools import TTLCache
 from collaboration.collaborationContext import CContext
 from collaboration.broadcastCollaborationContext import BCContext
-from collaboration.collaborationConfig import CollaborationConfig
-from config import AppConfig
+from appConfig import AppConfig
+from collaboration.coopMap import CoopMap
 from utils.InfoDTO import InfoDTO
 from utils.common import server_assert
 
@@ -20,34 +21,37 @@ class CollaborationTable:
         
         self.cctx_lock = threading.Lock()
         # (cid, cotor, cotee) -> cctx
-        self.cctx: Dict[Tuple[AppType.cid_t, AppType.id_t, AppType.id_t], CContext] = dict()
+        self.cctx: Dict[Tuple[appType.cid_t, appType.id_t, appType.id_t], CContext] = dict()
         
         self.bcctx_lock = threading.Lock()
         # cid -> bcctx
-        self.bcctx: Dict[AppType.cid_t, BCContext] = dict()
+        self.bcctx: Dict[appType.cid_t, BCContext] = dict()
 
         self.stream_lock = threading.Lock()
         # sid -> cctx
-        self.stream: Dict[AppType.sid_t, CContext] = dict()
+        self.stream: Dict[appType.sid_t, CContext] = dict()
 
         self.sendnty_lock = threading.Lock()
         # cotee id -> cctx 正在sendnty状态的cctx, 因为只有当前是cotor的时候状态才可能为sendnty，用cotee id做为索引
-        self.sendnty: Dict[AppType.id_t, CContext] = dict()
+        self.sendnty: Dict[appType.id_t, CContext] = dict()
 
         self.subscribed_lock = threading.Lock()
         # cotee id -> cctx 正在被订阅的cctx
-        self.subscribed: Dict[AppType.id_t, CContext] = dict()
+        self.subscribed: Dict[appType.id_t, CContext] = dict()
 
         self.waitnty_lock = threading.Lock()
         # cotor id -> cctx 正在waitnty状态的cctx, 因为只有当前是cotee的时候状态才可能为waitnty，用cotor id做为索引
-        self.waitnty: Dict[AppType.id_t, CContext] = dict()
+        self.waitnty: Dict[appType.id_t, CContext] = dict()
 
         self.subscribing_lock = threading.Lock()
         # cotor id -> cctx 正在订阅的cctx
-        self.subscribing: Dict[AppType.id_t, CContext] = dict()
+        self.subscribing: Dict[appType.id_t, CContext] = dict()
 
         self.data_cache_lock = threading.Lock()
-        self.data_cache: TTLCache[AppType.id_t, InfoDTO] = TTLCache(self.cfg.data_cache_size, cfg.other_data_cache_ttl)  # 他车数据的缓存
+        self.data_cache: TTLCache[appType.id_t, InfoDTO] = TTLCache(self.cfg.data_cache_size, cfg.other_data_cache_ttl)  # 他车数据的缓存
+
+        self.coopmap_cache_lock = threading.Lock()
+        self.coopmap_cache: TTLCache[appType.id_t, CoopMap] = TTLCache(self.cfg.data_cache_size, cfg.other_data_cache_ttl)
 
     def add_cctx(self, cctx: CContext):
         with self.cctx_lock:
@@ -83,7 +87,7 @@ class CollaborationTable:
         with self.cctx_lock:
             self.cctx.pop((cctx.cid, cctx.cotor, cctx.cotee))
 
-    def get_cctx_from_stream(self, sid: AppType.sid_t) -> Optional[CContext]:
+    def get_cctx_from_stream(self, sid: appType.sid_t) -> Optional[CContext]:
         with self.stream_lock:
             stream_table = self.stream
             if sid in stream_table:
@@ -104,7 +108,7 @@ class CollaborationTable:
         with self.bcctx_lock:
             self.bcctx[bcctx.cid] = bcctx
 
-    def get_bcctx(self, cid: AppType.cid_t) -> Optional[BCContext]:
+    def get_bcctx(self, cid: appType.cid_t) -> Optional[BCContext]:
         with self.bcctx_lock:
             if cid in self.bcctx:
                 return self.bcctx[cid]
@@ -176,3 +180,20 @@ class CollaborationTable:
     def get_subscribed_by_id(self, cotor_id):
         with self.subscribed_lock:
             return self.subscribing[cotor_id] if cotor_id in self.subscribing else None
+
+    def add_data(self, data: InfoDTO):
+        with self.data_cache_lock:
+            self.data_cache[data.id] = data
+
+    def get_all_data(self):
+        with self.data_cache_lock:
+            datas_copy = [copy.deepcopy(info) for info in self.data_cache.values()]
+        return datas_copy
+    
+    def add_coopmap(self, oid, type, data: bytes):
+        with self.coopmap_cache_lock:
+            self.coopmap_cache[oid] = CoopMap.from_raw(oid, type, data)
+
+    def get_coopmap(self, oid):
+        with self.coopmap_cache_lock:
+            return self.coopmap_cache[oid]

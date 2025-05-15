@@ -1,31 +1,26 @@
+
 from dataclasses import dataclass
+from enum import IntEnum, auto
 import pickle
-from typing import Dict, Optional
-import appType
-from appConfig import AppConfig
+from typing import Optional, Union
+
 import numpy as np
+from utils.common import calculate_confidence_map_overlap, x1_to_x2
+from utils.common import project_points_by_matrix_numpy
 
-@dataclass
-class InfoDTO:
-    type: int
-    id: appType.id_t # id
-    lidar2world: np.ndarray # 雷达到世界的外参矩阵
-    camera2world: Optional[np.ndarray] # 相机到世界的外参矩阵
-    camera_intrinsic: Optional[np.ndarray] # 相机的内参矩阵
-    feat: Dict[str, np.ndarray] # 特征 {'voxel_features': array, 'voxel_coords': array, 'voxel_num_points': array}
-    ts_feat: appType.timestamp_t # 时间戳
-    speed: np.ndarray # 速度
-    ts_speed: appType.timestamp_t # 时间戳
-    lidar_pos: np.ndarray # 位置
-    ts_lidar_pos: appType.timestamp_t # 时间戳
-    acc: np.ndarray # 加速度
-    ts_acc: appType.timestamp_t # 时间戳
-    pcd: Optional[np.ndarray] # 点云 for vis and debug
-    ts_pcd: appType.timestamp_t # 时间戳
+class CoopMapType(IntEnum):
+    DEBUG = auto()
+    WHERE2COMM = auto()
 
-class InfoDTOSerializer:
+class CoopMap:
+    def __init__(self, oid, type: CoopMapType, mp: Optional[np.ndarray], pose: Optional[np.ndarray]) -> None:
+        self.oid = oid
+        self.type = type
+        self.map = mp
+        self.lidar_pose = pose
+
     @staticmethod
-    def serialize(info_dto: InfoDTO, protocol: int = 4, compress: bool = False) -> bytes:
+    def serialize(coopmap: 'CoopMap', protocol: int = 4, compress: bool = False) -> bytes:
         """
         序列化 InfoDTO 对象为二进制数据
         
@@ -39,7 +34,7 @@ class InfoDTOSerializer:
         """
         try:
             # 将对象转换为字典
-            data_dict = info_dto.__dict__
+            data_dict = coopmap.__dict__
             
             # 序列化
             binary_data = pickle.dumps(data_dict, protocol=protocol)
@@ -53,9 +48,9 @@ class InfoDTOSerializer:
         except Exception as e:
             print(f"序列化错误: {e}")
             return b''
-    
+
     @staticmethod
-    def deserialize(binary_data: bytes, decompress: bool = False) -> Optional[InfoDTO]:
+    def deserialize(binary_data: bytes, decompress: bool = False) -> Optional['CoopMap']:
         """
         从二进制数据反序列化为 InfoDTO 对象
         
@@ -76,7 +71,13 @@ class InfoDTOSerializer:
             data_dict = pickle.loads(binary_data)
             
             # 重建 InfoDTO 对象
-            return InfoDTO(**data_dict)
+            return CoopMap(**data_dict)
         except Exception as e:
             print(f"反序列化错误: {e}")
             return None
+
+    @staticmethod
+    def calculate_overlap_ratio(map1: 'CoopMap', map2: 'CoopMap') -> float:
+        if map1.type == CoopMapType.DEBUG or map2.type == CoopMapType.DEBUG:
+            return 1.0
+        return calculate_confidence_map_overlap(map1.map, map1.lidar_pose, map2.map, map2.lidar_pose)

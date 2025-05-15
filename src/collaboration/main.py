@@ -4,14 +4,13 @@ import sys
 import os
 import threading
 
-from config import AppConfig
+from appConfig import AppConfig
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(parent_dir)
 from collaboration.ICP import ICP_init
 import logging
 from collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
-from collaboration.collaborationConfig import CollaborationConfig
 from collaboration.messageHandlerSync import MessageHandlerSync
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
@@ -35,7 +34,7 @@ def main():
     log_init(cfg)
     icp_client, icp_server = ICP_init(cfg)
 
-    perception_client = PerceptionRPCClient()
+    perception_client = PerceptionRPCClient(cfg)
     ctable = CollaborationTable(cfg)
     tx_handler = transactionHandlerSync(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, tx_handler)

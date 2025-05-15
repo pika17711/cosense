@@ -1,5 +1,6 @@
 import time
-from perception.perceptionRPCServer import PerceptionServerThread, MyInfo
+from perception.perceptionRPCServer import PerceptionServerThread
+from utils.sharedInfo import SharedInfo
 
 def load_pcd(no):
     pcd_load = o3d.io.read_point_cloud('../dataset/0000'+str(no)+'.pcd')
@@ -12,7 +13,7 @@ def load_pcd(no):
 
 class PerceptionManager:
     def __init__(self):
-        self.my_info = MyInfo()
+        self.my_info = SharedInfo()
         self.service1_thread = PerceptionServerThread(self.my_info)
         self.service1_thread.setDaemon(True)
         self.service1_thread.start()
