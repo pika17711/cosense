@@ -1,5 +1,7 @@
 import argparse
+import logging
 import time
+from appConfig import AppConfig
 import numpy as np
 from tqdm import tqdm
 
@@ -68,10 +70,10 @@ def fuse_feature(my_feature, voxel_features, voxel_coords, voxel_num_points):
     return fused_feature
 
 class DetectionManager:
-    def __init__(self, opt):
+    def __init__(self, opt, cfg: AppConfig):
         self.opt = opt
         assert self.opt.fusion_method in ['late', 'early', 'intermediate']
-
+        self.cfg = cfg
         self.hypes = yaml_utils.load_yaml(None, opt)
         self.dataset = self.__load_dataset()
         self.pre_processor = build_preprocessor(self.hypes['preprocess'], False)
@@ -99,8 +101,7 @@ class DetectionManager:
         print('Dataset Building')
         opencood_dataset = build_dataset(self.hypes, visualize=True, train=False)
         # opencood_dataset = intermediate_fusion_dataset.IntermediateFusionDataset(self.hypes, visualize=True, train=False)
-        print(f"{len(opencood_dataset)} samples found.")
-
+        # print(f"{len(opencood_dataset)} samples found.")
         return opencood_dataset
 
     def __load_model(self):
@@ -123,8 +124,8 @@ class DetectionManager:
         detection_server_thread.setDaemon(True)
         detection_server_thread.start()
 
-        self.perception_client = PerceptionRPCClient()
-        self.collaboration_client = CollaborationRPCClient()
+        self.perception_client = PerceptionRPCClient(self.cfg)
+        self.collaboration_client = CollaborationRPCClient(self.cfg)
 
     def loop(self):
         record_len = torch.empty(0, dtype=torch.int32)
@@ -155,8 +156,12 @@ class DetectionManager:
             if t - last_t < loop_time:
                 time.sleep(loop_time + last_t - t)
             last_t = time.time()
-
+            logging.info("融合检测进行中...")
             my_timestamp, my_pose, my_pcd = self.perception_client.get_my_pose_and_pcd()
+            if my_timestamp is None:
+                # RPC 错误 已经在RPC调用中输出过日志
+                continue
+
             self.shared_info.update_pcd(my_pcd)
             self.shared_info.update_pose(my_pose)
             # # print(my_pose)

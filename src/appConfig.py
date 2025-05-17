@@ -35,3 +35,5 @@ class AppConfig:
     other_data_cache_ttl = 20    # s
 
     overlap_threshold = 0.3
+
+    model_dir = 'opencood/logs/point_pillar_where2comm_2024_10_28_23_24_50/'
