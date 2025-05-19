@@ -28,8 +28,10 @@ class TestBroker:
         self.client_socket.bind(client_bind_addr)
         logging.info(f"Client socket bound to {client_bind_addr}")
         
-        # 注册中心：app_id -> (identity, oid), oid -> (identity, type=server/client)
-        self.registry: Dict[str, Dict] = {}
+        # id -> identity
+        self.server_registry: Dict[str, bytes] = {}
+        # id -> identity
+        self.client_registry: Dict[str, bytes] = {}
 
         self.poller = zmq.Poller()
         self.poller.register(self.server_socket, zmq.POLLIN)
@@ -65,13 +67,8 @@ class TestBroker:
                 # 服务器注册消息处理
                 app_id = msg["app_id"]
                 oid = msg["oid"]
-                self.registry[app_id] = {
-                    "identity": identity,
-                    "type": "server",
-                    "oid": oid
-                }
+                self.server_registry[oid] = identity
                 logging.info(f"Server registered: app_id={app_id}, oid={oid}")
-                self.server_socket.send_multipart([identity, b"", json.dumps({"status": "ok"}).encode('utf-8')])
             elif msg.get("mid") == MessageID.BROCASTPUB.value:  # 广播发布消息
                 self.broadcast_message_to_all(parts, source_type="server")
             elif msg.get("mid") == MessageID.BROCASTSUB.value:
@@ -95,13 +92,8 @@ class TestBroker:
             if msg.get("type") == "subscribe":
                 # 客户端订阅处理
                 oid = msg["oid"]
-                self.registry[oid] = {
-                    "identity": identity,
-                    "type": "client",
-                    "oid": oid
-                }
+                self.server_registry[oid] = identity
                 logging.info(f"Client subscribed: oid={oid}")
-                self.client_socket.send_multipart([identity, b"", json.dumps({"status": "ok"}).encode('utf-8')])
             else:
                 # 客户端请求处理（可选）
                 logging.warning(f"Unexpected client message: {msg}")
@@ -120,7 +112,7 @@ class TestBroker:
             msg = json.loads(parts[-1].decode('utf-8'))
             
             # 获取所有已注册的客户端
-            clients = [entry for entry in self.registry.values() if entry["type"] == "client"]
+            clients = [entry for entry in self.client_registry.values()]
             
             if not clients:
                 logging.info("No clients to broadcast message to")
@@ -128,10 +120,10 @@ class TestBroker:
 
             # 广播消息给所有客户端
             for client in clients:
-                target_identity = client["identity"]
+                target_identity = client
                 forwarded_parts = [target_identity, b"", parts[-1]]
                 self.client_socket.send_multipart(forwarded_parts)
-            
+
             logging.info(f"Broadcast message from {source_type} sent to {len(clients)} clients")
             
         except Exception as e:
@@ -153,18 +145,17 @@ class TestBroker:
                 return
                 
             # 查找目标客户端或服务器
-            target_entry = self.registry.get(target_oid)
-            
+            target_entry = self.client_registry.get(target_oid)
+
             if not target_entry:
                 logging.warning(f"No recipient found for oid={target_oid}")
                 return
                 
-            # 构建转发消息（保留原始消息内容，替换目标identity）
-            target_socket = self.client_socket if target_entry["type"] == "client" else self.server_socket
-            target_identity = target_entry["identity"]
-            
+            target_socket = self.client_socket
+            target_identity = target_entry
+
             # 移除原始identity，添加目标identity
-            forwarded_parts = [target_identity, b""] + parts[2:]
+            forwarded_parts = [target_identity, b"", parts[-1]]
             target_socket.send_multipart(forwarded_parts)
             
             logging.info(f"Forwarded message from {source_type} to oid={target_oid}")
