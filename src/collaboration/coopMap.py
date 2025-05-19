@@ -1,6 +1,7 @@
 
 from dataclasses import dataclass
 from enum import IntEnum, auto
+import logging
 import pickle
 from typing import Optional, Union
 
@@ -13,11 +14,11 @@ class CoopMapType(IntEnum):
     WHERE2COMM = auto()
 
 class CoopMap:
-    def __init__(self, oid, type: CoopMapType, mp: Optional[np.ndarray], pose: Optional[np.ndarray]) -> None:
+    def __init__(self, oid, type: CoopMapType, map: Optional[np.ndarray], lidar_pose: Optional[np.ndarray]) -> None:
         self.oid = oid
         self.type = type
-        self.map = mp
-        self.lidar_pose = pose
+        self.map = map
+        self.lidar_pose = lidar_pose
 
     @staticmethod
     def serialize(coopmap: 'CoopMap', protocol: int = 4, compress: bool = False) -> bytes:
@@ -73,7 +74,7 @@ class CoopMap:
             # 重建 InfoDTO 对象
             return CoopMap(**data_dict)
         except Exception as e:
-            print(f"反序列化错误: {e}")
+            logging.error(f"反序列化错误: {e}")
             return None
 
     @staticmethod

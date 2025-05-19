@@ -71,6 +71,9 @@ class CollaborationManager:
             elif argv[1] == 'close':
                 self.broadcastpub_close()
                 print('ok')
+            elif argv[1] == 'send':
+                self.collaboration_service.broadcastpub_send()
+                print('ok')
             else:
                 print('syntax error')
         elif len(argv) == 2 and argv[0] == 'bsub':
@@ -79,6 +82,9 @@ class CollaborationManager:
                 print('ok')
             elif argv[1] == 'close':
                 self.broadcastsub_close()
+                print('ok')
+            elif argv[1] == 'send':
+                self.collaboration_service.broadcastsub_send()
                 print('ok')
             else:
                 print('syntax error')

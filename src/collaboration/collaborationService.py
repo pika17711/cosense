@@ -143,6 +143,8 @@ class CollaborationService():
         """
         if self.ctable.get_waitnty_by_id(msg.oid) is not None or self.ctable.get_subscribing_by_id(msg.oid) is not None:
             return False
+        if self.cfg.collaboration_debug:
+            return True
         coopmap = CoopMap.deserialize(msg.coopmap)
         if coopmap == None:
             return False
@@ -294,14 +296,14 @@ class CollaborationService():
             bearCap = 1 
             self.tx_handler.notify(self.cfg.id, did, self.cfg.topic, act, cid, fakecoopMap, coopMapType, bearCap) # TODO 这里不需要传协作图
 
-    def sendreq_send(self, did, cid, rl, pt, aoi, mode):
+    def sendreq_send(self, did: appType.id_t, cid: appType.cid_t, rl, pt, aoi, mode):
         self.tx_handler.sendreq(did, cid, rl, pt, aoi, mode)
 
     def send_send(self, sid: appType.sid_t, data: bytes):
         self.tx_handler.send(sid, data)
 
-    def sendend_send(self, sid: appType.sid_t):
-        self.tx_handler.sendend(sid)
+    def sendend_send(self, did: appType.id_t, cid: appType.cid_t, sid: appType.sid_t):
+        self.tx_handler.sendend(did, cid, sid)
 
     def get_stream(self, cctx: CContext):
         server_assert(cctx.is_cotor())
@@ -313,14 +315,17 @@ class CollaborationService():
             mode = 1
             self.sendreq_send(cctx.remote_id(), cctx.cid, rl, pt, aoi, mode)
             self.stream_to_sendreq(cctx)
-            logging.debug(f"context: {cctx.cid} 获得stream {cctx.sid}")
             server_assert(cctx.stream_state == CSContextCotorState.SENDRDY)
 
     def send_data(self, cctx: CContext, data: bytes):
+        if cctx.stream_state == CSContextCotorState.SENDEND:
+            logging.debug(f"context: {cctx.cid} 发送结束, 发送数据失败")
+            return
+
         if not cctx.have_sid():
-            if cctx.stream_state == CSContextCotorState.PENDING:
+            if cctx.stream_state == CSContextCotorState.SENDREQ:
                 logging.debug(f"context: {cctx.cid} 获取stream中, 发送数据失败")
-            else:
+            elif cctx.stream_state == CSContextCotorState.PENDING:
                 self.get_stream(cctx)
         else:
             self.send_send(cctx.sid, data)

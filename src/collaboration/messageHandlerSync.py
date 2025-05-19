@@ -64,7 +64,7 @@ class MessageHandlerSync:
         self.executor.shutdown()
         for cctx in self.ctable.get_subscribing():
             if cctx.have_sid():
-                self.collaboration_service.sendend_send(cctx.sid) # type: ignore
+                self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid)
             self.collaboration_service.subscribe_send(cctx.remote_id(), SubscribeAct.FIN)
 
         for cctx in self.ctable.get_subscribed():

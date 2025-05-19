@@ -193,16 +193,16 @@ class transactionHandlerSync:
 
     def sendfile(self, did: appType.id_t, context: str, rl: int, pt: int, file: str):
         """ 不需要事务 """
-        self.submit(self.icp_server.sendFile, did, context, rl, pt, file)
+        self.submit(lambda: self.icp_server.sendFile(did, context, rl, pt, file))
 
     def sendreq(self, did: appType.id_t, context: str, rl: int, pt: int, aoi: int, mode: int):
         """ 不需要事务 """
-        self.submit(self.icp_server.streamSendreq, did, context, rl, pt)
+        self.submit(lambda: self.icp_server.streamSendreq(did, context, rl, pt))
 
-    def send(self, sid: str, data: bytes):
+    def send(self, sid: appType.sid_t, data: bytes):
         """ 不需要事务 """
-        self.submit(self.icp_server.streamSend, sid, data)
+        self.submit(lambda: self.icp_server.streamSend(sid, data))
 
-    def sendend(self, sid: str):
+    def sendend(self, did: appType.id_t, cid: appType.cid_t, sid: appType.sid_t):
         """ 不需要事务 """
-        self.submit(self.icp_server.streamSendend, None, None, sid)
+        self.submit(lambda: self.icp_server.streamSendend(did, cid, sid))

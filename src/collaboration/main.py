@@ -3,13 +3,13 @@ from __future__ import annotations
 import sys
 import os
 import threading
-
-from appConfig import AppConfig
+import logging
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(parent_dir)
+
+from appConfig import AppConfig
 from collaboration.ICP import ICP_init
-import logging
 from collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
 from collaboration.messageHandlerSync import MessageHandlerSync
 from collaboration.collaborationTable import CollaborationTable

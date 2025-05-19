@@ -25,7 +25,7 @@ class AppConfig:
 
     tx_timeout = 50              # ms
 
-    # debug = False
+    collaboration_debug = True
     rpc_collaboration_server_debug = False
     rpc_collaboration_client_debug = False
 
