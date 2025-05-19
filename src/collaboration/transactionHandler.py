@@ -22,7 +22,7 @@ class txContext:
         self.event = Event()
         self.response: Optional[AckMessage] = None
 
-class transactionHandlerSync:
+class transactionHandler:
     """
         事务处理器
             1. 实现tid相关部分, 保证消息在应用向通信子系统发送的消息可靠传输.

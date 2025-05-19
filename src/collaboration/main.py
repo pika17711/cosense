@@ -11,10 +11,10 @@ sys.path.append(parent_dir)
 from appConfig import AppConfig
 from collaboration.ICP import ICP_init
 from collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
-from collaboration.messageHandlerSync import MessageHandlerSync
+from collaboration.messageHandler import MessageHandler
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
-from collaboration.transactionHandlerSync import transactionHandlerSync
+from collaboration.transactionHandler import transactionHandler
 from collaboration.collaborationManager import CollaborationManager
 from perception.perceptionRPCClient import PerceptionRPCClient
 
@@ -36,9 +36,9 @@ def main():
 
     perception_client = PerceptionRPCClient(cfg)
     ctable = CollaborationTable(cfg)
-    tx_handler = transactionHandlerSync(cfg, icp_server, icp_client)
+    tx_handler = transactionHandler(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, tx_handler)
-    message_handler = MessageHandlerSync(cfg, ctable, tx_handler, perception_client, collaboration_service)
+    message_handler = MessageHandler(cfg, ctable, tx_handler, perception_client, collaboration_service)
     collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, collaboration_service)
 
     shared_other_info = SharedOthersInfo(ctable)

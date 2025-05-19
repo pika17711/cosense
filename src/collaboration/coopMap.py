@@ -4,6 +4,8 @@ from enum import IntEnum, auto
 import logging
 import pickle
 from typing import Optional, Union
+import appType
+from numpy.typing import NDArray
 
 import numpy as np
 from utils.common import calculate_confidence_map_overlap, x1_to_x2
@@ -14,7 +16,7 @@ class CoopMapType(IntEnum):
     WHERE2COMM = auto()
 
 class CoopMap:
-    def __init__(self, oid, type: CoopMapType, map: Optional[np.ndarray], lidar_pose: Optional[np.ndarray]) -> None:
+    def __init__(self, oid: appType.id_t, type: CoopMapType, map: Optional[NDArray], lidar_pose: Optional[NDArray]) -> None:
         self.oid = oid
         self.type = type
         self.map = map
@@ -34,13 +36,10 @@ class CoopMap:
             bytes: 序列化后的二进制数据
         """
         try:
-            # 将对象转换为字典
             data_dict = coopmap.__dict__
             
-            # 序列化
             binary_data = pickle.dumps(data_dict, protocol=protocol)
             
-            # 压缩 (可选)
             if compress:
                 import zlib
                 binary_data = zlib.compress(binary_data)
@@ -63,15 +62,12 @@ class CoopMap:
             InfoDTO: 反序列化后的对象
         """
         try:
-            # 解压缩 (可选)
             if decompress:
                 import zlib
                 binary_data = zlib.decompress(binary_data)
                 
-            # 反序列化
             data_dict = pickle.loads(binary_data)
             
-            # 重建 InfoDTO 对象
             return CoopMap(**data_dict)
         except Exception as e:
             logging.error(f"反序列化错误: {e}")

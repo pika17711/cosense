@@ -48,8 +48,10 @@ class CollaborationTable:
         self.subscribing: Dict[appType.id_t, CContext] = dict()
 
         self.data_cache_lock = threading.Lock()
+        # id -> data 缓存的他车数据
         self.data_cache: TTLCache[appType.id_t, InfoDTO] = TTLCache(self.cfg.data_cache_size, cfg.other_data_cache_ttl)  # 他车数据的缓存
 
+        # id -> coopmap 缓存的他车协作图
         self.coopmap_cache_lock = threading.Lock()
         self.coopmap_cache: TTLCache[appType.id_t, CoopMap] = TTLCache(self.cfg.data_cache_size, cfg.other_data_cache_ttl)
 
@@ -189,10 +191,10 @@ class CollaborationTable:
         with self.data_cache_lock:
             datas_copy = [copy.deepcopy(info) for info in self.data_cache.values()]
         return datas_copy
-    
-    def add_coopmap(self, oid, type, data: bytes):
+
+    def add_coopmap(self, oid, coopMap: CoopMap):
         with self.coopmap_cache_lock:
-            self.coopmap_cache[oid] = CoopMap.from_raw(oid, type, data)
+            self.coopmap_cache[oid] = coopMap
 
     def get_coopmap(self, oid):
         with self.coopmap_cache_lock:

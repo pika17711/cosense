@@ -6,9 +6,10 @@ import queue
 import threading
 from typing import Callable, Optional, Union
 
+from appConfig import AppConfig
 import appType
 
-from collaboration.transactionHandlerSync import transactionHandlerSync
+from collaboration.transactionHandler import transactionHandler
 
 from utils.common import mstime, server_assert
 
@@ -135,7 +136,7 @@ CollaborationContext
 """
 class CContext:
     def __init__(self, 
-                 cfg: CollaborationConfig,
+                 cfg: AppConfig,
                  cid: appType.cid_t,
                  cotor: appType.id_t,
                  cotee: appType.id_t,

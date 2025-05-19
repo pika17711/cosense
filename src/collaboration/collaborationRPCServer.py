@@ -46,7 +46,7 @@ class SharedOthersInfo:
             self.__voxel_coords = np.stack([info.feat['voxel_coords'] for info in infos])
             self.__voxel_num_points = np.stack([info.feat['voxel_num_points'] for info in infos])
 
-            self.__comm_masks = comm_masks if comm_masks is not None else np.array([])
+            self.__comm_masks = np.stack([self.ctable.get_coopmap(info.id).map for info in infos])
 
     def get_info_copy(self):
         self.update_info()

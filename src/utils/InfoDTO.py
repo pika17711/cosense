@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import pickle
 from typing import Dict, Optional
+from numpy.typing import NDArray
 import appType
 from appConfig import AppConfig
 import numpy as np
@@ -9,18 +10,18 @@ import numpy as np
 class InfoDTO:
     type: int
     id: appType.id_t # id
-    lidar2world: np.ndarray # 雷达到世界的外参矩阵
-    camera2world: Optional[np.ndarray] # 相机到世界的外参矩阵
-    camera_intrinsic: Optional[np.ndarray] # 相机的内参矩阵
-    feat: Dict[str, np.ndarray] # 特征 {'voxel_features': array, 'voxel_coords': array, 'voxel_num_points': array}
+    lidar2world: NDArray[np.float64] # 雷达到世界的外参矩阵
+    camera2world: Optional[NDArray] # 相机到世界的外参矩阵
+    camera_intrinsic: Optional[NDArray] # 相机的内参矩阵
+    feat: Dict[str, NDArray] # 特征 {'voxel_features': array, 'voxel_coords': array, 'voxel_num_points': array}
     ts_feat: appType.timestamp_t # 时间戳
-    speed: np.ndarray # 速度
+    speed: NDArray # 速度
     ts_speed: appType.timestamp_t # 时间戳
-    lidar_pos: np.ndarray # 位置
+    lidar_pos: NDArray # 位置
     ts_lidar_pos: appType.timestamp_t # 时间戳
-    acc: np.ndarray # 加速度
+    acc: NDArray # 加速度
     ts_acc: appType.timestamp_t # 时间戳
-    pcd: Optional[np.ndarray] # 点云 for vis and debug
+    pcd: Optional[NDArray] # 点云 for vis and debug
     ts_pcd: appType.timestamp_t # 时间戳
 
 class InfoDTOSerializer:

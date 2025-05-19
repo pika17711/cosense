@@ -22,7 +22,7 @@ class CollaborationRPCClient:          # 协同感知子系统的Client类，用
         try:
             response = self.__collaboration_stub.GetOthersPosesAndPCDs(Service_pb2.Empty(), timeout=10)  # 请求协同感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code().name}")  # 记录grpc异常
+            logging.error(f"RPC get_others_poses_and_pcds failed: code={e.code().name}")  # 记录grpc异常
             return None, None, None, None
 
         ids = response.ids  # 所有他车的id
@@ -40,7 +40,7 @@ class CollaborationRPCClient:          # 协同感知子系统的Client类，用
         try:
             response = self.__collaboration_stub.GetOthersInfo(Service_pb2.Empty(), timeout=10)  # 请求协同感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code().name}")  # 记录grpc异常
+            logging.error(f"RPC get_others_info failed: code={e.code().name}")  # 记录grpc异常
             return None, None, None, None, None, None, None, None, None
 
         ids = response.ids  # 所有他车的id
@@ -75,7 +75,7 @@ class CollaborationRPCClient:          # 协同感知子系统的Client类，用
         try:
             response = self.__collaboration_stub.GetOthersCommMasks(Service_pb2.Empty(), timeout=10)  # 请求协同感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code().name}")  # 记录grpc异常
+            logging.error(f"RPC get_others_comm_masks failed: code={e.code().name}")  # 记录grpc异常
             return None, None, None
 
         ids = response.ids  # 所有他车的id

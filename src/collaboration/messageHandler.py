@@ -7,7 +7,7 @@ from threading import Thread
 from typing import Callable, Dict
 
 from collaboration.collaborationTable import CollaborationTable
-from collaboration.transactionHandlerSync import transactionHandlerSync
+from collaboration.transactionHandler import transactionHandler
 from collaboration.collaborationService import CollaborationService
 
 from appConfig import AppConfig
@@ -16,11 +16,11 @@ from perception.perceptionRPCClient import PerceptionRPCClient
 from collaboration.message import Message, NotifyAct, SubscribeAct
 from collaboration.messageID import MessageID
 
-class MessageHandlerSync:
+class MessageHandler:
     def __init__(self, 
                  cfg: AppConfig,
                  ctable: CollaborationTable,
-                 tx_handler: transactionHandlerSync,
+                 tx_handler: transactionHandler,
                  perception_client: PerceptionRPCClient,
                  collaboration_service: CollaborationService):
 
@@ -35,7 +35,7 @@ class MessageHandlerSync:
         self.running = True
         self.msg_queue = Queue()
 
-        self.route_table: Dict[MessageID, Callable[[Message], None]] = {
+        self.route_table: Dict[MessageID, Callable[[Message], None]] = { # type: ignore
             # MessageID.APPRSP: collaboration_service.
 
             MessageID.BROCASTPUB: collaboration_service.broadcastpub_service,

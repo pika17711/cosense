@@ -9,7 +9,7 @@ from collaboration.collaborationTable import CollaborationTable
 from collaboration.contextGenerator import ContextGenerator
 from collaboration.coopMap import CoopMap, CoopMapType
 from collaboration.message import BroadcastPubMessage, BroadcastSubMessage, BroadcastSubNtyMessage, Message, NotifyAct, NotifyMessage, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, SubscribeAct, SubscribeMessage
-from collaboration.transactionHandlerSync import transactionHandlerSync
+from collaboration.transactionHandler import transactionHandler
 from appConfig import AppConfig
 from perception.perceptionRPCClient import PerceptionRPCClient
 import numpy as np
@@ -21,7 +21,7 @@ class CollaborationService():
                  cfg: AppConfig,
                  ctable: 'CollaborationTable',
                  perception_client: 'PerceptionRPCClient',
-                 tx_handler: 'transactionHandlerSync'
+                 tx_handler: 'transactionHandler'
                  ) -> None:
         self.cfg = cfg 
         self.cid_gen = ContextGenerator(cfg)
@@ -141,6 +141,9 @@ class CollaborationService():
                 remote: cotor
             2. 判断协作图的重叠是否超过阈值
         """
+        if msg.oid == self.cfg.id:
+            return False
+
         if self.ctable.get_waitnty_by_id(msg.oid) is not None or self.ctable.get_subscribing_by_id(msg.oid) is not None:
             return False
         if self.cfg.collaboration_debug:
@@ -184,6 +187,9 @@ class CollaborationService():
                 remote: cotee
             2. 判断协作图的重叠是否超过阈值
         """
+        if msg.oid == self.cfg.id:
+            return False
+
         if self.ctable.get_sendnty_by_id(msg.oid) is not None or self.ctable.get_subscribed_by_id(msg.oid):
             return False
         coopmap = CoopMap.deserialize(msg.coopmap)

@@ -150,7 +150,7 @@ class BroadcastPubMessage(Message):
             direction=MessageID.get_direction(header.mid),
             oid=msg_body["oid"],
             topic=msg_body["topic"],
-            coopmap=msg_body["coopmap"],
+            coopmap=msg_body.get("coopmap", msg_body.get('coopMap')),
             coopmaptype=msg_body.get("coopmaptype", 1),
             extra=msg_body.get("extra")
         )
