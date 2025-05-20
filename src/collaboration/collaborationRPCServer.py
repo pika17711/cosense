@@ -256,7 +256,7 @@ class CollaborationRPCServerThread():                          # 协同感知子
         finally:
             # 优雅地关闭服务器
             if self.server:
-                self.server.stop(0.5).wait()
+                self.server.stop(self.cfg.close_timeout).wait()
 
     def start(self):
         self.run_thread.start()

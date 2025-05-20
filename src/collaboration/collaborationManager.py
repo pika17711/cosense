@@ -52,15 +52,13 @@ class CollaborationManager:
         self.executor.shutdown()
         if self.broadcastpub_loop_thread.is_alive():
             self.broadcastpub_event.set()
-            self.broadcastpub_loop_thread.join(0.5)
+            self.broadcastpub_loop_thread.join(self.cfg.close_timeout)
         if self.broadcastsub_loop_thread.is_alive():
             self.broadcastsub_event.set()
-            self.broadcastsub_loop_thread.join(0.5)
+            self.broadcastsub_loop_thread.join(self.cfg.close_timeout)
         if self.subscribed_send_loop_thread.is_alive():
             self.subscribed_send_event.set()
-            self.subscribed_send_loop_thread.join(0.5)
-
-    def expire_loop(self):
+            self.subscribed_send_loop_thread.join(self.cfg.close_timeout)
 
 
     def handle_command(self, argv):
@@ -166,8 +164,9 @@ class CollaborationManager:
             subeds = self.ctable.get_subscribed()
             data = self.get_all_data()
             logging.info(f"订阅者数据发送, 订阅者列表{[remote_id for remote_id in subeds]}, 发送数据 {len(data)}B")
-            for cctx in subeds:
-                self.executor.submit(self.collaboration_service.send_data, cctx, data)
+            if len(subeds) > 0:
+                for cctx in subeds:
+                    self.executor.submit(self.collaboration_service.send_data, cctx, data)
             self.subscribed_send_event.wait(self.cfg.send_data_period/1000)
             if self.subscribed_send_event.is_set():
                 break

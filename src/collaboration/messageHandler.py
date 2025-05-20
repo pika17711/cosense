@@ -15,6 +15,7 @@ from perception.perceptionRPCClient import PerceptionRPCClient
 
 from collaboration.message import Message, NotifyAct, SubscribeAct
 from collaboration.messageID import MessageID
+from utils.common import ms2s
 
 class MessageHandler:
     def __init__(self, 
@@ -60,11 +61,12 @@ class MessageHandler:
     def close(self):
         self.running = False
         if self.recv_thread.is_alive():
-            self.recv_thread.join(0.5)
+            self.recv_thread.join(self.cfg.close_timeout)
+
         self.executor.shutdown()
         for cctx in self.ctable.get_subscribing():
             if cctx.have_sid():
-                self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid)
+                self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid) # type: ignore
             self.collaboration_service.subscribe_send(cctx.remote_id(), SubscribeAct.FIN)
 
         for cctx in self.ctable.get_subscribed():
@@ -78,8 +80,8 @@ class MessageHandler:
 
         for bcctx in self.ctable.get_all_bcctx():
             with bcctx.lock:
-                if not bcctx.is_expired():   
-                    self.collaboration_service.bcctx_to_closed(cctx) 
+                if not bcctx.is_expired():
+                    self.collaboration_service.bcctx_to_closed(bcctx)
 
     def recv_loop(self):
         while self.running:

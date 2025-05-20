@@ -183,9 +183,9 @@ class CollaborationTable:
             server_assert(cctx.cotee in self.subscribed)
             self.subscribed.pop(cctx.cotee)
 
-    def get_subscribed(self) -> Iterable[CContext]:
+    def get_subscribed(self) -> List[CContext]:
         with self.subscribed_lock:
-            return self.subscribed.values()
+            return list(self.subscribed.values())
     
     def get_subscribed_by_id(self, cotor_id):
         with self.subscribed_lock:

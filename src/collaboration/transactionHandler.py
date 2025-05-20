@@ -54,7 +54,7 @@ class transactionHandler:
         self.running = False
         self.executor.shutdown()
         if self.recv_thread.is_alive():
-            self.recv_thread.join(timeout=1.0)
+            self.recv_thread.join(self.cfg.close_timeout)
 
     def new_tid(self):
         with self.lock:
