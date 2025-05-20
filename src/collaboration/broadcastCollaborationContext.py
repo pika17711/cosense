@@ -26,7 +26,7 @@ class BCContext:
         self.start_time = mstime()
         self.state = BCContextState.PENDING
         self.msg_queue = queue.Queue()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
     def is_expired(self) -> bool:
         # 用开始时间计算是否存活

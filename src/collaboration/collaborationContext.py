@@ -151,7 +151,7 @@ class CContext:
         self.last_active = mstime()                      # 最后活跃时间
         self.start_time = mstime()                       # 开始时间
 
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.sid_set_event = threading.Event()
         self.stream_state: Union[CSContextCoteeState, CSContextCotorState] = CSContextCotorState.PENDING if self.is_cotor() else CSContextCoteeState.PENDING
         self.sid: Optional[appType.sid_t] = None
