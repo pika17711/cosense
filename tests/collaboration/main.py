@@ -8,20 +8,20 @@ import logging
 
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-sys.path.append(project_root)
+sys.path.append(os.path.join(project_root, 'src'))
 
-from src.appConfig import AppConfig
-from src.collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
+from appConfig import AppConfig
+from collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
 from collaboration.messageHandler import MessageHandler
-from src.collaboration.collaborationTable import CollaborationTable
-from src.collaboration.collaborationService import CollaborationService
+from collaboration.collaborationTable import CollaborationTable
+from collaboration.collaborationService import CollaborationService
 from collaboration.transactionHandler import transactionHandler
-from src.collaboration.collaborationManager import CollaborationManager
-from src.perception.perceptionRPCClient import PerceptionRPCClient
-from tests.collaboration.testICPServer import TestICPServer
-from tests.collaboration.TestICPClient import TestICPClient
+from collaboration.collaborationManager import CollaborationManager
+from perception.perceptionRPCClient import PerceptionRPCClient
+from testICPServer import TestICPServer
+from TestICPClient import TestICPClient
 
-from src.utils.common import mstime
+from utils.common import mstime
 
 def log_init(cfg: AppConfig):
     path = f'tests/collaboration/tmp{str(mstime())[:8]}'

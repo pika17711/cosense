@@ -12,7 +12,6 @@ from queue import Queue
 import appType
 from collaboration.messageID import MessageID
 from collaboration.message import AckMessage, Message
-from collaboration.ICP import ICPServer, ICPClient
 from appConfig import AppConfig
 from utils.common import ms2s
 
@@ -33,8 +32,8 @@ class transactionHandler:
     """
     def __init__(self, 
                  cfg: AppConfig, 
-                 icp_server: ICPServer,
-                 icp_client: ICPClient,
+                 icp_server,
+                 icp_client,
                  ):
         self.cfg = cfg
         self.recv_queue = Queue()

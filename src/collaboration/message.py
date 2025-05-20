@@ -313,7 +313,7 @@ class SendRdyMessage(Message):
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            did=raw["did"],
+            did=raw.get("did"),
             context=raw.get("context"),
             sid=raw["sid"],
         )

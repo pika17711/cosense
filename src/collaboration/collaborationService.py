@@ -544,3 +544,12 @@ class CollaborationService():
             self.stream_to_end(cctx)
         elif cctx.stream_state == CSContextCoteeState.RECVEND:
             logging.debug("收到RECVEND, 会话context: {cctx.cid} 流接收结束")
+
+    def disconnect(self, id):
+        subed_cctx = self.ctable.get_subscribed_by_id(id)
+        subing_cctx = self.ctable.get_subscribing_by_id(id)
+        if subed_cctx is not None:
+            self.notify_send(subed_cctx.cid, subed_cctx.remote_id(), NotifyAct.FIN)
+
+        if subing_cctx is not None:
+            self.subscribe_send(subing_cctx.cid, subing_cctx.remote_id(), SubscribeAct.FIN)

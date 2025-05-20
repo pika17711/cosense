@@ -6,6 +6,7 @@ import concurrent.futures
 import threading
 from time import sleep
 from appConfig import AppConfig
+from collaboration.message import SubscribeAct
 from utils import InfoDTO
 from perception.perceptionRPCClient import PerceptionRPCClient
 
@@ -93,6 +94,10 @@ class CollaborationManager:
                 print([cctx.remote_id() for cctx in self.ctable.get_subscribing()])
             elif argv[1] == 'subed':
                 print([cctx.remote_id() for cctx in self.ctable.get_subscribed()])
+        elif len(argv) == 2 and argv[0] == 'subscribe':
+            self.collaboration_service.subscribe_send(argv[2], SubscribeAct.ACKUPD)
+        elif len(argv) == 2 and argv[0] == 'disconnect':
+            self.collaboration_service.disconnect(argv[1])
         else:
             print('syntax error')
         return True

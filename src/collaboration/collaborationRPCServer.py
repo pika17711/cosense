@@ -1,7 +1,5 @@
 import logging
 import threading
-from collaboration.collaborationTable import CollaborationTable
-from appConfig import AppConfig
 import grpc
 import time
 import numpy as np
@@ -9,6 +7,8 @@ from concurrent import futures
 
 from rpc import Service_pb2
 from rpc import Service_pb2_grpc
+from collaboration.collaborationTable import CollaborationTable
+from appConfig import AppConfig
 
 
 class SharedOthersInfo:

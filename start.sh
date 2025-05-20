@@ -3,6 +3,8 @@
 # 启动脚本
 # 支持启动、停止、重启和状态检查四个子系统
 
+export PYTHONPATH="/src:$PYTHONPATH"
+
 # 配置各模块的Python解释器路径和主程序
 COLLABORATION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/rospy/bin/python3"
 COLLABORATION_MAIN="src/collaboration/main.py"

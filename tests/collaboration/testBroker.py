@@ -1,9 +1,11 @@
+import datetime
+import hashlib
 import os
 import sys
 import zmq
 import json
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(project_root)
 from src.collaboration.messageID import MessageID
@@ -32,6 +34,9 @@ class TestBroker:
         self.server_registry: Dict[str, bytes] = {}
         # id -> identity
         self.client_registry: Dict[str, bytes] = {}
+
+        # sid -> (id, context)
+        self.sid_table: Dict[str, Tuple] = {}
 
         self.poller = zmq.Poller()
         self.poller.register(self.server_socket, zmq.POLLIN)
@@ -73,12 +78,24 @@ class TestBroker:
                 self.broadcast_message_to_all(parts, source_type="server")
             elif msg.get("mid") == MessageID.BROCASTSUB.value:
                 self.broadcast_message_to_all(parts, source_type="server")
+            elif msg.get("mid") == MessageID.SENDREQ.value:
+                self.handle_sendreq_message(parts)
             else:
                 # 常规消息处理（按oid转发）
                 self.forward_message(parts, source_type="server")
             
         except Exception as e:
             logging.error(f"Error processing server message: {e}")
+
+    def gen_sid():
+        return hashlib.md5(str(datetime.datetime.now()))
+
+    def handle_sendreq_message(self, parts):
+        sid = self.gen_sid()
+        self.sid_table[sid] = (parts["oid"], parts.get('context'))
+        msg = {'mid': MessageID.SENDRDY.value, 'sid': sid}
+        part = json.dumps(msg).encode()
+        self.send_message(parts['did'], part)
 
     def handle_client_message(self):
         """
@@ -92,7 +109,7 @@ class TestBroker:
             if msg.get("type") == "subscribe":
                 # 客户端订阅处理
                 oid = msg["oid"]
-                self.server_registry[oid] = identity
+                self.client_registry[oid] = identity
                 logging.info(f"Client subscribed: oid={oid}")
             else:
                 # 客户端请求处理（可选）
@@ -129,8 +146,22 @@ class TestBroker:
         except Exception as e:
             logging.error(f"Error broadcasting message: {e}")
 
+    def send_message(self, target_id, part):            
+        # 查找目标客户端或服务器
+        target_entry = self.client_registry.get(target_id)
 
-    def forward_message(self, parts: List[bytes], source_type: str):
+        if not target_entry:
+            logging.warning(f"No recipient found for id={target_id}")
+            return
+            
+        target_socket = self.client_socket
+        target_identity = target_entry
+
+        # 移除原始identity，添加目标identity
+        forwarded_parts = [target_identity, b"", part]
+        target_socket.send_multipart(forwarded_parts)
+
+    def forward_message(self, parts: List[bytes]):
         """
         按消息中的oid字段转发消息
         :param parts: 原始消息部件（包含identity和消息内容）
@@ -138,27 +169,11 @@ class TestBroker:
         """
         try:
             msg = json.loads(parts[-1].decode('utf-8'))
-            target_oid = msg["msg"].get("oid")  # 从消息体中提取目标oid
+            target_id = msg["msg"].get("did")  # 从消息体中提取目标oid
             
-            if not target_oid:
-                logging.warning(f"Message missing 'oid' field: {msg}")
-                return
-                
-            # 查找目标客户端或服务器
-            target_entry = self.client_registry.get(target_oid)
-
-            if not target_entry:
-                logging.warning(f"No recipient found for oid={target_oid}")
-                return
-                
-            target_socket = self.client_socket
-            target_identity = target_entry
-
-            # 移除原始identity，添加目标identity
-            forwarded_parts = [target_identity, b"", parts[-1]]
-            target_socket.send_multipart(forwarded_parts)
+            self.send_message(target_id, parts[-1])
             
-            logging.info(f"Forwarded message from {source_type} to oid={target_oid}")
+            logging.info(f"Forwarded {MessageID(msg['mid']).name} from to oid={target_id}")
             
         except Exception as e:
             logging.error(f"Error forwarding message: {e}")
