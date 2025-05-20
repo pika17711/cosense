@@ -31,14 +31,17 @@ class CollaborationService():
 
     def cctx_to_waitnty(self, cctx: CContext):
         server_assert(cctx.is_cotee(), "上下文角色必须是被协作者")
+        server_assert(cctx.lock.locked())
         server_assert(cctx.state == CContextCoteeState.PENDING)
         logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCoteeState.WAITNTY")
         cctx.update_active()
         cctx.state = CContextCoteeState.WAITNTY
+        self.ctable.add_cctx(cctx)
         self.ctable.add_waitnty(cctx)
 
     def cctx_to_subscribing(self, cctx: CContext):
         server_assert(cctx.is_cotee(), "上下文角色必须是被协作者")
+        server_assert(cctx.lock.locked())
         server_assert(cctx.state == CContextCoteeState.WAITNTY)
         logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCoteeState.SUBSCRIBING")
         cctx.update_active()
@@ -49,14 +52,17 @@ class CollaborationService():
 
     def cctx_to_sendnty(self, cctx: CContext):
         server_assert(cctx.is_cotor(), "上下文角色必须是协作者")
+        server_assert(cctx.lock.locked())
         server_assert(cctx.state == CContextCotorState.PENDING)
         logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCotorState.SENDNTY")
         cctx.update_active()
         cctx.state = CContextCotorState.SENDNTY
         self.ctable.add_sendnty(cctx)
+        self.ctable.add_cctx(cctx)
 
     def cctx_to_subscribed(self, cctx: CContext):
         server_assert(cctx.is_cotor(), "上下文角色必须是协作者")
+        server_assert(cctx.lock.locked())
         server_assert(cctx.state == CContextCotorState.SENDNTY)
         logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCotorState.SUBSCRIBED")
         cctx.update_active()
@@ -66,7 +72,7 @@ class CollaborationService():
         self.ctable.add_subscribed(cctx)
 
     def cctx_to_closed(self, cctx: CContext):
-        cctx.update_active()
+        server_assert(cctx.lock.locked())
         if cctx.is_cotor():
             logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCotorState.CLOSED")
             if cctx.state == CContextCotorState.SUBSCRIBED:
@@ -85,26 +91,31 @@ class CollaborationService():
         self.ctable.rem_cctx(cctx)
 
     def stream_to_waitrdy(self, cctx: CContext):
+        server_assert(cctx.lock.locked())
         server_assert(cctx.is_cotee())
         cctx.update_active()
         cctx.stream_state = CSContextCoteeState.WAITRDY
 
     def stream_to_recvrdy(self, cctx: CContext):
+        server_assert(cctx.lock.locked())
         server_assert(cctx.is_cotee())
         cctx.update_active()
         cctx.stream_state = CSContextCoteeState.RECVRDY
 
     def stream_to_sendreq(self, cctx: CContext):
+        server_assert(cctx.lock.locked())
         server_assert(cctx.is_cotor())
         cctx.update_active()
         cctx.stream_state = CSContextCotorState.SENDREQ
 
     def stream_to_sendrdy(self, cctx: CContext):
+        server_assert(cctx.lock.locked())
         server_assert(cctx.is_cotor())
         cctx.update_active()
         cctx.stream_state = CSContextCotorState.SENDRDY
 
     def stream_to_end(self, cctx: CContext):
+        server_assert(cctx.lock.locked())
         if cctx.is_cotor():
             cctx.stream_state = CSContextCotorState.SENDEND
         else:
@@ -113,10 +124,13 @@ class CollaborationService():
             self.ctable.rem_stream(cctx.sid)
 
     def bcctx_to_waitbnnty(self, bcctx: BCContext):
+        server_assert(bcctx.lock.locked())
         server_assert(bcctx.state == BCContextState.PENDING, "必须发送了广播订阅后，才能等待广播通知消息")
         bcctx.state = BCContextState.WAITBNTY
+        self.ctable.add_bcctx(bcctx)
 
     def bcctx_to_closed(self, bcctx: BCContext):
+        server_assert(bcctx.lock.locked())
         if self.state == BCContextState.PENDING:
             logging.warning(f"广播会话 {bcctx.cid}未发送广播订阅消息即被关闭")
 
@@ -124,9 +138,11 @@ class CollaborationService():
         self.state = BCContextState.CLOSED
     
     def bcctx_add_cctx(self, bcctx: BCContext, cctx: CContext):
+        server_assert(bcctx.lock.locked())
         bcctx.cctx_set.add(cctx)
 
     def bcctx_rem_cctx(self, bcctx: BCContext, cctx: CContext):
+        server_assert(bcctx.lock.locked())
         bcctx.cctx_set.remove(cctx)
 
     def get_self_coodmap(self):
@@ -211,9 +227,9 @@ class CollaborationService():
         coopMapType = 1
         bearCap = 1
         bcctx = BCContext(self.cfg, cid)
-        self.ctable.add_bcctx(bcctx)
-        self.tx_handler.brocastsub(self.cfg.id, self.cfg.topic, cid, decoopmap, coopMapType, bearCap)
-        self.bcctx_to_waitbnnty(bcctx)
+        with bcctx.lock:
+            self.tx_handler.brocastsub(self.cfg.id, self.cfg.topic, cid, decoopmap, coopMapType, bearCap)
+            self.bcctx_to_waitbnnty(bcctx)
 
     def broadcastpub_send(self):
         """
@@ -248,14 +264,14 @@ class CollaborationService():
         for didi in did:
             if act == SubscribeAct.ACKUPD:
                 cid = self.cid_gen()
-                cctx = CContext(self.cfg, cid, didi, self.cfg.id)
-                self.ctable.add_cctx(cctx)
                 coopmap = self.get_self_coodmap()
                 decoopmap = CoopMap.serialize(coopmap)
                 coopMapType = 1
                 bearCap = 1
-                self.tx_handler.subscribe(self.cfg.id, [didi], self.cfg.topic, act, cid, decoopmap, coopMapType, bearCap)
-                self.cctx_to_waitnty(cctx)
+                cctx = CContext(self.cfg, cid, didi, self.cfg.id)
+                with cctx.lock:
+                    self.tx_handler.subscribe(self.cfg.id, [didi], self.cfg.topic, act, cid, decoopmap, coopMapType, bearCap)
+                    self.cctx_to_waitnty(cctx)
             else:
                 cctx = self.ctable.get_subscribing_by_id(didi)
                 if cctx is None:
@@ -264,9 +280,9 @@ class CollaborationService():
                 fakecoopmap = np.array([1]).tobytes()
                 coopMapType = 1
                 bearCap = 0
-                self.tx_handler.subscribe(self.cfg.id, [didi], self.cfg.topic, act, cctx.cid, fakecoopmap, coopMapType, bearCap)  # TODO 关闭订阅不需要传协作图
-                self.cctx_to_closed(cctx)
-                self.ctable.rem_cctx(cctx)
+                with cctx.lock:
+                    self.tx_handler.subscribe(self.cfg.id, [didi], self.cfg.topic, act, cctx.cid, fakecoopmap, coopMapType, bearCap)  # TODO 关闭订阅不需要传协作图
+                    self.cctx_to_closed(cctx)
 
     def notify_send(self, cid, did, act=NotifyAct.ACK):
         """
@@ -287,20 +303,24 @@ class CollaborationService():
                 1. did
                 2. act
         """
-        self.ctable.get_cctx_or_panic(cid, self.cfg.id, did)
+        cctx = self.ctable.get_cctx_or_panic(cid, self.cfg.id, did)
         if act == NotifyAct.ACK:
             coopmap = self.get_self_coodmap()
             decoopmap = CoopMap.serialize(coopmap)
             coopMapType = 1
             bearCap = 1
-            self.tx_handler.notify(self.cfg.id, did, self.cfg.topic, act, cid, decoopmap, coopMapType, bearCap)
+            with cctx.lock:
+                self.tx_handler.notify(self.cfg.id, did, self.cfg.topic, act, cid, decoopmap, coopMapType, bearCap)
+                self.cctx_to_subscribed(cctx)
         elif act == NotifyAct.NTY:
             pass
         elif act == NotifyAct.FIN:
             fakecoopMap = np.array([1]).tobytes()
             coopMapType = 1
             bearCap = 1 
-            self.tx_handler.notify(self.cfg.id, did, self.cfg.topic, act, cid, fakecoopMap, coopMapType, bearCap) # TODO 这里不需要传协作图
+            with cctx.lock:
+                self.tx_handler.notify(self.cfg.id, did, self.cfg.topic, act, cid, fakecoopMap, coopMapType, bearCap) # TODO 这里不需要传协作图
+                self.cctx_to_closed(cctx)
 
     def sendreq_send(self, did: appType.id_t, cid: appType.cid_t, rl, pt, aoi, mode):
         self.tx_handler.sendreq(did, cid, rl, pt, aoi, mode)
@@ -319,8 +339,10 @@ class CollaborationService():
             pt = 1
             aoi = 0
             mode = 1
-            self.sendreq_send(cctx.remote_id(), cctx.cid, rl, pt, aoi, mode)
-            self.stream_to_sendreq(cctx)
+            with cctx.lock:
+                self.sendreq_send(cctx.remote_id(), cctx.cid, rl, pt, aoi, mode)
+                self.stream_to_sendreq(cctx)
+            cctx.sid_set_event.wait()
             server_assert(cctx.stream_state == CSContextCotorState.SENDRDY)
 
     def send_data(self, cctx: CContext, data: bytes):
@@ -348,9 +370,9 @@ class CollaborationService():
             logging.info(f"接收 {msg.oid} 的BROADCASTPUB")
             cid = self.cid_gen()
             cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
-            self.ctable.add_cctx(cctx)
-            self.subscribe_send(msg.oid)
-            self.cctx_to_waitnty(cctx)
+            with cctx.lock:
+                self.subscribe_send(msg.oid)
+                self.cctx_to_waitnty(cctx)
         else:
             logging.info(f"拒绝 {msg.oid} 的BROADCASTPUB")
 
@@ -395,10 +417,11 @@ class CollaborationService():
             if need:
                 logging.debug(f"接收 {msg.oid} 的BROADCASTSUBNTY")
                 cctx = CContext(self.cfg, bcctx.cid, msg.oid, self.cfg.id)
-                self.ctable.add_cctx(cctx)
-                self.bcctx_add_cctx(bcctx, cctx)
-                self.subscribe_send(msg.oid, SubscribeAct.ACKUPD)
-                self.cctx_to_waitnty(cctx)
+                with cctx.lock:
+                    with bcctx.lock:
+                        self.bcctx_add_cctx(bcctx, cctx)
+                    self.subscribe_send(msg.oid, SubscribeAct.ACKUPD)
+                    self.cctx_to_waitnty(cctx)
             else:
                 logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUBNTY")
         elif bcctx.state == BCContextState.CLOSED:
@@ -421,20 +444,21 @@ class CollaborationService():
             return
         server_assert(cctx.state != CContextCoteeState.PENDING)
 
-        if cctx.state == CContextCoteeState.WAITNTY:
-            if msg.act == NotifyAct.ACK:
-                self.cctx_to_subscribing(cctx)
-            elif msg.act == NotifyAct.FIN:
-                self.cctx_to_closed(cctx)
-            elif msg.act == NotifyAct.NTY:
-                server_logic_error(f"收到NOTIFY.NTY, 但对应 context:{msg.context} 中状态是WAITNTY, 不应该收到NOTIFY.NTY")
-        elif cctx.state == CContextCoteeState.SUBSCRIBING:
-            if msg.act == NotifyAct.ACK:
-                server_logic_error(f"收到NOTIFY.ACK, 但对应 context:{msg.context} 中状态是SUBSCRIBING, 不应该收到NOTIFY.ACK")
-            elif msg.act == NotifyAct.FIN:
-                self.cctx_to_closed(cctx)
-            elif msg.act == NotifyAct.NTY:
-                server_not_implemented(f"收到NOTIFY.ACK, 对应 context:{msg.context} 中状态是SUBSCRIBING")
+        with cctx.lock:
+            if cctx.state == CContextCoteeState.WAITNTY:
+                if msg.act == NotifyAct.ACK:
+                    self.cctx_to_subscribing(cctx)
+                elif msg.act == NotifyAct.FIN:
+                    self.cctx_to_closed(cctx)
+                elif msg.act == NotifyAct.NTY:
+                    server_logic_error(f"收到NOTIFY.NTY, 但对应 context:{msg.context} 中状态是WAITNTY, 不应该收到NOTIFY.NTY")
+            elif cctx.state == CContextCoteeState.SUBSCRIBING:
+                if msg.act == NotifyAct.ACK:
+                    server_logic_error(f"收到NOTIFY.ACK, 但对应 context:{msg.context} 中状态是SUBSCRIBING, 不应该收到NOTIFY.ACK")
+                elif msg.act == NotifyAct.FIN:
+                    self.cctx_to_closed(cctx)
+                elif msg.act == NotifyAct.NTY:
+                    server_not_implemented(f"收到NOTIFY.ACK, 对应 context:{msg.context} 中状态是SUBSCRIBING")
 
     def subscribe_ackupd_service(self, msg: SubscribeMessage):
         """
@@ -450,13 +474,13 @@ class CollaborationService():
             logging.warning(f"收到SUBSCRIBE, 此时不应该存在此context:{msg.context}")
             return
         cctx = CContext(self.cfg, msg.context, self.cfg.id, msg.oid)
-        self.cctx_to_sendnty(cctx)
-        if self.check_need_subscribe(msg):
-            self.ctable.add_cctx(cctx)
-            self.notify_send(cctx.cid, msg.oid)
-            self.cctx_to_subscribed(cctx)
-        else:
-            self.cctx_to_closed(cctx)
+        with cctx.lock:
+            self.cctx_to_sendnty(cctx)
+            if self.check_need_subscribe(msg):
+                self.notify_send(cctx.cid, msg.oid)
+                self.cctx_to_subscribed(cctx)
+            else:
+                self.cctx_to_closed(cctx)
 
     def subscribe_fin_service(self, msg: SubscribeMessage):
         """
@@ -470,15 +494,15 @@ class CollaborationService():
         if cctx is None:
             logging.warning(f"收到SUBSCRIBE FIN, 但不存在此context:{msg.context}")
             return
-        if cctx.state == CContextCotorState.PENDING:
-            # TODO 输出警告 代码错误 或消息错误
-            logging.warning(f"收到SUBSCRIBE FIN, 但对应context:{msg.context}还未发送NOTIFY")
-        elif cctx.state == CContextCotorState.SENDNTY:
-            self.cctx_to_closed(cctx)
-        elif cctx.state == CContextCotorState.SUBSCRIBED:
-            self.cctx_to_closed(cctx)
-        elif cctx.state == CContextCotorState.CLOSED:
-            pass
+        with cctx.lock:
+            if cctx.state == CContextCotorState.PENDING:
+                logging.warning(f"收到SUBSCRIBE FIN, 但对应context:{msg.context}还未发送NOTIFY")
+            elif cctx.state == CContextCotorState.SENDNTY:
+                self.cctx_to_closed(cctx)
+            elif cctx.state == CContextCotorState.SUBSCRIBED:
+                self.cctx_to_closed(cctx)
+            elif cctx.state == CContextCotorState.CLOSED:
+                pass
 
     def subscribe_service(self, msg: SubscribeMessage):
         logging.debug(f"APP serve message {msg}")
@@ -492,12 +516,13 @@ class CollaborationService():
     def recvfile_service(self, msg: RecvFileMessage):
         logging.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.oid)
-        assert cctx.state == CContextCoteeState.SUBSCRIBING
-        data = read_binary_file(msg.file)
-        de_data = InfoDTO.InfoDTOSerializer.deserialize(data)
-        if de_data is None:
-            return
-        self.ctable.add_data(de_data)
+        with cctx.lock:
+            server_assert(cctx.state == CContextCoteeState.SUBSCRIBING)
+            data = read_binary_file(msg.file)
+            de_data = InfoDTO.InfoDTOSerializer.deserialize(data)
+            if de_data is None:
+                return
+            self.ctable.add_data(de_data)
 
     def sendfin_service(self, msg: SendFinMessage):
         logging.debug(f"APP serve message {msg}")
@@ -505,19 +530,21 @@ class CollaborationService():
     def sendrdy_service(self, msg: SendRdyMessage):
         logging.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.did)
-        server_assert(not cctx.have_sid())
-        cctx.sid = msg.sid
-        cctx.stream_state = CSContextCotorState.SENDRDY
-        self.ctable.add_stream(msg.sid, cctx)
-        cctx.sid_set_event.set()
+        with cctx.lock:
+            server_assert(not cctx.have_sid())
+            cctx.sid = msg.sid
+            cctx.stream_state = CSContextCotorState.SENDRDY
+            self.ctable.add_stream(msg.sid, cctx)
+            cctx.sid_set_event.set()
     
     def recvrdy_service(self, msg: RecvRdyMessage):
         logging.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.oid)
-        server_assert(not cctx.have_sid())
-        cctx.sid = msg.sid
-        self.stream_to_recvrdy(cctx)
-        cctx.sid_set_event.set()
+        with cctx.lock:
+            server_assert(not cctx.have_sid())
+            cctx.sid = msg.sid
+            self.stream_to_recvrdy(cctx)
+            cctx.sid_set_event.set()
 
     def recv_service(self, msg: RecvMessage):
         logging.debug(f"APP serve message {msg}")
@@ -525,10 +552,11 @@ class CollaborationService():
         if cctx is None:
             logging.warning(f'不存在与{msg.sid}关联的会话')
             return
-        de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
-        if de_data is None:
-            return
-        self.ctable.add_data(de_data)
+        with cctx.lock:
+            de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
+            if de_data is None:
+                return
+            self.ctable.add_data(de_data)
 
     def recvend_service(self, msg: RecvEndMessage):
         logging.debug(f"APP serve message {msg}")
@@ -536,14 +564,15 @@ class CollaborationService():
         if cctx is None:
             logging.warning(f'不存在与{msg.sid}关联的会话')
             return
-        if cctx.stream_state == CSContextCoteeState.PENDING:
-            server_logic_error(f"收到RECVEND, 会话context: {cctx.cid} 还未收到RECVRDY")
-        elif cctx.stream_state == CSContextCoteeState.WAITRDY:
-            server_logic_error(f"收到RECVEND, 会话context: {cctx.cid} 还未收到RECVRDY")
-        elif cctx.stream_state == CSContextCoteeState.RECVRDY:
-            self.stream_to_end(cctx)
-        elif cctx.stream_state == CSContextCoteeState.RECVEND:
-            logging.debug("收到RECVEND, 会话context: {cctx.cid} 流接收结束")
+        with cctx.lock:
+            if cctx.stream_state == CSContextCoteeState.PENDING:
+                server_logic_error(f"收到RECVEND, 会话context: {cctx.cid} 还未收到RECVRDY")
+            elif cctx.stream_state == CSContextCoteeState.WAITRDY:
+                server_logic_error(f"收到RECVEND, 会话context: {cctx.cid} 还未收到RECVRDY")
+            elif cctx.stream_state == CSContextCoteeState.RECVRDY:
+                self.stream_to_end(cctx)
+            elif cctx.stream_state == CSContextCoteeState.RECVEND:
+                logging.debug("收到RECVEND, 会话context: {cctx.cid} 流接收结束")
 
     def disconnect(self, id):
         subed_cctx = self.ctable.get_subscribed_by_id(id)

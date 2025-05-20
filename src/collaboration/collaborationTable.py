@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import threading
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 import appType
 from cachetools import TTLCache
 from collaboration.collaborationContext import CContext
@@ -72,6 +72,10 @@ class CollaborationTable:
                 cctx = None
             return cctx
 
+    def get_all_cctx(self) -> Iterable[CContext]:
+        with self.cctx_lock:
+            return self.cctx.values()
+
     def get_cctx_or_panic(self, cid, cotor, cotee) -> CContext:
         """
             得到cctx，若不存在，则panic
@@ -116,6 +120,10 @@ class CollaborationTable:
                 return self.bcctx[cid]
             else:
                 return None
+
+    def get_all_bcctx(self) -> Iterable[BCContext]:
+        with self.bcctx_lock:
+            return self.bcctx.values()
 
     def rem_bcctx(self, bcctx: BCContext):
         with self.bcctx_lock:

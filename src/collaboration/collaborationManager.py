@@ -46,6 +46,7 @@ class CollaborationManager:
         self.broadcastsub_loop_thread.start()
         self.subscribed_send_loop_thread.start()
 
+
     def close(self):
         self.running = False
         self.executor.shutdown()
@@ -58,6 +59,9 @@ class CollaborationManager:
         if self.subscribed_send_loop_thread.is_alive():
             self.subscribed_send_event.set()
             self.subscribed_send_loop_thread.join(0.5)
+
+    def expire_loop(self):
+
 
     def handle_command(self, argv):
         logging.debug(f"输入的命令是: {argv}")

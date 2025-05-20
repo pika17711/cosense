@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import IntEnum, auto
 import queue
+import threading
 import appType
 from appConfig import AppConfig
 from utils.common import mstime
@@ -25,6 +26,7 @@ class BCContext:
         self.start_time = mstime()
         self.state = BCContextState.PENDING
         self.msg_queue = queue.Queue()
+        self.lock = threading.Lock()
 
     def is_expired(self) -> bool:
         # 用开始时间计算是否存活
