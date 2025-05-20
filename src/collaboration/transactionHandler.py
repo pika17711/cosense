@@ -75,21 +75,23 @@ class transactionHandler:
 
     def recv_loop(self):
         while self.running:
+            resp = self.icp_client.recv_message()
+            if resp is None:
+                continue
             try:
-                resp = self.icp_client.recv_message()
-                if resp is None:
-                    continue
                 mes = Message.parse(resp)
-                logging.debug(f"recv message: {mes}")
-                if mes.header.mid == MessageID.ACK:
-                    self.ack_resp_handler(mes)
-                else:
-                    if MessageID.is_control(mes.header.mid):
-                        # TODO 发送ACK消息给通信模块
-                        pass
-                    self.msg_queue.put(mes)
             except Exception as e:
-                continue  # 忽略超时异常，继续运行
+                print(e)
+                return
+
+            logging.debug(f"recv message: {mes}")
+            if mes.header.mid == MessageID.ACK:
+                self.ack_resp_handler(mes)
+            else:
+                if MessageID.is_control(mes.header.mid):
+                    # TODO 发送ACK消息给通信模块
+                    pass
+                self.msg_queue.put(mes)
     
     def recv_message(self, timeout=None):
         try:

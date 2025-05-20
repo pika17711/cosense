@@ -53,7 +53,7 @@ class Message:
         """工厂方法：从原始字典创建具体消息对象"""
         header = MessageHeader.from_dict(raw_data)
         msg_class = cls._get_message_class(header.mid)
-        return msg_class.from_raw(header, raw_data.get("msg", {}))
+        return msg_class.from_raw(header, raw_data)
 
     @classmethod
     def _get_message_class(cls, mid: MessageID) -> "Message":
@@ -95,7 +95,8 @@ class AckMessage(Message):
     mes: str
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "AckMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "AckMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
@@ -112,7 +113,8 @@ class AppRegMessage(Message):
     act: int
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "AppRegMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "AppRegMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
@@ -127,7 +129,8 @@ class AppRspMessage(Message):
     result: int
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "AppRspMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "AppRspMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
@@ -144,13 +147,20 @@ class BroadcastPubMessage(Message):
     extra: Optional[dict] = None
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "BroadcastPubMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "BroadcastPubMessage":
+        msg_body = raw['msg']
+        coopmap = msg_body.get("coopmap")
+        if coopmap == None:
+            coopmap = msg_body.get("coopMap")
+        if coopmap == None:
+            raise KeyError('coopmap')
+
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
             oid=msg_body["oid"],
             topic=msg_body["topic"],
-            coopmap=msg_body.get("coopmap", msg_body.get('coopMap')),
+            coopmap=coopmap,
             coopmaptype=msg_body.get("coopmaptype", 1),
             extra=msg_body.get("extra")
         )
@@ -166,7 +176,8 @@ class BroadcastSubMessage(Message):
     bearcap: int
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "BroadcastSubMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "BroadcastSubMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
@@ -189,7 +200,8 @@ class BroadcastSubNtyMessage(Message):
     bearcap: int
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "BroadcastSubNtyMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "BroadcastSubNtyMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
@@ -218,7 +230,8 @@ class SubscribeMessage(Message):
     bearcap: int
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SubscribeMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SubscribeMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
@@ -249,7 +262,8 @@ class NotifyMessage(Message):
     bearcap: Optional[int]
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "NotifyMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "NotifyMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
@@ -276,16 +290,16 @@ class SendReqMessage(Message):
     mode: int
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendReqMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendReqMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            did=msg_body["did"],
-            context=msg_body["context"],
-            rl=msg_body["rl"],
-            pt=msg_body["pt"],
-            aoi=msg_body["aoi"],
-            mode=msg_body["mode"]
+            did=raw["did"],
+            context=raw["context"],
+            rl=raw["rl"],
+            pt=raw["pt"],
+            aoi=raw["aoi"],
+            mode=raw["mode"]
         )
 
 @dataclass
@@ -295,13 +309,13 @@ class SendRdyMessage(Message):
     sid: appType.sid_t
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendRdyMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendRdyMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            did=msg_body["did"],
-            context=msg_body["context"],
-            sid=msg_body["sid"],
+            did=raw["did"],
+            context=raw.get("context"),
+            sid=raw["sid"],
         )
 
 @dataclass
@@ -311,13 +325,13 @@ class RecvRdyMessage(Message):
     sid: appType.sid_t
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvRdyMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "RecvRdyMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            oid=msg_body["oid"],
-            context=msg_body["context"],
-            sid=msg_body["sid"],
+            oid=raw["oid"],
+            context=raw["context"],
+            sid=raw["sid"],
         )
 
 @dataclass
@@ -326,12 +340,12 @@ class SendMessage(Message):
     data: bytes
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            sid=msg_body["sid"],
-            data=msg_body["data"]
+            sid=raw["sid"],
+            data=raw["data"]
         )
 
 @dataclass
@@ -340,12 +354,12 @@ class RecvMessage(Message):
     data: bytes
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "RecvMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            sid=msg_body["sid"],
-            data=msg_body["data"]
+            sid=raw["sid"],
+            data=raw["data"]
         )
 
 @dataclass
@@ -354,12 +368,12 @@ class SendEndMessage(Message):
     context: Optional[appType.cid_t]
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendEndMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendEndMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            sid=msg_body["sid"],
-            context=msg_body.get("context")
+            sid=raw["sid"],
+            context=raw.get("context")
         )
 
 @dataclass
@@ -367,11 +381,11 @@ class RecvEndMessage(Message):
     sid: appType.sid_t
 
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvEndMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "RecvEndMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            sid=msg_body["sid"],
+            sid=raw["sid"],
         )
 
 # ----------------------------
@@ -387,15 +401,15 @@ class SendFileMessage(Message):
     file: str
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendFileMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendFileMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            did=msg_body["did"],
-            context=msg_body["context"],
-            rl=msg_body["rl"],
-            pt=msg_body["pt"],
-            file=msg_body["file"],
+            did=raw["did"],
+            context=raw["context"],
+            rl=raw["rl"],
+            pt=raw["pt"],
+            file=raw["file"],
         )
 
 @dataclass
@@ -406,13 +420,13 @@ class SendFinMessage(Message):
     file: str
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "SendFinMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendFinMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            did=msg_body["did"],
-            context=msg_body["context"],
-            file=msg_body["file"]
+            did=raw["did"],
+            context=raw["context"],
+            file=raw["file"]
         )
 
 @dataclass
@@ -423,11 +437,11 @@ class RecvFileMessage(Message):
     file: str
     
     @classmethod
-    def from_raw(cls, header: MessageHeader, msg_body: Dict) -> "RecvFileMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "RecvFileMessage":
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            oid=msg_body["oid"],
-            context=msg_body["context"],
-            file=msg_body["file"]
+            oid=raw["oid"],
+            context=raw["context"],
+            file=raw["file"]
         )
