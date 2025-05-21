@@ -337,10 +337,10 @@ class VoxelPostprocessor(BasePostprocessor):
         scores = scores[keep_index]
 
         # filter out the prediction out of the range.
-        mask = \
-            box_utils.get_mask_for_boxes_within_range_torch(pred_box3d_tensor)
-        pred_box3d_tensor = pred_box3d_tensor[mask, :, :]
-        scores = scores[mask]
+        # mask = \
+        #     box_utils.get_mask_for_boxes_within_range_torch(pred_box3d_tensor)
+        # pred_box3d_tensor = pred_box3d_tensor[mask, :, :]
+        # scores = scores[mask]
 
         assert scores.shape[0] == pred_box3d_tensor.shape[0]
 

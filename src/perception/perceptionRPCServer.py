@@ -1,4 +1,5 @@
 import threading
+import logging
 
 import grpc
 from concurrent import futures
@@ -134,21 +135,33 @@ class PerceptionRPCService(Service_pb2_grpc.PerceptionServiceServicer):  # 感�
         )
 
 
-class PerceptionServerThread(threading.Thread):                                 # 感知子系统的Server线程
+class PerceptionServerThread:                                 # 感知子系统的Server线程
     def __init__(self, my_info):
-        super().__init__()
         self.my_info = my_info
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
+            ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
+            ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
+        Service_pb2_grpc.add_PerceptionServiceServicer_to_server(PerceptionRPCService(self.my_info), self.server)
+        self.stop_event = threading.Event()
+        self.run_thread = threading.Thread(target=self.run, name='perception rpc server', daemon=True)
 
     def run(self):
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
-            ('grpc.max_send_message_length', 64 * 1024 * 1024),                 # 设置gRPC 消息的最大发送和接收大小为64MB
-            ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_PerceptionServiceServicer_to_server(PerceptionRPCService(self.my_info), server)
-        server.add_insecure_port('[::]:50051')
-        server.start()                              # 非阻塞, 会实例化一个新线程来处理请求
-        print("Perception Server is up and running on port 50051.")
+        self.server.add_insecure_port('[::]:50051')
+        self.server.start()                              # 非阻塞, 会实例化一个新线程来处理请求
+        logging.info("Perception Server is up and running on port 50051.")
         try:
-            server.wait_for_termination()           # 保持服务器运行直到终止
+            # 等待停止事件或被中断
+            while not self.stop_event.is_set():
+                self.stop_event.wait(1)  # 每1秒检查一次停止标志
         except KeyboardInterrupt:
-            server.stop(0)                          # 服务器终止
-            print("Perception Server terminated.")
+            pass
+        finally:
+            # 优雅地关闭服务器
+            if self.server:
+                self.server.stop(0.5).wait()
+
+    def start(self):
+        self.run_thread.start()
+
+    def close(self):
+        self.stop_event.set()  # 设置停止标志

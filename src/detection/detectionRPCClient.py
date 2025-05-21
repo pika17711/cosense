@@ -17,7 +17,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.GetFusedFeature(Service_pb2.Empty(), timeout=5)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -44,7 +44,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.GetFusedCommMask(Service_pb2.Empty(), timeout=5)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -57,7 +57,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.GetLatestPredBox(Service_pb2.Empty(), timeout=5)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -78,7 +78,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.PCD2Feature(request, timeout=10)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -116,7 +116,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.Poses2ProjectedFeatures(request, timeout=10)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1
 
         timestamps = response.timestamps  # 时间戳
@@ -161,7 +161,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.PCD2FeatureAndConfMap(request, timeout=10)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -214,7 +214,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.Feature2ConfMap(request, timeout=10)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
@@ -247,7 +247,7 @@ class DetectionRPCClient:                      # 融合检测子系统的Client�
         try:
             response = self.__detection_stub.Feature2PredBox(request, timeout=10)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC failed: code={e.code}, details={e.details}")  # 记录grpc异常
+            logging.error(f"RPC failed: code={e.code()}")  # 记录grpc异常
             return -1, -1
 
         timestamp = response.timestamp  # 时间戳
