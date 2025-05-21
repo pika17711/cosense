@@ -95,6 +95,7 @@ class CollaborationService():
         logging.debug(f"订阅 {cctx.remote_id()}, context: {cctx.cid}")
         cctx.state = CContextCoteeState.SUBSCRIBING
         self.ctable.add_subscribing(cctx)
+        self.stream_to_waitrdy(cctx)
 
     @ContextStateTransition('cctx')
     def cctx_to_sendnty(self, cctx: CContext):
@@ -138,7 +139,7 @@ class CollaborationService():
 
     @ContextStateTransition('stream')
     def stream_to_waitrdy(self, cctx: CContext):
-        server_assert(cctx.is_cotee())        
+        server_assert(cctx.is_cotee())
         cctx.update_active()
         if cctx.stream_state != CSContextCoteeState.PENDING:
             return
