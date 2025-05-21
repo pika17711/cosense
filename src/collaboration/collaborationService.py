@@ -595,6 +595,7 @@ class CollaborationService():
         if cctx is None:
             logging.warning(f'recvrdy context不存在: {msg.context}')
             return
+        cctx.update_active()
         with cctx.lock:
             if cctx.have_sid():
                 logging.warning(f'context {msg.context} 已经收到过recvrdy')
@@ -608,6 +609,7 @@ class CollaborationService():
         if cctx is None:
             logging.warning(f'不存在与{msg.sid}关联的会话')
             return
+        cctx.update_active()
         with cctx.lock:
             de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
             if de_data is None:
