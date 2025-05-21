@@ -149,7 +149,7 @@ class CollaborationTable:
 
     def rem_subscribing(self, cctx: CContext):
         with self.subscribing_lock:
-            server_assert(cctx.cotor in self.waitnty)
+            server_assert(cctx.cotor in self.subscribing)
             self.subscribing.pop(cctx.cotor)
 
     def get_subscribing_by_id(self, cotor_id) -> Optional[CContext]:

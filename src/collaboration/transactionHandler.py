@@ -80,7 +80,7 @@ class transactionHandler:
             try:
                 mes = Message.parse(resp)
             except Exception as e:
-                print(e)
+                logging.error(f'message {resp} 解析错误 {e}')
                 return
 
             logging.debug(f"recv message: {mes}")
@@ -206,7 +206,7 @@ class transactionHandler:
     def send(self, sid: appType.sid_t, data: bytes):
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.streamSend(sid, data))
-
     def sendend(self, did: appType.id_t, cid: appType.cid_t, sid: appType.sid_t):
+
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.streamSendend(did, cid, sid))

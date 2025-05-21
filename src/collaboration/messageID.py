@@ -24,8 +24,8 @@ class MessageID(IntEnum):
     RECVEND = 107       # 流接收结束
     
     # 文件传输
-    SENDFILE = 201      # 文件发送请求
-    SENDFIN = 202       # 文件发送完成
+    SENDFILE = 111      # 文件发送请求
+    SENDFIN = 112       # 文件发送完成
     RECVFILE = 113      # 文件接收通知
 
     @classmethod

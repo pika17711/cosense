@@ -152,6 +152,7 @@ class CollaborationService():
         if cctx.stream_state != CSContextCoteeState.WAITRDY:
             return
         cctx.stream_state = CSContextCoteeState.RECVRDY
+        self.ctable.add_stream(cctx.sid, cctx)
 
     @ContextStateTransition('stream')
     def stream_to_sendreq(self, cctx: CContext):
