@@ -595,7 +595,9 @@ class CollaborationService():
             logging.warning(f'recvrdy context不存在: {msg.context}')
             return
         with cctx.lock:
-            server_assert(not cctx.have_sid())
+            if cctx.have_sid():
+                logging.warning(f'context {msg.context} 已经收到过recvrdy')
+                return
             cctx.sid = msg.sid
             self.stream_to_recvrdy(cctx)
 

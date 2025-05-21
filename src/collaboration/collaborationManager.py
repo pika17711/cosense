@@ -162,7 +162,7 @@ class CollaborationManager:
         logging.info("订阅者数据发送循环启动")
         while self.running:
             subeds = self.ctable.get_subscribed()
-            logging.info(f"订阅者数据发送, 订阅者列表{[remote_id for remote_id in subeds]}")
+            logging.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
             if len(subeds) > 0:
                 data = self.get_all_data()
                 for cctx in subeds:

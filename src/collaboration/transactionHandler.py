@@ -100,7 +100,10 @@ class transactionHandler:
         return msg
 
     def submit(self, func: Callable[[], None]):
-        self.executor.submit(func)
+        if self.cfg.collaboration_debug:
+            func()
+        else:
+            self.executor.submit(func)
 
     def ack_resp_handler(self, mes: AckMessage):
         if mes.header.tid is None:
