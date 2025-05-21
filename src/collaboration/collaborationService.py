@@ -407,7 +407,7 @@ class CollaborationService():
             elif cctx.stream_state == CSContextCotorState.PENDING:
                 self.get_stream(cctx)
         else:
-            self.send_send(cctx.sid, data)
+            self.send_send(cctx.sid, data) # type: ignore
 
     def broadcastpub_service(self, msg: BroadcastPubMessage):
         """

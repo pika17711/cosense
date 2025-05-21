@@ -162,11 +162,11 @@ class CollaborationManager:
         logging.info("订阅者数据发送循环启动")
         while self.running:
             subeds = self.ctable.get_subscribed()
-            data = self.get_all_data()
-            logging.info(f"订阅者数据发送, 订阅者列表{[remote_id for remote_id in subeds]}, 发送数据 {len(data)}B")
+            logging.info(f"订阅者数据发送, 订阅者列表{[remote_id for remote_id in subeds]}")
             if len(subeds) > 0:
+                data = self.get_all_data()
                 for cctx in subeds:
                     self.executor.submit(self.collaboration_service.send_data, cctx, data)
-            self.subscribed_send_event.wait(self.cfg.send_data_period/1000)
+            self.subscribed_send_event.wait(ms2s(self.cfg.send_data_period))
             if self.subscribed_send_event.is_set():
                 break

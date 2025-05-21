@@ -67,22 +67,22 @@ class MessageHandler:
         for cctx in self.ctable.get_subscribing():
             if cctx.have_sid():
                 self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid) # type: ignore
-            self.collaboration_service.subscribe_send(cctx.remote_id(), SubscribeAct.FIN)
+            self.collaboration_service.subscribe_send(cctx, SubscribeAct.FIN)
 
         for cctx in self.ctable.get_subscribed():
-            self.collaboration_service.notify_send(cctx.cid, cctx.remote_id(), NotifyAct.FIN)
+            self.collaboration_service.notify_send(cctx, NotifyAct.FIN)
 
     def check_expire(self):
         cctxs = self.ctable.get_all_cctx()
         for cctx in cctxs:
             with cctx.lock:
-                if not cctx.is_expired():
+                if cctx.is_expired():
                     self.collaboration_service.cctx_to_closed(cctx)
         
         bcctxs = self.ctable.get_all_bcctx()
         for bcctx in bcctxs:
             with bcctx.lock:
-                if not bcctx.is_expired():
+                if bcctx.is_expired():
                     self.collaboration_service.bcctx_to_closed(bcctx)
 
     def recv_loop(self):
