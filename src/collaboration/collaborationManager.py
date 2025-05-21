@@ -87,7 +87,7 @@ class CollaborationManager:
                 self.broadcastsub_close()
                 print('ok')
             elif argv[1] == 'send':
-                self.collaboration_service.broadcastsub_send()
+                self.collaboration_service.broadcastsub()
                 print('ok')
             else:
                 print('syntax error')
@@ -97,7 +97,7 @@ class CollaborationManager:
             elif argv[1] == 'subed':
                 print([cctx.remote_id() for cctx in self.ctable.get_subscribed()])
         elif len(argv) == 2 and argv[0] == 'subscribe':
-            self.collaboration_service.subscribe_send(argv[2], SubscribeAct.ACKUPD)
+            self.collaboration_service.subscribe_send(argv[2], SubscribeAct.ACK)
         elif len(argv) == 2 and argv[0] == 'disconnect':
             self.collaboration_service.disconnect(argv[1])
         else:
@@ -140,12 +140,12 @@ class CollaborationManager:
         self.broadcastsub_event.clear()
 
     def broadcastsub_send(self):
-        self.collaboration_service.broadcastsub_send()
+        self.collaboration_service.broadcastsub()
 
     def broadcastsub_loop(self):
         while self.running:
             if self.broadcastsub_event.is_set():
-                self.collaboration_service.broadcastsub_send()
+                self.collaboration_service.broadcastsub()
                 sleep(ms2s(self.cfg.broadcastsub_period))
             else:
                 self.broadcastsub_event.wait()

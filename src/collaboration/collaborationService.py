@@ -272,7 +272,7 @@ class CollaborationService():
         ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self)
         return ratio >= self.cfg.overlap_threshold
 
-    def broadcastsub_send(self):
+    def broadcastsub(self):
         """
             广播订阅
             描述：local开启一个新广播会话bcctx
@@ -297,10 +297,20 @@ class CollaborationService():
         decoopmap = CoopMap.serialize(coopmap)
         coopMapType = 1
         self.tx_handler.brocastpub(self.cfg.id, self.cfg.topic, decoopmap, coopMapType)
-
-    def subscribe_send(self, did: Union[List[appType.id_t], appType.id_t], act:SubscribeAct=SubscribeAct.ACKUPD):
+    
+    def subscribe(self, did: appType.id_t):
         """
-            订阅
+            封装subscribe_send
+        """
+        cid = self.cid_gen()
+        cctx = CContext(self.cfg, cid, did, self.cfg.id)
+        with cctx.lock:
+            self.subscribe_send(cctx, SubscribeAct.ACK)
+            self.cctx_to_waitnty(cctx)
+
+    def subscribe_send(self, cctx: CContext, act:SubscribeAct=SubscribeAct.ACK):
+        """
+            发送订阅
             描述：
                 1. act = SubscribeAct.ACKUPD
                     订阅请求
@@ -311,37 +321,26 @@ class CollaborationService():
                     local是cotee，remote是cotor，不然就是代码逻辑错误
 
             参数：
-                1. did
-                    目标id列表或目标id
+                1. cctx
+                    对应的context
                 2. act
                     订阅请求或订阅关闭
         """
-        if type(did) is appType.id_t:
-            did = [did]
-        for didi in did:
-            if act == SubscribeAct.ACKUPD:
-                cid = self.cid_gen()
-                coopmap = self.get_self_coodmap()
-                decoopmap = CoopMap.serialize(coopmap)
-                coopMapType = 1
-                bearCap = 1
-                cctx = CContext(self.cfg, cid, didi, self.cfg.id)
-                with cctx.lock:
-                    self.tx_handler.subscribe(self.cfg.id, [didi], self.cfg.topic, act, cid, decoopmap, coopMapType, bearCap)
-                    self.cctx_to_waitnty(cctx)
-            else:
-                cctx = self.ctable.get_subscribing_by_id(didi)
-                if cctx is None:
-                    logging.warning(f"试图关闭不存在的订阅关系 {cctx}")
-                    return
-                fakecoopmap = np.array([1]).tobytes()
-                coopMapType = 1
-                bearCap = 0
-                with cctx.lock:
-                    self.tx_handler.subscribe(self.cfg.id, [didi], self.cfg.topic, act, cctx.cid, fakecoopmap, coopMapType, bearCap)  # TODO 关闭订阅不需要传协作图
-                    self.cctx_to_closed(cctx)
+        if act == SubscribeAct.ACK:
+            coopmap = self.get_self_coodmap()
+            decoopmap = CoopMap.serialize(coopmap)
+            coopMapType = 1
+            bearCap = 1
+            self.tx_handler.subscribe(self.cfg.id, [cctx.remote_id()], self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)
+        elif act == SubscribeAct.FIN:
+            fakecoopmap = np.array([1]).tobytes()
+            coopMapType = 1
+            bearCap = 0
+            self.tx_handler.subscribe(self.cfg.id, [cctx.remote_id()], self.cfg.topic, act, cctx.cid, fakecoopmap, coopMapType, bearCap)  # TODO 关闭订阅不需要传协作图
+        else:
+            server_not_implemented('')
 
-    def notify_send(self, cid, did, act=NotifyAct.ACK):
+    def notify_send(self, cctx: CContext, act=NotifyAct.ACK):
         """
             通知
             描述：
@@ -351,7 +350,7 @@ class CollaborationService():
                     找到对应cctx，发送确认订购后，改变cctx状态
                 2. act = NotifyAct.NTY
                     对话内通知
-                    未实现，没理解作用
+                    未实现
                 2. act = NotifyAct.FIN
                     取消订购
                     对话cctx在收到订阅消息时新建
@@ -360,24 +359,19 @@ class CollaborationService():
                 1. did
                 2. act
         """
-        cctx = self.ctable.get_cctx_or_panic(cid, self.cfg.id, did)
         if act == NotifyAct.ACK:
             coopmap = self.get_self_coodmap()
             decoopmap = CoopMap.serialize(coopmap)
             coopMapType = 1
             bearCap = 1
-            with cctx.lock:
-                self.tx_handler.notify(self.cfg.id, did, self.cfg.topic, act, cid, decoopmap, coopMapType, bearCap)
-                self.cctx_to_subscribed(cctx)
+            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)
         elif act == NotifyAct.NTY:
-            pass
+            server_not_implemented('')
         elif act == NotifyAct.FIN:
             fakecoopMap = np.array([1]).tobytes()
             coopMapType = 1
             bearCap = 1 
-            with cctx.lock:
-                self.tx_handler.notify(self.cfg.id, did, self.cfg.topic, act, cid, fakecoopMap, coopMapType, bearCap) # TODO 这里不需要传协作图
-                self.cctx_to_closed(cctx)
+            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, fakecoopMap, coopMapType, bearCap) # TODO 这里不需要传协作图
 
     def sendreq_send(self, did: appType.id_t, cid: appType.cid_t, rl, pt, aoi, mode):
         self.tx_handler.sendreq(did, cid, rl, pt, aoi, mode)
@@ -425,11 +419,7 @@ class CollaborationService():
         need = self.check_need_broadcastpub(msg)
         if need:
             logging.info(f"接收 {msg.oid} 的BROADCASTPUB")
-            cid = self.cid_gen()
-            cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
-            with cctx.lock:
-                self.subscribe_send(msg.oid)
-                self.cctx_to_waitnty(cctx)
+            self.subscribe(msg.oid)
         else:
             logging.info(f"拒绝 {msg.oid} 的BROADCASTPUB")
 
@@ -473,11 +463,12 @@ class CollaborationService():
             need = self.check_need_broadcastsubnty(bcctx, msg)
             if need:
                 logging.debug(f"接收 {msg.oid} 的BROADCASTSUBNTY")
-                cctx = CContext(self.cfg, bcctx.cid, msg.oid, self.cfg.id)
+                cid = self.cid_gen()
+                cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
                 with cctx.lock:
+                    self.subscribe_send(cctx, SubscribeAct.ACK)
                     with bcctx.lock:
                         self.bcctx_add_cctx(bcctx, cctx)
-                    self.subscribe_send(msg.oid, SubscribeAct.ACKUPD)
                     self.cctx_to_waitnty(cctx)
             else:
                 logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUBNTY")
@@ -517,7 +508,7 @@ class CollaborationService():
                 elif msg.act == NotifyAct.NTY:
                     server_not_implemented(f"收到NOTIFY.ACK, 对应 context:{msg.context} 中状态是SUBSCRIBING")
 
-    def subscribe_ackupd_service(self, msg: SubscribeMessage):
+    def subscribe_ack_service(self, msg: SubscribeMessage):
         """
             收到订阅消息，act=subscribeAct=ACKUPD
             1. 此时自车不应该有cctx（目前只将ACKUPD看作ACK，并未实现UPD）
@@ -534,7 +525,7 @@ class CollaborationService():
         with cctx.lock:
             self.cctx_to_sendnty(cctx)
             if self.check_need_subscribe(msg):
-                self.notify_send(cctx.cid, msg.oid)
+                self.notify_send(cctx)
                 self.cctx_to_subscribed(cctx)
             else:
                 self.cctx_to_closed(cctx)
@@ -563,8 +554,8 @@ class CollaborationService():
 
     def subscribe_service(self, msg: SubscribeMessage):
         logging.debug(f"APP serve message {msg}")
-        if msg.act == SubscribeAct.ACKUPD:
-            self.subscribe_ackupd_service(msg)
+        if msg.act == SubscribeAct.ACK:
+            self.subscribe_ack_service(msg)
         elif msg.act == SubscribeAct.FIN:
             self.subscribe_fin_service(msg)
         else:
@@ -634,7 +625,11 @@ class CollaborationService():
         subed_cctx = self.ctable.get_subscribed_by_id(id)
         subing_cctx = self.ctable.get_subscribing_by_id(id)
         if subed_cctx is not None:
-            self.notify_send(subed_cctx.cid, subed_cctx.remote_id(), NotifyAct.FIN)
+            with subed_cctx.lock:
+                self.notify_send(subed_cctx, NotifyAct.FIN)
+                self.cctx_to_closed(subed_cctx)
 
         if subing_cctx is not None:
-            self.subscribe_send(subing_cctx.cid, subing_cctx.remote_id(), SubscribeAct.FIN)
+            with subing_cctx.lock:
+                self.subscribe_send(subing_cctx, SubscribeAct.FIN)
+                self.cctx_to_closed(subing_cctx)

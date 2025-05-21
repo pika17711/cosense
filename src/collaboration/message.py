@@ -216,7 +216,8 @@ class BroadcastSubNtyMessage(Message):
 
 class SubscribeAct(IntEnum):
     FIN = 0
-    ACKUPD = 1
+    ACK = 1
+    UPD = 2
 
 @dataclass
 class SubscribeMessage(Message):
