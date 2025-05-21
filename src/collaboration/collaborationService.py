@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import wraps
 import logging
 from typing import List, Union
 import appType
@@ -16,6 +17,50 @@ import numpy as np
 from utils import InfoDTO
 from utils.common import read_binary_file, server_assert, server_logic_error, server_not_implemented
 
+def ContextStateTransition(name):
+    """状态转移函数的装饰器，提供自动加锁和日志记录功能"""
+    def get_state(ctx: Union[CContext, BCContext]):
+        state = None
+        if name == 'cctx':
+            state = ctx.state
+        elif name == 'bcctx':
+            state = ctx.state
+        elif name == 'stream':
+            server_assert(isinstance(ctx, CContext))
+            state = ctx.stream_state # type: ignore
+        else:
+            server_assert(False)
+        return state
+
+    def decorator(func):
+        @wraps(func)  # 保留原函数元信息
+        def wrapper(self, ctx: Union[CContext, BCContext], *args, **kwargs):
+            # 获取上下文锁
+            with ctx.lock:
+                old_state = get_state(ctx)
+                func_name = func.__name__
+                logging.info(f"执行状态转移: {func_name}, 上下文ID: {ctx.cid}, "
+                            f"原状态: {old_state}")
+                try:
+                    # 执行实际的状态转移
+                    result = func(self, ctx, *args, **kwargs)
+                    # 记录状态转移成功
+                    new_state = get_state(ctx)
+                    if old_state != new_state:
+                        logging.info(f"状态转移成功: 上下文ID: {ctx.cid}, "
+                                    f"{old_state} -> {new_state}")
+                    else:
+                        logging.warning(f"状态未变更: 上下文ID: {ctx.cid}, "
+                                        f"函数: {func_name}")
+                    return result
+                except Exception as e:
+                    # 记录状态转移异常
+                    logging.error(f"状态转移失败: 上下文ID: {ctx.cid}, "
+                                f"原状态: {old_state}, 错误: {str(e)}")
+                    raise  # 重新抛出异常，不掩盖错误
+        return wrapper
+    return decorator
+
 class CollaborationService():
     def __init__(self, 
                  cfg: AppConfig,
@@ -29,93 +74,106 @@ class CollaborationService():
         self.perception_client = perception_client
         self.tx_handler = tx_handler
 
+    @ContextStateTransition('cctx')
     def cctx_to_waitnty(self, cctx: CContext):
         server_assert(cctx.is_cotee(), "上下文角色必须是被协作者")
-        server_assert(cctx.lock.locked())
-        server_assert(cctx.state == CContextCoteeState.PENDING)
-        logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCoteeState.WAITNTY")
+        if cctx.state != CContextCoteeState.PENDING:
+            return
+
         cctx.update_active()
         cctx.state = CContextCoteeState.WAITNTY
         self.ctable.add_cctx(cctx)
         self.ctable.add_waitnty(cctx)
 
+    @ContextStateTransition('cctx')
     def cctx_to_subscribing(self, cctx: CContext):
         server_assert(cctx.is_cotee(), "上下文角色必须是被协作者")
-        server_assert(cctx.lock.locked())
-        server_assert(cctx.state == CContextCoteeState.WAITNTY)
-        logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCoteeState.SUBSCRIBING")
+        if cctx.state != CContextCoteeState.WAITNTY:
+            return
         cctx.update_active()
         self.ctable.rem_waitnty(cctx)
         logging.debug(f"订阅 {cctx.remote_id()}, context: {cctx.cid}")
         cctx.state = CContextCoteeState.SUBSCRIBING
         self.ctable.add_subscribing(cctx)
 
+    @ContextStateTransition('cctx')
     def cctx_to_sendnty(self, cctx: CContext):
         server_assert(cctx.is_cotor(), "上下文角色必须是协作者")
-        server_assert(cctx.lock.locked())
-        server_assert(cctx.state == CContextCotorState.PENDING)
-        logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCotorState.SENDNTY")
+        if cctx.state != CContextCotorState.PENDING:
+            return
         cctx.update_active()
         cctx.state = CContextCotorState.SENDNTY
         self.ctable.add_sendnty(cctx)
         self.ctable.add_cctx(cctx)
 
+    @ContextStateTransition('cctx')
     def cctx_to_subscribed(self, cctx: CContext):
         server_assert(cctx.is_cotor(), "上下文角色必须是协作者")
-        server_assert(cctx.lock.locked())
-        server_assert(cctx.state == CContextCotorState.SENDNTY)
-        logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCotorState.SUBSCRIBED")
+        if cctx.state != CContextCotorState.SENDNTY:
+            return
         cctx.update_active()
         self.ctable.rem_sendnty(cctx)
         logging.debug(f"被 { cctx.remote_id()} 订阅, context: {cctx.cid}")
         cctx.state = CContextCotorState.SUBSCRIBED
         self.ctable.add_subscribed(cctx)
 
+    @ContextStateTransition('cctx')
     def cctx_to_closed(self, cctx: CContext):
-        server_assert(cctx.lock.locked())
+        if cctx.state == CContextCoteeState.CLOSED or cctx.state == CContextCoteeState.CLOSED:
+            return
+
         if cctx.is_cotor():
-            logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCotorState.CLOSED")
             if cctx.state == CContextCotorState.SUBSCRIBED:
                 self.ctable.rem_subscribed(cctx)
             cctx.state = CContextCotorState.CLOSED
         else:
-            logging.debug(f"context: {cctx.cid}, 状态 {cctx.state} -> CContextCoteeState.CLOSED")            
             if cctx.state == CContextCoteeState.SUBSCRIBING:
                 self.ctable.rem_subscribing(cctx)
             cctx.state = CContextCoteeState.CLOSED
         bcctx = self.ctable.get_bcctx(cctx.cid)
         if bcctx is not None:
             self.bcctx_rem_cctx(bcctx, cctx)
-
         self.stream_to_end(cctx)
         self.ctable.rem_cctx(cctx)
 
+    @ContextStateTransition('stream')
     def stream_to_waitrdy(self, cctx: CContext):
-        server_assert(cctx.lock.locked())
-        server_assert(cctx.is_cotee())
+        server_assert(cctx.is_cotee())        
         cctx.update_active()
+        if cctx.stream_state != CSContextCoteeState.PENDING:
+            return
         cctx.stream_state = CSContextCoteeState.WAITRDY
 
+    @ContextStateTransition('stream')
     def stream_to_recvrdy(self, cctx: CContext):
-        server_assert(cctx.lock.locked())
         server_assert(cctx.is_cotee())
         cctx.update_active()
+        if cctx.stream_state != CSContextCoteeState.WAITRDY:
+            return
         cctx.stream_state = CSContextCoteeState.RECVRDY
 
+    @ContextStateTransition('stream')
     def stream_to_sendreq(self, cctx: CContext):
-        server_assert(cctx.lock.locked())
         server_assert(cctx.is_cotor())
         cctx.update_active()
+        if cctx.stream_state != CSContextCotorState.PENDING:
+            return
         cctx.stream_state = CSContextCotorState.SENDREQ
 
+    @ContextStateTransition('stream')
     def stream_to_sendrdy(self, cctx: CContext):
-        server_assert(cctx.lock.locked())
         server_assert(cctx.is_cotor())
         cctx.update_active()
+        if cctx.stream_state != CSContextCotorState.SENDREQ:
+            return
+        self.ctable.add_stream(cctx.sid, cctx)
         cctx.stream_state = CSContextCotorState.SENDRDY
 
+    @ContextStateTransition('stream')
     def stream_to_end(self, cctx: CContext):
-        server_assert(cctx.lock.locked())
+        if cctx.stream_state == CSContextCotorState.SENDEND or cctx.stream_state == CSContextCoteeState.RECVEND:
+            return
+
         if cctx.is_cotor():
             cctx.stream_state = CSContextCotorState.SENDEND
         else:
@@ -123,26 +181,25 @@ class CollaborationService():
         if cctx.have_sid():
             self.ctable.rem_stream(cctx.sid)
 
+    @ContextStateTransition('bcctx')
     def bcctx_to_waitbnnty(self, bcctx: BCContext):
-        server_assert(bcctx.lock.locked())
-        server_assert(bcctx.state == BCContextState.PENDING, "必须发送了广播订阅后，才能等待广播通知消息")
+        if bcctx.state != BCContextState.PENDING:
+            return
         bcctx.state = BCContextState.WAITBNTY
         self.ctable.add_bcctx(bcctx)
 
+    @ContextStateTransition('bcctx')
     def bcctx_to_closed(self, bcctx: BCContext):
-        server_assert(bcctx.lock.locked())
         if self.state == BCContextState.PENDING:
             logging.warning(f"广播会话 {bcctx.cid}未发送广播订阅消息即被关闭")
 
         self.ctable.rem_bcctx(bcctx)
         self.state = BCContextState.CLOSED
-    
+
     def bcctx_add_cctx(self, bcctx: BCContext, cctx: CContext):
-        server_assert(bcctx.lock.locked())
         bcctx.cctx_set.add(cctx)
 
     def bcctx_rem_cctx(self, bcctx: BCContext, cctx: CContext):
-        server_assert(bcctx.lock.locked())
         bcctx.cctx_set.remove(cctx)
 
     def get_self_coodmap(self):
@@ -533,10 +590,9 @@ class CollaborationService():
         with cctx.lock:
             server_assert(not cctx.have_sid())
             cctx.sid = msg.sid
-            cctx.stream_state = CSContextCotorState.SENDRDY
-            self.ctable.add_stream(msg.sid, cctx)
+            self.stream_to_sendrdy(cctx)
             cctx.sid_set_event.set()
-    
+
     def recvrdy_service(self, msg: RecvRdyMessage):
         logging.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.oid)

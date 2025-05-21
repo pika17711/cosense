@@ -73,12 +73,14 @@ class MessageHandler:
             self.collaboration_service.notify_send(cctx.cid, cctx.remote_id(), NotifyAct.FIN)
 
     def check_expire(self):
-        for cctx in self.ctable.get_all_cctx():
+        cctxs = self.ctable.get_all_cctx()
+        for cctx in cctxs:
             with cctx.lock:
                 if not cctx.is_expired():
                     self.collaboration_service.cctx_to_closed(cctx)
-
-        for bcctx in self.ctable.get_all_bcctx():
+        
+        bcctxs = self.ctable.get_all_bcctx()
+        for bcctx in bcctxs:
             with bcctx.lock:
                 if not bcctx.is_expired():
                     self.collaboration_service.bcctx_to_closed(bcctx)
@@ -94,6 +96,6 @@ class MessageHandler:
     def dispatch_message(self, msg: Message):
         mid = msg.header.mid
         if mid in self.route_table:
-            self.executor.submit(self.route_table[mid], msg)
+            self.route_table[mid](msg)
         else:
             logging.warning(f"Unhandled message type: {MessageID.get_name(mid.value)}")

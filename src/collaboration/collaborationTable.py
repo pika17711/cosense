@@ -72,9 +72,9 @@ class CollaborationTable:
                 cctx = None
             return cctx
 
-    def get_all_cctx(self) -> Iterable[CContext]:
+    def get_all_cctx(self) -> List[CContext]:
         with self.cctx_lock:
-            return self.cctx.values()
+            return list(self.cctx.values())
 
     def get_cctx_or_panic(self, cid, cotor, cotee) -> CContext:
         """
@@ -121,9 +121,9 @@ class CollaborationTable:
             else:
                 return None
 
-    def get_all_bcctx(self) -> Iterable[BCContext]:
+    def get_all_bcctx(self) -> List[BCContext]:
         with self.bcctx_lock:
-            return self.bcctx.values()
+            return list(self.bcctx.values())
 
     def rem_bcctx(self, bcctx: BCContext):
         with self.bcctx_lock:
@@ -156,9 +156,9 @@ class CollaborationTable:
         with self.subscribing_lock:
             return self.subscribing[cotor_id] if cotor_id in self.subscribing else None
 
-    def get_subscribing(self) -> Iterable[CContext]:
+    def get_subscribing(self) -> List[CContext]:
         with self.subscribing_lock:
-            return self.subscribing.values()
+            return list(self.subscribing.values())
 
     # ============== cotor state table ====================#
     def add_sendnty(self, cctx: CContext):
