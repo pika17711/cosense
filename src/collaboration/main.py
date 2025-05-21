@@ -11,7 +11,7 @@ sys.path.append(parent_dir)
 from appConfig import AppConfig
 from collaboration.ICP import ICP_init
 from collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
-from collaboration.messageHandler import MessageHandler
+from collaboration.messageRouter import MessageRouter
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
 from collaboration.transactionHandler import transactionHandler
@@ -38,7 +38,7 @@ def main():
     ctable = CollaborationTable(cfg)
     tx_handler = transactionHandler(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, tx_handler)
-    message_handler = MessageHandler(cfg, ctable, tx_handler, perception_client, collaboration_service)
+    message_handler = MessageRouter(cfg, ctable, tx_handler, perception_client, collaboration_service)
     collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, collaboration_service)
 
     shared_other_info = SharedOthersInfo(ctable)

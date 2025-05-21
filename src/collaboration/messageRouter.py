@@ -17,7 +17,7 @@ from collaboration.message import Message, NotifyAct, SubscribeAct
 from collaboration.messageID import MessageID
 from utils.common import ms2s
 
-class MessageHandler:
+class MessageRouter:
     def __init__(self, 
                  cfg: AppConfig,
                  ctable: CollaborationTable,

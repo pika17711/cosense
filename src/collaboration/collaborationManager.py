@@ -10,7 +10,7 @@ from collaboration.message import SubscribeAct
 from utils import InfoDTO
 from perception.perceptionRPCClient import PerceptionRPCClient
 
-from collaboration.messageHandler import MessageHandler
+from collaboration.messageRouter import MessageRouter
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
 from utils.common import ms2s
@@ -19,7 +19,7 @@ class CollaborationManager:
     def __init__(self, 
                  cfg: AppConfig,
                  ctable: CollaborationTable,
-                 message_handler: MessageHandler,
+                 message_handler: MessageRouter,
                  perception_client: PerceptionRPCClient,
                  collaboration_service: CollaborationService):
 
