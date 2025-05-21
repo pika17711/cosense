@@ -577,7 +577,10 @@ class CollaborationService():
 
     def sendrdy_service(self, msg: SendRdyMessage):
         logging.debug(f"APP serve message {msg}")
-        cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.did)
+        cctx = self.ctable.get_cctx(msg.context, self.cfg.id, msg.did)
+        if cctx is None:
+            logging.warning(f'sendrdy context不存在: {msg.context}')
+            return
         with cctx.lock:
             server_assert(not cctx.have_sid())
             cctx.sid = msg.sid
@@ -586,12 +589,14 @@ class CollaborationService():
 
     def recvrdy_service(self, msg: RecvRdyMessage):
         logging.debug(f"APP serve message {msg}")
-        cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.oid)
+        cctx = self.ctable.get_cctx(msg.context, msg.oid, self.cfg.id)
+        if cctx is None:
+            logging.warning(f'recvrdy context不存在: {msg.context}')
+            return
         with cctx.lock:
             server_assert(not cctx.have_sid())
             cctx.sid = msg.sid
             self.stream_to_recvrdy(cctx)
-            cctx.sid_set_event.set()
 
     def recv_service(self, msg: RecvMessage):
         logging.debug(f"APP serve message {msg}")
