@@ -4,40 +4,52 @@ import numpy as np
 
 class SharedInfo:
     def __init__(self):
-        self.__pre_processor = None
-        self.__model = None
-        self.__device = None
-        self.__hypes = None
-        self.__dataset = None
-        self.__fused_feature = {}  # 初始化为空字典
-        self.__fused_comm_mask = np.array([])  # 初始化为空数组
-        self.__pred_box = np.array([])  # 初始化为空数组
         self.__pcd = np.array([])  # 初始化为空数组
-        self.__feature = {}  # 初始化为空字典
-        self.__conf_map = np.array([])  # 初始化为空数组
-        self.__comm_mask = np.array([])  # 初始化为空数组
         self.__pose = np.array([])  # 初始化为空数组
         self.__velocity = np.array([])  # 初始化为空数组
         self.__acceleration = np.array([])  # 初始化为空数组
         self.__extrinsic_matrix = np.array([])  # 初始化为空数组
+        self.__perception_lock = threading.Lock()
+        self.__extrinsic_matrix_lock = threading.Lock()
 
-        self.pre_processor_lock = threading.Lock()
+        self.__hypes = None
+        self.__model = None
+        self.__device = None
+        self.__pre_processor = None
+        self.__post_processor = None
+        self.__fused_feature = {}  # 初始化为空字典
+        self.__fused_comm_mask = np.array([])  # 初始化为空数组
+        self.__pred_box = np.array([])  # 初始化为空数组
+        self.__feature = {}  # 初始化为空字典
+        self.__conf_map = np.array([])  # 初始化为空数组
+        self.__comm_mask = np.array([])  # 初始化为空数组
         self.model_lock = threading.Lock()
-        self.dataset_lock = threading.Lock()
+        self.pre_processor_lock = threading.Lock()
+        self.post_processor_lock = threading.Lock()
         self.__fused_feature_lock = threading.Lock()
         self.__fused_comm_mask_lock = threading.Lock()
         self.__pred_box_lock = threading.Lock()
-        self.__pcd_lock = threading.Lock()
         self.__feature_lock = threading.Lock()
         self.__conf_map_lock = threading.Lock()
         self.__comm_mask_lock = threading.Lock()
-        self.__pose_lock = threading.Lock()
-        self.__velocity_lock = threading.Lock()
-        self.__acceleration_lock = threading.Lock()
-        self.__extrinsic_matrix_lock = threading.Lock()
 
-    def update_pre_processor(self, pre_processor):
-        self.__pre_processor = pre_processor
+    def update_perception_info(self,
+                               pcd=np.array([]),
+                               pose=np.array([]),
+                               velocity=np.array([]),
+                               acceleration=np.array([])):
+        with self.__perception_lock:
+            self.__pcd = pcd
+            self.__pose = pose
+            self.__velocity = velocity
+            self.__acceleration = acceleration
+
+    def update_extrinsic_matrix(self, extrinsic_matrix):
+        with self.__extrinsic_matrix_lock:
+            self.__extrinsic_matrix = extrinsic_matrix  # 线程安全更新
+
+    def update_hypes(self, hypes):
+        self.__hypes = hypes
 
     def update_model(self, model):
         self.__model = model
@@ -45,11 +57,11 @@ class SharedInfo:
     def update_device(self, device):
         self.__device = device
 
-    def update_hypes(self, hypes):
-        self.__hypes = hypes
+    def update_pre_processor(self, pre_processor):
+        self.__pre_processor = pre_processor
 
-    def update_dataset(self, dataset):
-        self.__dataset = dataset
+    def update_post_processor(self, post_processor):
+        self.__post_processor = post_processor
 
     def update_fused_feature(self, fused_feature):
         with self.__fused_feature_lock:
@@ -63,10 +75,6 @@ class SharedInfo:
         with self.__pred_box_lock:
             self.__pred_box = pred_box  # 线程安全更新
 
-    def update_pcd(self, pcd):
-        with self.__pcd_lock:
-            self.__pcd = pcd  # 线程安全更新
-
     def update_feature(self, feature):
         with self.__feature_lock:
             self.__feature = feature  # 线程安全更新
@@ -79,24 +87,28 @@ class SharedInfo:
         with self.__comm_mask_lock:
             self.__comm_mask = comm_mask  # 线程安全更新
 
-    def update_pose(self, pose):
-        with self.__pose_lock:
-            self.__pose = pose  # 线程安全更新
+    def get_pcd_copy(self):
+        with self.__perception_lock:
+            return self.__pcd.copy()
 
-    def update_velocity(self, velocity):
-        with self.__velocity_lock:
-            self.__velocity = velocity  # 线程安全更新
+    def get_pose_copy(self):
+        with self.__perception_lock:
+            return self.__pose.copy()
 
-    def update_acceleration(self, acceleration):
-        with self.__acceleration_lock:
-            self.__acceleration = acceleration  # 线程安全更新
+    def get_velocity_copy(self):
+        with self.__perception_lock:
+            return self.__velocity.copy()
 
-    def update_extrinsic_matrix(self, extrinsic_matrix):
+    def get_acceleration_copy(self):
+        with self.__perception_lock:
+            return self.__acceleration.copy()
+
+    def get_extrinsic_matrix_copy(self):
         with self.__extrinsic_matrix_lock:
-            self.__extrinsic_matrix = extrinsic_matrix  # 线程安全更新
+            return self.__extrinsic_matrix.copy()
 
-    def get_pre_processor(self):
-        return self.__pre_processor
+    def get_hypes(self):
+        return self.__hypes
 
     def get_model(self):
         return self.__model
@@ -104,52 +116,32 @@ class SharedInfo:
     def get_device(self):
         return self.__device
 
-    def get_hypes(self):
-        return self.__hypes
+    def get_pre_processor(self):
+        return self.__pre_processor
 
-    def get_dataset(self):
-        return self.__dataset
+    def get_post_processor(self):
+        return self.__post_processor
 
     def get_fused_feature_copy(self):
         with self.__fused_feature_lock:
-            return self.__fused_feature
+            return self.__fused_feature.copy()
 
     def get_fused_comm_mask_copy(self):
         with self.__fused_comm_mask_lock:
-            return self.__fused_comm_mask.copy() if self.__fused_comm_mask.size > 0 else self.__fused_comm_mask
+            return self.__fused_comm_mask.copy()
 
     def get_pred_box_copy(self):
         with self.__pred_box_lock:
-            return self.__pred_box.copy() if self.__pred_box.size > 0 else self.__pred_box
-
-    def get_pcd_copy(self):
-        with self.__pcd_lock:
-            return self.__pcd.copy() if self.__pcd.size > 0 else self.__pcd
+            return self.__pred_box.copy()
 
     def get_feature_copy(self):
         with self.__feature_lock:
-            return self.__feature
+            return self.__feature.copy()
 
     def get_conf_map_copy(self):
         with self.__conf_map_lock:
-            return self.__conf_map.copy() if self.__conf_map.size > 0 else self.__conf_map
+            return self.__conf_map.copy()
 
     def get_comm_mask_copy(self):
         with self.__comm_mask_lock:
-            return self.__comm_mask.copy() if self.__comm_mask.size > 0 else self.__comm_mask
-
-    def get_pose_copy(self):
-        with self.__pose_lock:
-            return self.__pose.copy() if self.__pose.size > 0 else self.__pose
-
-    def get_velocity_copy(self):
-        with self.__velocity_lock:
-            return self.__velocity.copy() if self.__velocity.size > 0 else self.__velocity
-
-    def get_acceleration_copy(self):
-        with self.__acceleration_lock:
-            return self.__acceleration.copy() if self.__acceleration.size > 0 else self.__acceleration
-
-    def get_extrinsic_matrix_copy(self):
-        with self.__extrinsic_matrix_lock:
-            return self.__extrinsic_matrix.copy() if self.__extrinsic_matrix.size > 0 else self.__extrinsic_matrix
+            return self.__comm_mask.copy()

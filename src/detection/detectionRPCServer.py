@@ -1,3 +1,4 @@
+import logging
 import threading
 import grpc
 import time
@@ -144,13 +145,13 @@ def feature2conf_map(feature, shared_info):  # 根据特征获取置信图
 
 def feature2pred_box(feature, shared_info):      # 根据特征获取检测框
     device = shared_info.get_device()
-    dataset = shared_info.get_dataset()
+    post_processor = shared_info.get_post_processor()
 
     transformation_matrix = np.eye(4, dtype=np.float32)
     transformation_matrix = torch.from_numpy(transformation_matrix)
 
-    with shared_info.dataset_lock:
-        anchor_box = dataset.post_processor.generate_anchor_box()
+    with shared_info.post_processor_lock:
+        anchor_box = post_processor.generate_anchor_box()
     anchor_box = torch.from_numpy(anchor_box)
 
     batch_data = {'ego': {
@@ -164,7 +165,7 @@ def feature2pred_box(feature, shared_info):      # 根据特征获取检测框
     output_dict = OrderedDict()
     output_dict['ego'], _ = model_forward(feature, shared_info)
 
-    pred_box_tensor, _, _ = dataset.post_process(batch_data, output_dict)
+    pred_box_tensor, _ = post_processor.post_process(batch_data, output_dict)
     pred_box = pred_box_tensor.cpu().data.numpy()
 
     return pred_box
@@ -382,22 +383,33 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
         )
 
 
-class DetectionServerThread(threading.Thread):  # 融合检测子系统的Server线程
+class DetectionServerThread:  # 融合检测子系统的Server线程
     def __init__(self, shared_info):
-        super().__init__()
         self.shared_info = shared_info
-
-    def run(self):
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_DetectionServiceServicer_to_server(
-            DetectionRPCService(self.shared_info), server)
-        server.add_insecure_port('[::]:50053')
-        server.start()  # 非阻塞, 会实例化一个新线程来处理请求
-        print("Detection Server is up and running on port 50053.")
+        Service_pb2_grpc.add_DetectionServiceServicer_to_server(DetectionRPCService(self.shared_info), self.server)
+        self.stop_event = threading.Event()
+        self.run_thread = threading.Thread(target=self.run, name='detection rpc server', daemon=True)
+
+    def run(self):
+        self.server.add_insecure_port('[::]:50053')
+        self.server.start()  # 非阻塞, 会实例化一个新线程来处理请求
+        logging.info("Detection Server is up and running on port 50053.")
         try:
-            server.wait_for_termination()  # 保持服务器运行直到终止
+            # 等待停止事件或被中断
+            while not self.stop_event.is_set():
+                self.stop_event.wait(1)  # 每1秒检查一次停止标志
         except KeyboardInterrupt:
-            server.stop(0)  # 服务器终止
-            print("Detection Server terminated.")
+            pass
+        finally:
+            # 优雅地关闭服务器
+            if self.server:
+                self.server.stop(0.5).wait()
+
+    def start(self):
+        self.run_thread.start()
+
+    def close(self):
+        self.stop_event.set()  # 设置停止标志

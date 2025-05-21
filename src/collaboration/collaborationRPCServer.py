@@ -41,7 +41,7 @@ class SharedOthersInfo:
             self.__velocities = [info.speed for info in infos]
             self.__accelerations = [info.acc for info in infos]
 
-            self.__features_lens = np.ndarray([len(infos)])
+            self.__features_lens = [info.feat['voxel_features'].shape[0] for info in infos]
             self.__voxel_features = np.stack([info.feat['voxel_features'] for info in infos])
             self.__voxel_coords = np.stack([info.feat['voxel_coords'] for info in infos])
             self.__voxel_num_points = np.stack([info.feat['voxel_num_points'] for info in infos])
@@ -231,9 +231,8 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
         )
 
 
-class CollaborationRPCServerThread():                          # 协同感知子系统的Server线程
+class CollaborationRPCServerThread:                          # 协同感知子系统的Server线程
     def __init__(self, cfg: AppConfig, others_info):
-        super().__init__()
         self.cfg = cfg
         self.others_info = others_info
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
