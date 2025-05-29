@@ -24,8 +24,8 @@ class txContext:
 class transactionHandler:
     """
         事务处理器
-            1. 实现tid相关部分, 保证消息在应用向通信子系统发送的消息可靠传输.
-            2. 进行消息接收和解析, 
+            1. 实现tid相关部分
+            2. 进行消息接收和解析
             TODO: 
                 1. 保证消息在通信子系统向应用发送的消息可靠传输.
                 2. 失败重试
@@ -83,7 +83,6 @@ class transactionHandler:
                 logging.error(f'message {resp} 解析错误 {e}')
                 return
 
-            logging.debug(f"recv message: {mes}")
             if mes.header.mid == MessageID.ACK:
                 self.ack_resp_handler(mes)
             else:

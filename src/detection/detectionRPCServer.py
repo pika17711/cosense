@@ -164,8 +164,11 @@ def feature2pred_box(feature, shared_info):      # 根据特征获取检测框
 
     output_dict = OrderedDict()
     output_dict['ego'], _ = model_forward(feature, shared_info)
+    print(batch_data)
 
     pred_box_tensor, _ = post_processor.post_process(batch_data, output_dict)
+    if pred_box_tensor is None:
+    	return None
     pred_box = pred_box_tensor.cpu().data.numpy()
 
     return pred_box

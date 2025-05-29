@@ -61,7 +61,15 @@ def ContextStateTransition(name):
         return wrapper
     return decorator
 
-class CollaborationService():
+class CollaborationService:
+    """
+        业务逻辑类，包含：
+            1. 发送消息的逻辑
+            2. 接收消息的逻辑
+            3. context状态转移的逻辑
+            4. 一些工具函数和封装函数
+    """
+
     def __init__(self, 
                  cfg: AppConfig,
                  ctable: 'CollaborationTable',
@@ -192,11 +200,11 @@ class CollaborationService():
 
     @ContextStateTransition('bcctx')
     def bcctx_to_closed(self, bcctx: BCContext):
-        if self.state == BCContextState.PENDING:
+        if bcctx.state == BCContextState.PENDING:
             logging.warning(f"广播会话 {bcctx.cid}未发送广播订阅消息即被关闭")
 
         self.ctable.rem_bcctx(bcctx)
-        self.state = BCContextState.CLOSED
+        bcctx.state = BCContextState.CLOSED
 
     def bcctx_add_cctx(self, bcctx: BCContext, cctx: CContext):
         bcctx.cctx_set.add(cctx)
@@ -277,8 +285,7 @@ class CollaborationService():
     def broadcastsub(self):
         """
             广播订阅
-            描述：local开启一个新广播会话bcctx
-                 启动一个新协程bcctx_loop(bcctx)，进行消息接收和处理
+                local开启一个新广播会话bcctx，启动一个新协程bcctx_loop(bcctx)，进行消息接收和处理
         """
         cid = self.cid_gen()
         coopmap = self.get_self_coodmap()
@@ -292,8 +299,7 @@ class CollaborationService():
 
     def broadcastpub_send(self):
         """
-            广播推送
-            描述：只需发送广播推送
+            广播推送发送
         """
         coopmap = self.get_self_coodmap()
         decoopmap = CoopMap.serialize(coopmap)

@@ -18,6 +18,11 @@ from collaboration.messageID import MessageID
 from utils.common import ms2s
 
 class MessageRouter:
+    """
+        消息路由器
+
+        将对应类型的消息路由到对应的消息处理函数
+    """
     def __init__(self, 
                  cfg: AppConfig,
                  ctable: CollaborationTable,
@@ -96,6 +101,6 @@ class MessageRouter:
     def dispatch_message(self, msg: Message):
         mid = msg.header.mid
         if mid in self.route_table:
-            self.route_table[mid](msg)
+            self.route_table[mid](msg)  # TODO 使用线程池
         else:
             logging.warning(f"Unhandled message type: {MessageID.get_name(mid.value)}")

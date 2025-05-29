@@ -19,6 +19,9 @@ from collaboration.collaborationManager import CollaborationManager
 from perception.perceptionRPCClient import PerceptionRPCClient
 
 def log_init(cfg: AppConfig):
+    """
+        日志初始化
+    """
     logging.basicConfig(level=logging.DEBUG,
                         filename='collaboration.log',
                         filemode='w',
@@ -34,6 +37,7 @@ def main():
     log_init(cfg)
     icp_client, icp_server = ICP_init(cfg)
 
+    # 全部初始化，依赖注入的思想，方便替换
     perception_client = PerceptionRPCClient(cfg)
     ctable = CollaborationTable(cfg)
     tx_handler = transactionHandler(cfg, icp_server, icp_client)

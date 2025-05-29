@@ -6,6 +6,12 @@ import appType
 from utils.common import mstime, string_to_32_hex
 
 class ContextGenerator:
+    """
+        context id 生成器
+
+        根据通信模块的要求，cid需要是32位16进制数字，于是用md5实现
+    """
+
     def __init__(self, cfg: AppConfig, seed: Optional[int]=None) -> None:
         self.id = cfg.id
         if seed:

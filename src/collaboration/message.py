@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import IntEnum
 import logging
 from typing import Optional, Type, Dict, Any
@@ -48,12 +48,24 @@ class Message:
     header: MessageHeader
     direction: str  # 消息方向
 
+    def from_raw(self, header, raw):
+        pass
+
     @classmethod
     def parse(cls, raw_data: Dict) -> "Message":
         """工厂方法：从原始字典创建具体消息对象"""
         header = MessageHeader.from_dict(raw_data)
         msg_class = cls._get_message_class(header.mid)
-        return msg_class.from_raw(header, raw_data)
+        return msg_class.from_raw(header, raw_data) # type: ignore
+
+    def __str__(self) -> str:
+        data = asdict(self)
+        def process_value(v):
+            return f'{len(v)}B binary data' if isinstance(v, bytes) else v
+        data = {k: process_value(v) for k, v in data.items()}
+        data["header"] = asdict(self.header)  # 嵌套结构展开
+        data["header"]["mid"] = MessageID(data["header"]["mid"]).name
+        return '\n' + json.dumps(data, indent=2, ensure_ascii=False)
 
     @classmethod
     def _get_message_class(cls, mid: MessageID) -> "Message":

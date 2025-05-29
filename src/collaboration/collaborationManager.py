@@ -16,6 +16,14 @@ from collaboration.collaborationService import CollaborationService
 from utils.common import ms2s
 
 class CollaborationManager:
+    """
+        collaboration子系统管理器，负责
+            1. 管理广播推送发送
+            2. 管理广播订阅发送
+            3. 接收命令行的命令
+            4. 向订阅者发送自车数据
+    """
+
     def __init__(self, 
                  cfg: AppConfig,
                  ctable: CollaborationTable,
@@ -96,10 +104,14 @@ class CollaborationManager:
                 print([cctx.remote_id() for cctx in self.ctable.get_subscribing()])
             elif argv[1] == 'subed':
                 print([cctx.remote_id() for cctx in self.ctable.get_subscribed()])
+            else:
+                print('syntax error')
         elif len(argv) == 2 and argv[0] == 'subscribe':
             self.collaboration_service.subscribe_send(argv[2], SubscribeAct.ACK)
+            print('ok')
         elif len(argv) == 2 and argv[0] == 'disconnect':
             self.collaboration_service.disconnect(argv[1])
+            print('ok')
         else:
             print('syntax error')
         return True

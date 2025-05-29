@@ -2,8 +2,10 @@ from enum import IntEnum
 
 # Message ID
 class MessageID(IntEnum):
-    """协议消息ID枚举"""
-    ACK = 00
+    """
+        协议消息ID枚举
+    """
+    ACK = 00            # 消息确认
 
     # 控制接口
     APPREG = 1          # 应用注册

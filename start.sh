@@ -12,7 +12,7 @@ COLLABORATION_MAIN="src/collaboration/main.py"
 DETECTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/cosense_detection/bin/python3"
 DETECTION_MAIN="src/detection/main.py"
 
-PERCEPTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/cosense_detection/bin/python3"
+PERCEPTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/rospy/bin/python3"
 PERCEPTION_MAIN="src/perception/main.py"
 
 PRESENTATION_PYTHON="/path/to/presentation/python"

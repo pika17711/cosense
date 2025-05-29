@@ -2,40 +2,50 @@ from dataclasses import dataclass, fields
 
 @dataclass
 class AppConfig:
-    id = '京A1234'
-    app_ver = 1
-    app_id = 131
-    mode = "CO"
-    topic = "W"
+    """
+        配置类
+            内存中存储配置的类
+            TODO：增加配置文件（json、yaml甚至txt），增加配置文件处理模块
+    """
+    id = '京A1234'       # 自身id 目前使用车牌号
+    app_ver = 1         # 应用版本
+    app_id = 131        # 应用id，目前用于标识使用哪个算法
+    topic = "W"         # 主题，用于筛选接收的消息，具体机制与zmq SUB PUB中的topic一致
 
+    ros_pcd_topic = 'rslidar_points'  # ROS发布点云的topic名
+    ros_queue_size = 10               # 接收ROS收到的点云的队列大小，0表示无限
 
-    ros_pcd_topic = 'rslidar_points'
-    ros_queue_size = 10
+    message_max_workers = 20          # 消息处理线程池大小，目前消息处理是同步的，未使用
 
-    message_max_workers = 20
+    other_data_cache_size = 1000      # 他车缓存数据个数，超出后按照获取时间淘汰
+    other_data_cache_ttl = 20         # 他车缓存数据存活时间，单位是s
 
-    data_cache_size = 1000
+    bcctx_keepalive = 120 * 1000      # 广播会话的存活时间，单位ms
+    cctx_keepalive = 60 * 1000        # 协作会话的存活时间，单位ms
 
-    bcctx_keepalive = 120 * 1000   # ms
-    cctx_keepalive = 60 * 1000    # ms
+    broadcastpub_period = 10 * 1000   # 广播推送的发送间隔，单位ms
+    broadcastsub_period = 10 * 1000   # 广播订阅的发送间隔，单位ms
+    send_data_period = 10 * 1000      # 想订阅者发送数据的间隔，单位ms
 
-    broadcastpub_period = 10 * 1000  # ms
-    broadcastsub_period = 10 * 1000  # ms
-    send_data_period = 10 * 1000     # ms
+    tx_timeout = 50                   # 事务超时时间，单位ms，目前事务是同步的，
+                                      # 所以这个超时时间=调用tx_handler事务方法的阻塞时间，所以不要设太久
 
-    tx_timeout = 50              # ms
+    close_timeout = 0.5               # 关闭服务器，各个线程和线程池的关闭等待时间，单位是s
 
-    close_timeout = 0.5           # s
+    collaboration_debug = True        # collaboration子系统是否开启debug模式，
+                                      # 这个配置以及下面的两个配置均是为debug而生的，使有些地方的线程池调用变为同步调用，
+                                      # 使有些地方的RPC server使用固定的数据（下方static_asset_path）
+                                      # 使有些地方的RPC client不使用RPC，而使用固定的数据（下方static_asset_path）
+                                      # 方便debug，之后即可删除
+    rpc_collaboration_server_debug = False  # collaboration子系统RPC server是否开启debug模式
+    rpc_collaboration_client_debug = False  # collaboration子系统RPC client是否开启debug模式
 
-    collaboration_debug = True
-    rpc_collaboration_server_debug = False
-    rpc_collaboration_client_debug = False
-
+    perception_debug = False          # 同上
     rpc_perception_server_debug = False
     rpc_perception_client_debug = False
 
-    other_data_cache_ttl = 20    # s
 
-    overlap_threshold = 0.3
+    overlap_threshold = 0.3           # 协作图的重叠率阈值，高于此阈值才建立会话
 
-    model_dir = 'opencood/logs/point_pillar_where2comm_2024_10_28_23_24_50/'
+    model_dir = 'opencood/logs/point_pillar_where2comm_2024_10_28_23_24_50/'  # 模型位置
+    static_asset_path = 'datasets/OPV2V/test_culver_city_part/2021_09_03_09_32_17' + '/302'  # 静态数据位置

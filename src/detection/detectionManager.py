@@ -165,7 +165,8 @@ class DetectionManager:
 
         self.vis.clear_geometries()
         self.vis.add_geometry(pcd)
-
+        if pred_box is None:
+            return
         pred_box_tensor = torch.from_numpy(pred_box)
         for box_points in pred_box_tensor:
             # 创建一个 LineSet 来连接顶点并显示边界框

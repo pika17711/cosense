@@ -181,3 +181,6 @@ class CContext:
 
     def have_sid(self) -> bool:
         return self.sid is not None
+    
+    def __str__(self) -> str:
+        return f"context: {self.cid}, remote: {self.remote_id()}, state: {self.state}"

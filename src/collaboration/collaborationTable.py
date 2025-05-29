@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import threading
 from typing import Dict, Iterable, List, Optional, Tuple
 import appType
@@ -13,14 +14,21 @@ from utils.InfoDTO import InfoDTO
 from utils.common import server_assert
 
 
-# TODO 加锁
 class CollaborationTable:
-    def __init__(self, cfg: AppConfig) -> None:
-        
+    """
+        记录协作的状态
+            cctx=CollaborationContext
+            cid=contextid
+            bcctx=BroadcastCollaborationContext
+            cotee=被协作者，订阅者，接收来自协作者的数据
+            cotor=协作者，被订阅者，向被协作者发送数据
+    """
+    def __init__(self, cfg: AppConfig) -> None: 
         self.cfg = cfg
         
         self.cctx_lock = threading.Lock()
         # (cid, cotor, cotee) -> cctx
+        # 由broadcastsub开启的协作对话使用与广播对话相同的cid，同一个cid可能对应不同的remote，所以不能使用单独的cid做key
         self.cctx: Dict[Tuple[appType.cid_t, appType.id_t, appType.id_t], CContext] = dict()
         
         self.bcctx_lock = threading.Lock()
@@ -49,14 +57,15 @@ class CollaborationTable:
 
         self.data_cache_lock = threading.Lock()
         # id -> data 缓存的他车数据
-        self.data_cache: TTLCache[appType.id_t, InfoDTO] = TTLCache(self.cfg.data_cache_size, cfg.other_data_cache_ttl)  # 他车数据的缓存
+        self.data_cache: TTLCache[appType.id_t, InfoDTO] = TTLCache(self.cfg.other_data_cache_size, cfg.other_data_cache_ttl)  # 他车数据的缓存
 
         # id -> coopmap 缓存的他车协作图
         self.coopmap_cache_lock = threading.Lock()
-        self.coopmap_cache: TTLCache[appType.id_t, CoopMap] = TTLCache(self.cfg.data_cache_size, cfg.other_data_cache_ttl)
+        self.coopmap_cache: TTLCache[appType.id_t, CoopMap] = TTLCache(self.cfg.other_data_cache_size, cfg.other_data_cache_ttl)
 
     def add_cctx(self, cctx: CContext):
         with self.cctx_lock:
+            logging.debug(f"新增CContext: {cctx}")
             self.cctx[(cctx.cid, cctx.cotor, cctx.cotee)] = cctx
 
     def check_cctx_exist(self, cid, cotor, cotee):
@@ -91,7 +100,11 @@ class CollaborationTable:
 
     def rem_cctx(self, cctx: CContext):
         with self.cctx_lock:
-            self.cctx.pop((cctx.cid, cctx.cotor, cctx.cotee))
+            t = (cctx.cid, cctx.cotor, cctx.cotee)
+            if t in self.cctx:
+                self.cctx.pop((cctx.cid, cctx.cotor, cctx.cotee))
+            else:
+                logging.warning(f'删除不存在的cctx {cctx}')
 
     def get_cctx_from_stream(self, sid: appType.sid_t) -> Optional[CContext]:
         with self.stream_lock:
@@ -189,7 +202,7 @@ class CollaborationTable:
     
     def get_subscribed_by_id(self, cotor_id):
         with self.subscribed_lock:
-            return self.subscribing[cotor_id] if cotor_id in self.subscribing else None
+            return self.subscribed[cotor_id] if cotor_id in self.subscribed else None
 
     def add_data(self, data: InfoDTO):
         with self.data_cache_lock:

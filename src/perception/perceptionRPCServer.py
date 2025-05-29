@@ -7,10 +7,11 @@ from rpc import Service_pb2
 from rpc import Service_pb2_grpc
 import time
 import numpy as np
+from utils.sharedInfo import SharedInfo
 
 
 class PerceptionRPCService(Service_pb2_grpc.PerceptionServiceServicer):  # 感知子系统的Service类
-    def __init__(self, my_info):
+    def __init__(self, my_info: SharedInfo):
         self.my_info = my_info
 
     def GetMyPCD(self, request, context):           # 感知子系统向其他进程提供“获取自车点云”的服务

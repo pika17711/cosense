@@ -4,6 +4,9 @@ from InteroperationApp.module.zmq_server import ICPServer, ICPClient
 
 
 def ICP_init(cfg: AppConfig):
+    """
+        ICP初始化
+    """
     InteroperationApp.czlconfig.source_id = cfg.id
 
     icp_server = ICPServer(cfg.app_id)
