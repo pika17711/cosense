@@ -2,125 +2,122 @@ syntax = "proto3";
 
 package service;
 
-service PerceptionService {                                         // 感知子系统
-    rpc GetMyFeature (Empty) returns (MyFeature);                   // 向其他进程提供“获取自车特征”的服务
-    rpc GetMyConfMap (Empty) returns (MyConfMap);                   // 向其他进程提供“获取自车置信图”的服务
-    rpc GetMyCommMask (Empty) returns (MyCommMask);                 // 向其他进程提供“获取自车协作图”的服务
-    rpc GetMyPVAInfo (Empty) returns (MyPVAInfo);                   // 向其他进程提供“获取自车位置、速度、加速度信息”的服务
-    rpc GetMyExtrinsicMatrix (Empty) returns (MyExtrinsicMatrix);   // 向其他进程提供“获取自车外参矩阵”的服务
+service PerceptionService {                                             // 感知子系统
+    rpc GetMyPCD (Empty) returns (PCD);                                 // 向其他进程提供“获取自车点云”的服务
+    rpc GetMyLidarPoseAndPCD (Empty) returns (LidarPoseAndPCD);         // 向其他进程提供“获取自车雷达位姿和点云”的服务
+    rpc GetMyPVA (Empty) returns (PVA);                                 // 向其他进程提供“获取自车雷达位姿 、速度、加速度信息”的服务
+    rpc GetMyExtrinsicMatrix (Empty) returns (ExtrinsicMatrix);         // 向其他进程提供“获取自车外参矩阵”的服务
 }
 
-service CollaborationService {                                      // 协同感知子系统
-    rpc GetOthersInfo (Empty) returns (OthersInfo);                 // 向其他进程提供“获取所有他车信息”的服务
-    rpc GetOthersCommMasks (Empty) returns (OthersCommMasks);       // 向其他进程提供“获取所有他车协作图”的服务
+service CollaborationService {                                          // 协同感知子系统
+    rpc GetOthersInfos (Empty) returns (OthersInfos);                 // 向其他进程提供“获取所有他车信息”的服务
+    rpc GetOthersCommMasks (Empty) returns (OthersCommMasks);        // 向其他进程提供“获取所有他车协作图”的服务
 }
 
-service DetectionService {                                          // 融合检测子系统
-    rpc GetFusedFeature (Empty) returns (FusedFeature);             // 向其他进程提供“获取融合后的特征”的服务
-    rpc GetFusedCommMask (Empty) returns (FusedCommMask);           // 向其他进程提供“获取融合后的协作图”的服务
-    rpc GetLatestPredBox (Empty) returns (PredBox);                 // 向其他进程提供“获取最新检测框”的服务
-    rpc PCD2FeatureAndConfMap (PCD) returns (FeatureAndConfMap);    // 向其他进程提供“根据点云获取特征和置信图”的服务
-    rpc Feature2ConfMap (FeatureRequest) returns (ConfMap);         // 向其他进程提供“根据特征获取置信图”的服务
-    rpc Feature2PredBox (FeatureRequest) returns (PredBox);         // 向其他进程提供“根据特征获取检测框”的服务
+service DetectionService {                                              // 融合检测子系统
+    rpc GetFusedFeature (Empty) returns (Feature);                      // 向其他进程提供“获取融合后的特征”的服务
+    rpc GetFusedCommMask (Empty) returns (CommMask);                    // 向其他进程提供“获取融合后的协作图”的服务
+    rpc GetLatestPredBox (Empty) returns (PredBox);                     // 向其他进程提供“获取最新检测框”的服务
+    rpc PCD2Feature (PCD) returns (Feature);                            // 向其他进程提供“根据点云获取特征”的服务
+    rpc PCD2FeatureAndConfMap (PCD) returns (FeatureAndConfMap);        // 向其他进程提供“根据点云获取特征和置信图”的服务
+    rpc LidarPoses2ProjectedFeatures (LidarPoses) returns (Features);    // 向其他进程提供“根据位姿获取投射后的特征”的服务
+    rpc Feature2ConfMap (Feature) returns (ConfMap);                    // 向其他进程提供“根据特征获取置信图”的服务
+    rpc Feature2PredBox (Feature) returns (PredBox);                    // 向其他进程提供“根据特征获取检测框”的服务
 }
 
-service PresentationService {                                       // 信息呈现子系统
+service PresentationService {                                           // 信息呈现子系统
 
 }
 
 message Empty {}
 
-message NdArray {
-    bytes data = 1;                     // ndarray 的序列化数据
-    string dtype = 2;                   // ndarray 的数据类型
-    repeated int32 shape = 3;           // ndarray 的形状
-}
-
-message Feature {                       // 特征
-    NdArray voxel_features = 1;         // 体素特征
-    NdArray voxel_coords = 2;           // 体素坐标
-    NdArray voxel_num_points = 3;       // 体素点数
-}
-
-message MyFeature {                     // 自车特征
-    int64 timestamp = 1;                // 时间戳
-    Feature my_feature = 2;             // 自车特征
-}
-
-message MyConfMap {                     // 自车置信图
-    int64 timestamp = 1;                // 时间戳
-    NdArray my_conf_map = 2;            // 自车置信图
-}
-
-message MyCommMask {                    // 自车协作图
-    int64 timestamp = 1;                // 时间戳
-    NdArray my_comm_mask = 2;           // 自车协作图
-}
-
-message MyPVAInfo {                     // 自车位置、速度、加速度信息
-    int64 timestamp = 1;                // 时间戳
-    NdArray pose = 2;                   // 自车位置
-    NdArray velocity = 3;               // 自车速度
-    NdArray acceleration = 4;           // 自车加速度
-}
-
-message MyExtrinsicMatrix {             // 自车外参矩阵
-    int64 timestamp = 1;                // 时间戳
-    NdArray my_extrinsic_matrix = 2;    // 自车外参矩阵
-}
-
-message OthersInfo {                    // 所有他车信息
-    repeated int32 ids = 1;             // 所有他车的id
-    repeated int64 timestamps = 2;      // 所有他车传递信息对应的的时间戳
-    NdArray poses = 3;                  // 所有他车位置
-    NdArray velocities = 4;             // 所有他车速度
-    NdArray accelerations = 5;          // 所有他车加速度
-
-    // 所有他车特征
-    NdArray voxel_features = 6;         // 所有他车体素特征
-    NdArray voxel_coords = 7;           // 所有他车体素坐标
-    NdArray voxel_num_points = 8;       // 所有他车体素点数
-}
-
-message OthersCommMasks {               // 所有他车协作图
-    repeated int32 ids = 1;             // 所有他车的id
-    repeated int64 timestamps = 2;      // 所有他车传递协作图对应的时间戳
-    NdArray others_comm_masks = 3;      // 所有他车协作图
-}
-
-message FusedFeature {                  // 融合后的特征
-    int64 timestamp = 1;                // 时间戳
-    Feature fused_feature = 2;          // 融合后的特征
-}
-
-message FusedCommMask {                 // 融合后的协作图
-    int64 timestamp = 1;                // 时间戳
-    NdArray fused_comm_mask = 2;        // 融合后的协作图
+message NDArray {
+    bytes data = 1;                     // NDArray 的序列化数据
+    string dtype = 2;                   // NDArray 的数据类型
+    repeated int32 shape = 3;           // NDArray 的形状
 }
 
 message PCD {                           // 原始点云数据
-    int64 timestamp = 1;                // 时间戳
-    NdArray pcd = 2;                    // 原始点云数据
+    NDArray pcd = 1;                    // 原始点云数据
+    int64 ts_pcd = 2;                   // 原始点云对应时间戳
 }
 
-message FeatureAndConfMap {             // 特征和置信图
-    int64 timestamp = 1;                // 时间戳
-    Feature feature = 2;                // 特征
-    NdArray conf_map = 3;               // 置信图
+message LidarPoseAndPCD {               // 雷达位姿和点云
+    NDArray lidar_pose = 1;             // 雷达位姿
+    int64 ts_lidar_pose = 2;            // 雷达位姿对应时间戳
+    NDArray pcd = 3;                    // 原始点云数据
+    int64 ts_pcd = 4;                   // 原始点云数据对应时间戳
 }
 
-message FeatureRequest {                // 特征请求
-    int64 timestamp = 1;                // 时间戳
-    Feature feature = 2;                // 特征
+message PVA {                           // 雷达位姿、速度、加速度信息
+    NDArray lidar_pose = 1;             // 雷达位姿
+    int64 ts_lidar_pose = 2;            // 雷达位姿对应时间戳
+    NDArray velocity = 3;               // 速度
+    int64 ts_v = 4;                     // 速度对应时间戳
+    NDArray acceleration = 5;           // 加速度
+    int64 ts_a = 6;                     // 加速度对应时间戳
 }
 
-message ConfMap {                       // 置信图
-    int64 timestamp = 1;                // 时间戳
-    NdArray conf_map = 2;               // 置信图
+message ExtrinsicMatrix {               // 外参矩阵
+    NDArray extrinsic_matrix = 1;       // 外参矩阵
+    int64 ts_extrinsic_matrix = 2;      // 外参矩阵对应时间戳
+}
+
+message OthersInfos {                       // 所有他车信息
+    map<string, CAVInfo> others_infos = 1;  // 所有他车信息
+
+    message CAVInfo {                       // 单个他车信息
+        NDArray lidar_pose = 1;             // 雷达位姿
+        int64 ts_lidar_pose = 2;            // 雷达位姿对应时间戳
+        NDArray velocity = 3;               // 速度
+        int64 ts_v = 4;                     // 速度对应时间戳
+        NDArray acceleration = 5;           // 加速度
+        int64 ts_a = 6;                     // 加速度对应时间戳
+        NDArray feature = 7;                // 特征
+        int64 ts_feature = 8;               // 特征对应时间戳
+    }
+}
+
+message OthersCommMasks {                           // 所有他车协作图
+    map<string, CommMask> others_comm_masks = 1;    // 所有他车协作图
+}
+
+message Feature {                       // 特征
+    NDArray feature = 1;                // 特征
+    int64 ts_feature = 2;               // 特征对应时间戳
+}
+
+message CommMask {                      // 协作图
+    NDArray comm_mask = 1;              // 协作图
+    int64 ts_comm_mask = 2;             // 协作图对应时间戳
 }
 
 message PredBox {                       // 检测框
-    int64 timestamp = 1;                // 时间戳
-    NdArray pred_box = 2;               // 检测框
+    NDArray pred_box = 1;               // 检测框
+    int64 ts_pred_box = 2;                // 检测框对应时间戳
 }
 
+message FeatureAndConfMap {             // 特征和置信图
+    NDArray feature = 1;                // 特征
+    int64 ts_feature = 2;               // 特征对应时间戳
+    NDArray conf_map = 3;               // 置信图
+    int64 ts_conf_map = 4;              // 置信图对应时间戳
+}
+
+message LidarPoses {                            // 多个雷达位姿
+    map<string, LidarPose> lidar_poses = 1;     // 多个雷达位姿
+
+    message LidarPose {                         // 雷达位姿
+        NDArray lidar_pose = 1;                 // 雷达位姿
+        int64 ts_lidar_pose = 2;                // 雷达位姿对应时间戳
+    }
+}
+
+message Features {                              // 多个特征
+    map<string, Feature> features = 1;          // 多个特征
+}
+
+message ConfMap {                       // 置信图
+    NDArray conf_map = 1;               // 置信图
+    int64 ts_conf_map = 2;                // 置信图对应时间戳
+}

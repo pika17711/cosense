@@ -5,7 +5,7 @@ import numpy as np
 class SharedInfo:
     def __init__(self):
         self.__pcd = np.array([])  # 初始化为空数组
-        self.__pose = np.array([])  # 初始化为空数组
+        self.__lidar_pose = np.array([])  # 初始化为空数组
         self.__velocity = np.array([])  # 初始化为空数组
         self.__acceleration = np.array([])  # 初始化为空数组
         self.__extrinsic_matrix = np.array([])  # 初始化为空数组
@@ -35,12 +35,12 @@ class SharedInfo:
 
     def update_perception_info(self,
                                pcd=np.array([]),
-                               pose=np.array([]),
+                               lidar_pose=np.array([]),
                                velocity=np.array([]),
                                acceleration=np.array([])):
         with self.__perception_lock:
             self.__pcd = pcd
-            self.__pose = pose
+            self.__lidar_pose = lidar_pose
             self.__velocity = velocity
             self.__acceleration = acceleration
 
@@ -91,9 +91,9 @@ class SharedInfo:
         with self.__perception_lock:
             return self.__pcd.copy()
 
-    def get_pose_copy(self):
+    def get_lidar_pose_copy(self):
         with self.__perception_lock:
-            return self.__pose.copy()
+            return self.__lidar_pose.copy()
 
     def get_velocity_copy(self):
         with self.__perception_lock:

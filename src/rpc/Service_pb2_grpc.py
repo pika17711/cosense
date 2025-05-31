@@ -40,30 +40,15 @@ class PerceptionServiceStub(object):
                 request_serializer=Service__pb2.Empty.SerializeToString,
                 response_deserializer=Service__pb2.PCD.FromString,
                 _registered_method=True)
-        self.GetMyPoseAndPCD = channel.unary_unary(
-                '/service.PerceptionService/GetMyPoseAndPCD',
+        self.GetMyLidarPoseAndPCD = channel.unary_unary(
+                '/service.PerceptionService/GetMyLidarPoseAndPCD',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.PoseAndPCD.FromString,
+                response_deserializer=Service__pb2.LidarPoseAndPCD.FromString,
                 _registered_method=True)
-        self.GetMyFeature = channel.unary_unary(
-                '/service.PerceptionService/GetMyFeature',
+        self.GetMyPVA = channel.unary_unary(
+                '/service.PerceptionService/GetMyPVA',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.Feature.FromString,
-                _registered_method=True)
-        self.GetMyConfMap = channel.unary_unary(
-                '/service.PerceptionService/GetMyConfMap',
-                request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.ConfMap.FromString,
-                _registered_method=True)
-        self.GetMyCommMask = channel.unary_unary(
-                '/service.PerceptionService/GetMyCommMask',
-                request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.CommMask.FromString,
-                _registered_method=True)
-        self.GetMyPVAInfo = channel.unary_unary(
-                '/service.PerceptionService/GetMyPVAInfo',
-                request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.PVAInfo.FromString,
+                response_deserializer=Service__pb2.PVA.FromString,
                 _registered_method=True)
         self.GetMyExtrinsicMatrix = channel.unary_unary(
                 '/service.PerceptionService/GetMyExtrinsicMatrix',
@@ -83,36 +68,15 @@ class PerceptionServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetMyPoseAndPCD(self, request, context):
-        """向其他进程提供“获取自车雷达位姿点云”的服务
+    def GetMyLidarPoseAndPCD(self, request, context):
+        """向其他进程提供“获取自车雷达位姿和点云”的服务
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetMyFeature(self, request, context):
-        """向其他进程提供“获取自车特征”的服务
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetMyConfMap(self, request, context):
-        """向其他进程提供“获取自车置信图”的服务
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetMyCommMask(self, request, context):
-        """向其他进程提供“获取自车协作图”的服务
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetMyPVAInfo(self, request, context):
-        """向其他进程提供“获取自车位置、速度、加速度信息”的服务
+    def GetMyPVA(self, request, context):
+        """向其他进程提供“获取自车雷达位姿 、速度、加速度信息”的服务
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -133,30 +97,15 @@ def add_PerceptionServiceServicer_to_server(servicer, server):
                     request_deserializer=Service__pb2.Empty.FromString,
                     response_serializer=Service__pb2.PCD.SerializeToString,
             ),
-            'GetMyPoseAndPCD': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetMyPoseAndPCD,
+            'GetMyLidarPoseAndPCD': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMyLidarPoseAndPCD,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.PoseAndPCD.SerializeToString,
+                    response_serializer=Service__pb2.LidarPoseAndPCD.SerializeToString,
             ),
-            'GetMyFeature': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetMyFeature,
+            'GetMyPVA': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMyPVA,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.Feature.SerializeToString,
-            ),
-            'GetMyConfMap': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetMyConfMap,
-                    request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.ConfMap.SerializeToString,
-            ),
-            'GetMyCommMask': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetMyCommMask,
-                    request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.CommMask.SerializeToString,
-            ),
-            'GetMyPVAInfo': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetMyPVAInfo,
-                    request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.PVAInfo.SerializeToString,
+                    response_serializer=Service__pb2.PVA.SerializeToString,
             ),
             'GetMyExtrinsicMatrix': grpc.unary_unary_rpc_method_handler(
                     servicer.GetMyExtrinsicMatrix,
@@ -203,7 +152,7 @@ class PerceptionService(object):
             _registered_method=True)
 
     @staticmethod
-    def GetMyPoseAndPCD(request,
+    def GetMyLidarPoseAndPCD(request,
             target,
             options=(),
             channel_credentials=None,
@@ -216,9 +165,9 @@ class PerceptionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/service.PerceptionService/GetMyPoseAndPCD',
+            '/service.PerceptionService/GetMyLidarPoseAndPCD',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.PoseAndPCD.FromString,
+            Service__pb2.LidarPoseAndPCD.FromString,
             options,
             channel_credentials,
             insecure,
@@ -230,7 +179,7 @@ class PerceptionService(object):
             _registered_method=True)
 
     @staticmethod
-    def GetMyFeature(request,
+    def GetMyPVA(request,
             target,
             options=(),
             channel_credentials=None,
@@ -243,90 +192,9 @@ class PerceptionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/service.PerceptionService/GetMyFeature',
+            '/service.PerceptionService/GetMyPVA',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.Feature.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetMyConfMap(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/service.PerceptionService/GetMyConfMap',
-            Service__pb2.Empty.SerializeToString,
-            Service__pb2.ConfMap.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetMyCommMask(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/service.PerceptionService/GetMyCommMask',
-            Service__pb2.Empty.SerializeToString,
-            Service__pb2.CommMask.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetMyPVAInfo(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/service.PerceptionService/GetMyPVAInfo',
-            Service__pb2.Empty.SerializeToString,
-            Service__pb2.PVAInfo.FromString,
+            Service__pb2.PVA.FromString,
             options,
             channel_credentials,
             insecure,
@@ -375,15 +243,10 @@ class CollaborationServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.GetOthersPosesAndPCDs = channel.unary_unary(
-                '/service.CollaborationService/GetOthersPosesAndPCDs',
+        self.GetOthersInfos = channel.unary_unary(
+                '/service.CollaborationService/GetOthersInfos',
                 request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.OthersPosesAndPCDs.FromString,
-                _registered_method=True)
-        self.GetOthersInfo = channel.unary_unary(
-                '/service.CollaborationService/GetOthersInfo',
-                request_serializer=Service__pb2.Empty.SerializeToString,
-                response_deserializer=Service__pb2.OthersInfo.FromString,
+                response_deserializer=Service__pb2.OthersInfos.FromString,
                 _registered_method=True)
         self.GetOthersCommMasks = channel.unary_unary(
                 '/service.CollaborationService/GetOthersCommMasks',
@@ -396,14 +259,7 @@ class CollaborationServiceServicer(object):
     """协同感知子系统
     """
 
-    def GetOthersPosesAndPCDs(self, request, context):
-        """向其他进程提供“获取所有他车雷达位姿和点云”的服务
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetOthersInfo(self, request, context):
+    def GetOthersInfos(self, request, context):
         """向其他进程提供“获取所有他车信息”的服务
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -420,15 +276,10 @@ class CollaborationServiceServicer(object):
 
 def add_CollaborationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'GetOthersPosesAndPCDs': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetOthersPosesAndPCDs,
+            'GetOthersInfos': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetOthersInfos,
                     request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.OthersPosesAndPCDs.SerializeToString,
-            ),
-            'GetOthersInfo': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetOthersInfo,
-                    request_deserializer=Service__pb2.Empty.FromString,
-                    response_serializer=Service__pb2.OthersInfo.SerializeToString,
+                    response_serializer=Service__pb2.OthersInfos.SerializeToString,
             ),
             'GetOthersCommMasks': grpc.unary_unary_rpc_method_handler(
                     servicer.GetOthersCommMasks,
@@ -448,7 +299,7 @@ class CollaborationService(object):
     """
 
     @staticmethod
-    def GetOthersPosesAndPCDs(request,
+    def GetOthersInfos(request,
             target,
             options=(),
             channel_credentials=None,
@@ -461,36 +312,9 @@ class CollaborationService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/service.CollaborationService/GetOthersPosesAndPCDs',
+            '/service.CollaborationService/GetOthersInfos',
             Service__pb2.Empty.SerializeToString,
-            Service__pb2.OthersPosesAndPCDs.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetOthersInfo(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/service.CollaborationService/GetOthersInfo',
-            Service__pb2.Empty.SerializeToString,
-            Service__pb2.OthersInfo.FromString,
+            Service__pb2.OthersInfos.FromString,
             options,
             channel_credentials,
             insecure,
@@ -564,6 +388,11 @@ class DetectionServiceStub(object):
                 request_serializer=Service__pb2.PCD.SerializeToString,
                 response_deserializer=Service__pb2.FeatureAndConfMap.FromString,
                 _registered_method=True)
+        self.LidarPoses2ProjectedFeatures = channel.unary_unary(
+                '/service.DetectionService/LidarPoses2ProjectedFeatures',
+                request_serializer=Service__pb2.LidarPoses.SerializeToString,
+                response_deserializer=Service__pb2.Features.FromString,
+                _registered_method=True)
         self.Feature2ConfMap = channel.unary_unary(
                 '/service.DetectionService/Feature2ConfMap',
                 request_serializer=Service__pb2.Feature.SerializeToString,
@@ -615,6 +444,13 @@ class DetectionServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def LidarPoses2ProjectedFeatures(self, request, context):
+        """向其他进程提供“根据位姿获取投射后的特征”的服务
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Feature2ConfMap(self, request, context):
         """向其他进程提供“根据特征获取置信图”的服务
         """
@@ -656,6 +492,11 @@ def add_DetectionServiceServicer_to_server(servicer, server):
                     servicer.PCD2FeatureAndConfMap,
                     request_deserializer=Service__pb2.PCD.FromString,
                     response_serializer=Service__pb2.FeatureAndConfMap.SerializeToString,
+            ),
+            'LidarPoses2ProjectedFeatures': grpc.unary_unary_rpc_method_handler(
+                    servicer.LidarPoses2ProjectedFeatures,
+                    request_deserializer=Service__pb2.LidarPoses.FromString,
+                    response_serializer=Service__pb2.Features.SerializeToString,
             ),
             'Feature2ConfMap': grpc.unary_unary_rpc_method_handler(
                     servicer.Feature2ConfMap,
@@ -804,6 +645,33 @@ class DetectionService(object):
             '/service.DetectionService/PCD2FeatureAndConfMap',
             Service__pb2.PCD.SerializeToString,
             Service__pb2.FeatureAndConfMap.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def LidarPoses2ProjectedFeatures(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/service.DetectionService/LidarPoses2ProjectedFeatures',
+            Service__pb2.LidarPoses.SerializeToString,
+            Service__pb2.Features.FromString,
             options,
             channel_credentials,
             insecure,

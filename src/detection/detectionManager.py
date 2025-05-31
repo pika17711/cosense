@@ -1,72 +1,24 @@
-import argparse
 import logging
 import time
 from appConfig import AppConfig
 import numpy as np
-from tqdm import tqdm
 
 import torch
 import open3d as o3d
-from torch.utils.data import DataLoader
-import zmq
 
 from opencood.hypes_yaml import yaml_utils
 from opencood.tools import train_utils
-from opencood.tools import inference_utils
-from opencood.models import point_pillar_where2comm
-from opencood.utils.transformation_utils import x1_to_x2
-from opencood.utils import box_utils
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.data_utils.post_processor import build_postprocessor
-from opencood.utils import eval_utils
-from opencood.visualization.vis_utils import color_encoding
-import matplotlib.pyplot as plt
+from opencood.visualization.vis_utils import bbx2oabb
+# from src.detection.utils_test import get_oabbs_gt
 
-import os
-import yaml
-import re
-
-from detection.detectionRPCServer import DetectionServerThread, pcd2feature, feature2pred_box
+from utils.detection_utils import fuse_spatial_feature
+from detection.detectionRPCServer import DetectionServerThread, pcd_to_spatial_feature, spatial_feature_to_pred_box
 from perception.perceptionRPCClient import PerceptionRPCClient
 from collaboration.collaborationRPCClient import CollaborationRPCClient
 from utils.sharedInfo import SharedInfo
 
-def fuse_pcd(my_timestamp, my_pcd, my_pose, timestamps, others_poses, others_pcds):
-    fused_pcd = [my_pcd]
-
-    for i in range(len(timestamps)):
-        # if timestamps[i] == my_timestamp:
-        #     transformation_matrix = x1_to_x2(others_poses[i], my_pose)
-        #     others_pcds[:, :3] = box_utils.project_points_by_matrix_torch(others_pcds[:, :3], transformation_matrix)
-        #     fused_pcd.append(others_pcds)
-        transformation_matrix = x1_to_x2(others_poses[i], my_pose)
-        others_pcd = others_pcds[i].copy()
-        others_pcd[:, :3] = box_utils.project_points_by_matrix_torch(others_pcd[:, :3], transformation_matrix)
-        fused_pcd.append(others_pcd)
-
-    fused_pcd = np.vstack(fused_pcd)
-    return fused_pcd
-
-
-def fuse_feature(my_feature, voxel_features, voxel_coords, voxel_num_points):
-    fused_voxel_features = [my_feature['voxel_features']]
-    fused_voxel_coords = [my_feature['voxel_coords']]
-    fused_voxel_num_points = [my_feature['voxel_num_points']]
-
-    if voxel_features.shape[0] > 0:
-        fused_voxel_features.append(voxel_features)
-        fused_voxel_coords.append(voxel_coords)
-        fused_voxel_num_points.append(voxel_num_points)
-
-    fused_voxel_features = np.vstack(fused_voxel_features)
-    fused_voxel_coords = np.vstack(fused_voxel_coords)
-    fused_voxel_num_points = np.hstack(fused_voxel_num_points)
-
-    fused_feature = {'voxel_features': fused_voxel_features,
-                     'voxel_coords': fused_voxel_coords,
-                     'voxel_num_points': fused_voxel_num_points}
-
-    return fused_feature
 
 class DetectionManager:
     def __init__(self, opt, cfg: AppConfig):
@@ -94,8 +46,8 @@ class DetectionManager:
             self.vis = o3d.visualization.Visualizer()
             self.vis.create_window(visible=True)
             vis_opt = self.vis.get_render_option()
-            # vis_opt.background_color = np.asarray([0, 0, 0])
-            # vis_opt.point_size = 1.0
+            vis_opt.background_color = np.asarray([0, 0, 0])
+            vis_opt.point_size = 1.0
 
     def __load_model(self):
         logging.info('Creating Model')
@@ -135,57 +87,52 @@ class DetectionManager:
 
             logging.info("融合检测进行中...")
             # 获取自车pcd并处理得到自车特征
-            my_timestamp, my_pose, my_pcd = self.perception_client.get_my_pose_and_pcd()
-            if my_timestamp is None:
+            my_lidar_pose, ts_lidar_pose, my_pcd, ts_pcd = self.perception_client.get_my_lidar_pose_and_pcd()
+            if my_lidar_pose is None:
                 # RPC 错误 已经在RPC调用中输出过日志
                 continue
-            self.shared_info.update_perception_info(pose=my_pose, pcd=my_pcd)
-            processed_pcd, my_feature = pcd2feature(my_pcd, self.shared_info)
+            self.shared_info.update_perception_info(lidar_pose=my_lidar_pose, pcd=my_pcd)
+            processed_pcd, my_spatial_feature = pcd_to_spatial_feature(my_pcd, self.shared_info)
             # 获取他车特征
-            ids, timestamps, _, _, _, features_lens, voxel_features, voxel_coords, voxel_num_points =\
-                self.collaboration_client.get_others_info()
-            # 融合特征
-            if ids is not None:
-                fused_feature = fuse_feature(my_feature, voxel_features, voxel_coords, voxel_num_points)
+            cav_infos = self.collaboration_client.get_others_infos()
+            if cav_infos is not None and len(cav_infos) > 0:
+                fused_spatial_feature = fuse_spatial_feature(my_spatial_feature, cav_infos)
             else:
-                fused_feature = my_feature
+                fused_spatial_feature = my_spatial_feature
             # 根据融合后的特征得到检测框
-            pred_box = feature2pred_box(fused_feature, self.shared_info)
+            pred_box = spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info)
             self.shared_info.update_pred_box(pred_box)
 
             if self.opt.show_vis:
                 self.__show_vis(processed_pcd, pred_box)
 
     def __show_vis(self, processed_pcd, pred_box):
+        self.vis.clear_geometries()
         pcd = o3d.geometry.PointCloud()
+
+        # o3d use right-hand coordinate
+        processed_pcd[:, :1] = -processed_pcd[:, :1]
+
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 
         # origin_lidar_intcolor = color_encoding(origin_lidar[:, 2], mode='constant')
         # pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
 
-        self.vis.clear_geometries()
         self.vis.add_geometry(pcd)
-        if pred_box is None:
-            return
-        pred_box_tensor = torch.from_numpy(pred_box)
-        for box_points in pred_box_tensor:
-            # 创建一个 LineSet 来连接顶点并显示边界框
-            lines = [
-                [0, 1], [1, 2], [2, 3], [3, 0],  # 上面四个边
-                [4, 5], [5, 6], [6, 7], [7, 4],  # 下面四个边
-                [0, 4], [1, 5], [2, 6], [3, 7]  # 上下四个连接
-            ]
-            line_set = o3d.geometry.LineSet()
-            line_set.points = o3d.utility.Vector3dVector(box_points)  # 设置顶点
-            line_set.lines = o3d.utility.Vector2iVector(lines)  # 设置边
-            line_set.paint_uniform_color([1, 0, 0])  # 设置边框为红色
-            self.vis.add_geometry(line_set)
+        if pred_box.size > 0:
+            oabbs_pred = bbx2oabb(pred_box, color=(1, 0, 0))
+            for oabb in oabbs_pred:
+                self.vis.add_geometry(oabb)
+
+        # oabbs_gt = get_oabbs_gt(self.shared_info)
+        # for oabb in oabbs_gt:
+        #     self.vis.add_geometry(oabb)
 
         # 渲染场景
         self.vis.poll_events()
         self.vis.update_renderer()
         # save_path = 'vis.png'
-        # 截图并保存
+        # # 截图并保存
         # self.vis.capture_screen_image(save_path)
         # print(f"Saved visualization to {save_path}")
 

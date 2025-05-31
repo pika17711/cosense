@@ -77,10 +77,10 @@ class PerceptionManager:
         pcd = self.pcd_queue.get()
         logging.info(f'received pcd {len(pcd)}')
         self.my_info.update_perception_info(pcd=pcd)
-    
+
     def ros_start(self):
-    	self.ros_wrapper = ROSWrapper(self.pcd_queue)
-    	self.ros_wrapper.start()
+        self.ros_wrapper = ROSWrapper(self.pcd_queue)
+        self.ros_wrapper.start()
 
     def __loop(self):
         loop_time = 6

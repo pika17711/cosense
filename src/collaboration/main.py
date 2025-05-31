@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 import os
-import threading
 import logging
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -10,13 +9,14 @@ sys.path.append(parent_dir)
 
 from appConfig import AppConfig
 from collaboration.ICP import ICP_init
-from collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
+from collaboration.collaborationRPCServer import CollaborationRPCServerThread
 from collaboration.messageRouter import MessageRouter
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
 from collaboration.transactionHandler import transactionHandler
 from collaboration.collaborationManager import CollaborationManager
 from perception.perceptionRPCClient import PerceptionRPCClient
+from utils.othersInfos import OthersInfos
 
 def log_init(cfg: AppConfig):
     """
@@ -45,7 +45,7 @@ def main():
     message_handler = MessageRouter(cfg, ctable, tx_handler, perception_client, collaboration_service)
     collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, collaboration_service)
 
-    shared_other_info = SharedOthersInfo(ctable)
+    shared_other_info = OthersInfos(ctable)
     collaboration_rpc_server = CollaborationRPCServerThread(cfg, shared_other_info)
 
     tx_handler.start_recv()
