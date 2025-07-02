@@ -202,7 +202,7 @@ class transactionHandler:
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.streamSendreq(did, context, rl, pt))
 
-    def send(self, sid: appType.sid_t, data: bytes):
+    def send(self, sid: appType.sid_t, data: str):
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.streamSend(sid, data))
     def sendend(self, did: appType.id_t, cid: appType.cid_t, sid: appType.sid_t):

@@ -44,8 +44,8 @@ class CollaborationTable:
         self.sendnty: Dict[appType.id_t, CContext] = dict()
 
         self.subscribed_lock = threading.Lock()
-        # cotee id -> cctx 正在被订阅的cctx
-        self.subscribed: Dict[appType.id_t, CContext] = dict()
+        # cotee id -> dict 正在被订阅的信息{'cctx': CContext, 'coopmap': CoopMap}
+        self.subscribed: Dict[appType.id_t, Dict] = dict()
 
         self.waitnty_lock = threading.Lock()
         # cotor id -> cctx 正在waitnty状态的cctx, 因为只有当前是cotee的时候状态才可能为waitnty，用cotor id做为索引
@@ -187,16 +187,17 @@ class CollaborationTable:
         with self.sendnty_lock:
             return self.sendnty[cotee_id] if cotee_id in self.sendnty else None
 
-    def add_subscribed(self, cctx: CContext):
+    def add_subscribed(self, cctx: CContext, coopmap: CoopMap):
+        subed = {'cctx': cctx, 'coopmap': coopmap}
         with self.subscribed_lock:
-            self.subscribed[cctx.cotee] = cctx
+            self.subscribed[cctx.cotee] = subed
 
     def rem_subscribed(self, cctx: CContext):
         with self.subscribed_lock:
             server_assert(cctx.cotee in self.subscribed)
             self.subscribed.pop(cctx.cotee)
 
-    def get_subscribed(self) -> List[CContext]:
+    def get_subscribed(self) -> List[Dict]:
         with self.subscribed_lock:
             return list(self.subscribed.values())
     

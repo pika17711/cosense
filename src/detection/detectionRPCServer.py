@@ -6,15 +6,25 @@ from concurrent import futures
 
 from rpc import Service_pb2_grpc
 from rpc import Service_pb2
+from utils.sharedInfo import SharedInfo
 from utils.rpc_utils import np_to_protobuf, protobuf_to_np, protobuf_to_dict
 from utils.detection_utils import pcd_to_spatial_feature, lidar_poses_to_projected_spatial_features, \
-    spatial_feature_to_conf_map, spatial_feature_to_pred_box
+    spatial_feature_to_conf_map, spatial_feature_to_pred_box, spatial_feature_to_comm_masked_feature
 
 
 class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检测子系统的Service类
-    def __init__(self, shared_info):
+    def __init__(self, shared_info: SharedInfo):
         super().__init__()
         self.shared_info = shared_info
+
+    def GetCommMaskAndLidarPose(self, request, context):
+        comm_mask = self.shared_info.get_comm_mask_copy()
+        ts_comm_mask = int(time.time())
+
+        lidar_pose = self.shared_info.get_lidar_pose_copy()
+        ts_lidar_pose = int(time.time())
+        return Service_pb2.CommMaskAndLidarPose(comm_mask=comm_mask, ts_comm_mask=ts_comm_mask,
+                                                lidar_pose=lidar_pose, ts_lidar_pose=ts_lidar_pose)
 
     def GetFusedFeature(self, request, context):  # 融合检测子系统向其他进程提供“获取融合后的特征”的服务
         fused_feature = self.shared_info.get_fused_feature_copy()
@@ -76,6 +86,27 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
             projected_features_protobuf[cav_id] = projected_feature_protobuf
 
         return Service_pb2.Features(features=projected_features_protobuf)
+
+    def LidarPoses2ProjectedCommMaskedFeatures(self, request, context):
+        lidar_poses_protobuf = request.lidar_poses
+
+        lidar_poses = protobuf_to_dict(lidar_poses_protobuf)
+
+        my_lidar_pose = self.shared_info.get_lidar_pose_copy()
+        my_pcd = self.shared_info.get_pcd_copy()
+        projected_features = lidar_poses_to_projected_spatial_features(my_lidar_pose, my_pcd, lidar_poses,
+                                                                       self.shared_info)
+
+        projected_comm_masked_features_protobuf = {}
+        for cav_id, projected_feature in projected_features.items():
+            comm_masked_feature, comm_mask = spatial_feature_to_comm_masked_feature(projected_feature['feature'], self.shared_info)
+
+            projected_comm_masked_feature_protobuf = Service_pb2.CommMaskedFeature(comm_masked_feature=np_to_protobuf(comm_masked_feature),
+                                                                                   comm_mask=np_to_protobuf(comm_mask),
+                                                                                   ts_feature=projected_feature['ts_feature'])
+            projected_comm_masked_features_protobuf[cav_id] = projected_comm_masked_feature_protobuf
+
+        return Service_pb2.CommMaskedFeatures(comm_masked_features=projected_comm_masked_features_protobuf)
 
     def Feature2ConfMap(self, request, context):  # 融合检测子系统向其他进程提供“根据特征获取置信图”的服务
         spatial_feature = protobuf_to_np(request.feature)

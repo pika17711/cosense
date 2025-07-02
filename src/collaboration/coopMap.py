@@ -13,7 +13,9 @@ from utils.common import project_points_by_matrix_numpy
 
 class CoopMapType(IntEnum):
     DEBUG = auto()
-    WHERE2COMM = auto()
+    Empty = auto()
+    CommMask = auto()
+    RequestMap = auto()
 
 class CoopMap:
     def __init__(self, oid: appType.id_t, type: CoopMapType, map: Optional[NDArray], lidar_pose: Optional[NDArray]) -> None:
@@ -77,4 +79,6 @@ class CoopMap:
     def calculate_overlap_ratio(map1: 'CoopMap', map2: 'CoopMap') -> float:
         if map1.type == CoopMapType.DEBUG or map2.type == CoopMapType.DEBUG:
             return 1.0
+        if map1.type != CoopMapType.CommMask or map2.type != CoopMapType.CommMask:
+            return 0.0
         return calculate_confidence_map_overlap(map1.map, map1.lidar_pose, map2.map, map2.lidar_pose)

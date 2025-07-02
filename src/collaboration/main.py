@@ -16,6 +16,7 @@ from collaboration.collaborationService import CollaborationService
 from collaboration.transactionHandler import transactionHandler
 from collaboration.collaborationManager import CollaborationManager
 from perception.perceptionRPCClient import PerceptionRPCClient
+from detection.detectionRPCClient import DetectionRPCClient
 from utils.othersInfos import OthersInfos
 
 def log_init(cfg: AppConfig):
@@ -39,14 +40,15 @@ def main():
 
     # 全部初始化，依赖注入的思想，方便替换
     perception_client = PerceptionRPCClient(cfg)
+    detection_client = DetectionRPCClient()
     ctable = CollaborationTable(cfg)
     tx_handler = transactionHandler(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, tx_handler)
     message_handler = MessageRouter(cfg, ctable, tx_handler, perception_client, collaboration_service)
-    collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, collaboration_service)
+    collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, detection_client, collaboration_service)
 
-    shared_other_info = OthersInfos(ctable)
-    collaboration_rpc_server = CollaborationRPCServerThread(cfg, shared_other_info)
+    others_infos = OthersInfos(ctable)
+    collaboration_rpc_server = CollaborationRPCServerThread(cfg, others_infos)
 
     tx_handler.start_recv()
     message_handler.start_recv()

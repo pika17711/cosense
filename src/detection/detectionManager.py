@@ -13,8 +13,9 @@ from opencood.data_utils.post_processor import build_postprocessor
 from opencood.visualization.vis_utils import bbx2oabb
 # from src.detection.utils_test import get_oabbs_gt
 
-from utils.detection_utils import fuse_spatial_feature
-from detection.detectionRPCServer import DetectionServerThread, pcd_to_spatial_feature, spatial_feature_to_pred_box
+from utils.detection_utils import fuse_spatial_feature, pcd_to_spatial_feature, spatial_feature_to_pred_box, \
+                                    spatial_feature_to_comm_masked_feature
+from detection.detectionRPCServer import DetectionServerThread
 from perception.perceptionRPCClient import PerceptionRPCClient
 from collaboration.collaborationRPCClient import CollaborationRPCClient
 from utils.sharedInfo import SharedInfo
@@ -66,17 +67,17 @@ class DetectionManager:
 
     def __grpc_prepare(self):
         self.detection_rpc_server = DetectionServerThread(self.shared_info)
-        self.detection_rpc_server.start()
 
         self.perception_client = PerceptionRPCClient(self.cfg)
         self.collaboration_client = CollaborationRPCClient(self.cfg)
 
     def start(self):
         self.running = True
+        self.detection_rpc_server.start()
         self.__loop()
 
     def __loop(self):
-        loop_time = 6
+        loop_time = 3
         last_t = 0
 
         while self.running:
@@ -93,12 +94,15 @@ class DetectionManager:
                 continue
             self.shared_info.update_perception_info(lidar_pose=my_lidar_pose, pcd=my_pcd)
             processed_pcd, my_spatial_feature = pcd_to_spatial_feature(my_pcd, self.shared_info)
+            print('my_spatial_feature.shape: ' + str(my_spatial_feature.shape))
             # 获取他车特征
             cav_infos = self.collaboration_client.get_others_infos()
             if cav_infos is not None and len(cav_infos) > 0:
                 fused_spatial_feature = fuse_spatial_feature(my_spatial_feature, cav_infos)
             else:
                 fused_spatial_feature = my_spatial_feature
+            print('fused_spatial_feature.shape: ' + str(fused_spatial_feature.shape))
+
             # 根据融合后的特征得到检测框
             pred_box = spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info)
             self.shared_info.update_pred_box(pred_box)

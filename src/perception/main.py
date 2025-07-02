@@ -1,6 +1,7 @@
 import sys
 import os
 import logging
+import argparse
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(parent_dir)
@@ -11,11 +12,16 @@ from perception.perceptionManager import PerceptionManager
 def main():
     cfg = AppConfig()
     # TODO: load config
+
+    opt = argparse.Namespace()
+    opt.show_vis = True
+    opt.save_pcd = False
+
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s - %(levelname)s - %(message)s')
     logging.info("perception模块启动")
 
-    perception_manager = PerceptionManager(cfg)
+    perception_manager = PerceptionManager(opt, cfg)
     logging.debug("perception_manager start")
     try:
         perception_manager.start()

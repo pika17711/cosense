@@ -173,7 +173,7 @@ class BroadcastPubMessage(Message):
             oid=msg_body["oid"],
             topic=msg_body["topic"],
             coopmap=coopmap,
-            coopmaptype=msg_body.get("coopmaptype", 1),
+            coopmaptype=msg_body.get("coopMapType", 1),
             extra=msg_body.get("extra")
         )
 
@@ -196,8 +196,8 @@ class BroadcastSubMessage(Message):
             oid=msg_body["oid"],
             topic=msg_body["topic"],
             context=msg_body["context"],
-            coopmap=msg_body["coopmap"],
-            coopmaptype=msg_body.get("coopmaptype", 1),
+            coopmap=msg_body["coopMap"],
+            coopmaptype=msg_body.get("coopMapType", 1),
             bearcap=msg_body["bearcap"]
         )
 
@@ -220,8 +220,8 @@ class BroadcastSubNtyMessage(Message):
             oid=msg_body["oid"],
             topic=msg_body["topic"],
             context=msg_body["context"],
-            coopmap=msg_body["coopmap"],
-            coopmaptype=msg_body.get("coopmaptype", 1),
+            coopmap=msg_body["coopMap"],
+            coopmaptype=msg_body.get("coopMapType", 1),
             bearcap=msg_body["bearcap"]
         )
 
@@ -252,8 +252,8 @@ class SubscribeMessage(Message):
             topic=msg_body["topic"],
             act=SubscribeAct(msg_body["act"]),
             context=msg_body["context"],
-            coopmap=msg_body["coopmap"],
-            coopmaptype=msg_body.get("coopmaptype", 1),
+            coopmap=msg_body["coopMap"],
+            coopmaptype=msg_body.get("coopMapType", 1),
             bearcap=msg_body.get("bearcap", 0)
         )
 
@@ -284,8 +284,8 @@ class NotifyMessage(Message):
             topic=msg_body["topic"],
             act=NotifyAct(msg_body["act"]),
             context=msg_body["context"],
-            coopmap=msg_body["coopmap"],
-            coopmaptype=msg_body.get("coopmaptype", 1),
+            coopmap=msg_body["coopMap"],
+            coopmaptype=msg_body.get("coopMapType", 1),
             bearcap=msg_body.get("bearcap")
         )
 
@@ -354,11 +354,12 @@ class SendMessage(Message):
 
     @classmethod
     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendMessage":
+        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            sid=raw["sid"],
-            data=raw["data"]
+            sid=msg_body["sid"],
+            data=msg_body["data"]
         )
 
 @dataclass

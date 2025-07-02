@@ -5,9 +5,13 @@ import numpy as np
 class SharedInfo:
     def __init__(self):
         self.__pcd = np.array([])  # 初始化为空数组
+        self.__ts_pcd = 0
         self.__lidar_pose = np.array([])  # 初始化为空数组
-        self.__velocity = np.array([])  # 初始化为空数组
-        self.__acceleration = np.array([])  # 初始化为空数组
+        self.__ts_lidar_pose = 0
+        self.__speed = 0.0
+        self.__ts_speed = 0
+        self.__acceleration = 0.0
+        self.__ts_acc = 0
         self.__extrinsic_matrix = np.array([])  # 初始化为空数组
         self.__perception_lock = threading.Lock()
         self.__extrinsic_matrix_lock = threading.Lock()
@@ -20,9 +24,13 @@ class SharedInfo:
         self.__fused_feature = {}  # 初始化为空字典
         self.__fused_comm_mask = np.array([])  # 初始化为空数组
         self.__pred_box = np.array([])  # 初始化为空数组
-        self.__feature = {}  # 初始化为空字典
+        self.__ts_pred_box = 0
+        self.__feature = np.array([])  # 初始化为空数组
+        self.__ts_feature = 0
         self.__conf_map = np.array([])  # 初始化为空数组
+        self.__ts_conf_map = 0
         self.__comm_mask = np.array([])  # 初始化为空数组
+        self.__ts_comm_mask = 0
         self.model_lock = threading.Lock()
         self.pre_processor_lock = threading.Lock()
         self.post_processor_lock = threading.Lock()
@@ -36,13 +44,21 @@ class SharedInfo:
     def update_perception_info(self,
                                pcd=np.array([]),
                                lidar_pose=np.array([]),
-                               velocity=np.array([]),
-                               acceleration=np.array([])):
+                               speed=0.0,
+                               acceleration=0.0):
         with self.__perception_lock:
             self.__pcd = pcd
             self.__lidar_pose = lidar_pose
-            self.__velocity = velocity
+            self.__speed = speed
             self.__acceleration = acceleration
+
+    def update_perception_info_dict(self, perception_info):
+        pcd = perception_info.get('pcd', np.array([]))
+        lidar_pose = perception_info.get('lidar_pose', np.array([]))
+        speed = perception_info.get('speed', 0.0)
+        acceleration = perception_info.get('acceleration', 0.0)
+
+        self.update_perception_info(pcd=pcd, lidar_pose=lidar_pose, speed=speed, acceleration=acceleration)
 
     def update_extrinsic_matrix(self, extrinsic_matrix):
         with self.__extrinsic_matrix_lock:
@@ -95,13 +111,13 @@ class SharedInfo:
         with self.__perception_lock:
             return self.__lidar_pose.copy()
 
-    def get_velocity_copy(self):
+    def get_speed_copy(self):
         with self.__perception_lock:
-            return self.__velocity.copy()
+            return self.__speed
 
     def get_acceleration_copy(self):
         with self.__perception_lock:
-            return self.__acceleration.copy()
+            return self.__acceleration
 
     def get_extrinsic_matrix_copy(self):
         with self.__extrinsic_matrix_lock:

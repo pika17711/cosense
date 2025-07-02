@@ -5,11 +5,16 @@ import logging
 import concurrent.futures
 import threading
 from time import sleep
+
+import numpy as np
+
 from appConfig import AppConfig
 from collaboration.message import SubscribeAct
 from utils import InfoDTO
 from perception.perceptionRPCClient import PerceptionRPCClient
+from detection.detectionRPCClient import DetectionRPCClient
 
+from collaboration.coopMap import CoopMap
 from collaboration.messageRouter import MessageRouter
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
@@ -29,10 +34,12 @@ class CollaborationManager:
                  ctable: CollaborationTable,
                  message_handler: MessageRouter,
                  perception_client: PerceptionRPCClient,
+                 detection_client: DetectionRPCClient,
                  collaboration_service: CollaborationService):
 
         self.cfg = cfg
         self.perception_client = perception_client
+        self.detection_client = detection_client
         self.message_handler = message_handler
         self.ctable = ctable
         self.collaboration_service = collaboration_service
@@ -103,7 +110,7 @@ class CollaborationManager:
             if argv[1] == 'subing':
                 print([cctx.remote_id() for cctx in self.ctable.get_subscribing()])
             elif argv[1] == 'subed':
-                print([cctx.remote_id() for cctx in self.ctable.get_subscribed()])
+                print([subed['cctx'].remote_id() for subed in self.ctable.get_subscribed()])
             else:
                 print('syntax error')
         elif len(argv) == 2 and argv[0] == 'subscribe':
@@ -162,23 +169,42 @@ class CollaborationManager:
             else:
                 self.broadcastsub_event.wait()
 
-    def get_all_data(self):
-        ts1, pose, velocity, acceleration = self.perception_client.get_my_pva_info()
-        ts2, extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
-        ts3, feat = self.perception_client.get_my_feature()
-        infodto = InfoDTO.InfoDTO(1, self.cfg.id, extrinsic_matrix, None, None, feat, ts3, velocity, ts1, pose, ts1, acceleration, ts2, None, None)
-        data = InfoDTO.InfoDTOSerializer.serialize(infodto)
+    def get_all_data(self, coopmap: CoopMap):
+        lidar_pose, ts_lidar_pose, velocity, ts_v, acceleration, ts_a = self.perception_client.get_my_pva()
+        my_extrinsic_matrix, ts_extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
+        projected_spatial_feature = self.detection_client.lidar_poses_to_projected_spatial_features(coopmap.lidar_pose)
+        feat = projected_spatial_feature['feature']
+        ts3 = projected_spatial_feature['ts_feature']
+        infodto = InfoDTO.InfoDTO(type=1,
+                                  id=self.cfg.id,
+                                  lidar2world=my_extrinsic_matrix,
+                                  camera2world=None,
+                                  camera_intrinsic=None,
+                                  feat=feat,
+                                  ts_feat=ts3,
+                                  speed=velocity,
+                                  ts_speed=ts_v,
+                                  lidar_pos=lidar_pose,
+                                  ts_lidar_pos=ts_lidar_pose,
+                                  acc=acceleration,
+                                  ts_acc=ts_a,
+                                  pcd=None,
+                                  ts_pcd=None)
+        # data = InfoDTO.InfoDTOSerializer.serialize(infodto)
+        data = InfoDTO.InfoDTOSerializer.serialize_to_str(infodto)
         return data
 
     def subscribed_send_loop(self):
         logging.info("订阅者数据发送循环启动")
         while self.running:
             subeds = self.ctable.get_subscribed()
-            logging.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
+            logging.info(f"订阅者数据发送, 订阅者列表{[subed['cctx'].remote_id() for subed in subeds]}")
             if len(subeds) > 0:
-                data = self.get_all_data()
-                for cctx in subeds:
+                for subed in subeds:
+                    data = self.get_all_data(subed['coopmap'])
+                    cctx = subed['cctx']
                     self.executor.submit(self.collaboration_service.send_data, cctx, data)
+                    self.executor.submit(self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid))
             self.subscribed_send_event.wait(ms2s(self.cfg.send_data_period))
             if self.subscribed_send_event.is_set():
                 break

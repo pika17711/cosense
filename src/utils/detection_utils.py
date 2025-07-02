@@ -74,6 +74,54 @@ def pcd_to_spatial_feature(pcd, shared_info):
     return processed_pcd, spatial_feature
 
 
+def spatial_feature_to_comm_masked_feature(spatial_feature, shared_info):
+    model = shared_info.get_model()
+    device = shared_info.get_device()
+
+    if isinstance(spatial_feature, np.ndarray):
+        with torch.no_grad():
+            spatial_feature = torch.from_numpy(spatial_feature).to(device)
+
+    record_len = torch.tensor([spatial_feature.shape[0]], dtype=torch.int32).to(device)
+    pairwise_t_matrix = torch.zeros((1, 5, 5, 4, 4), dtype=torch.float64).to(device)
+
+    with shared_info.model_lock:
+        spatial_features_2d = model.backbone({'spatial_features': spatial_feature})['spatial_features_2d']
+
+        if model.shrink_flag:
+            spatial_features_2d = model.shrink_conv(spatial_features_2d)
+
+        psm_single = model.cls_head(spatial_features_2d)
+
+        if model.compression:
+            # The ego feature is also compressed
+            spatial_features_2d = model.naive_compressor(spatial_features_2d)
+
+        if model.multi_scale:
+            # Bypass communication cost, communicate at high resolution, neither shrink nor compress
+            comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(spatial_feature,
+                                                                  psm_single,
+                                                                  record_len,
+                                                                  pairwise_t_matrix,
+                                                                  model.backbone)
+        else:
+            comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(spatial_features_2d,
+                                                                  psm_single,
+                                                                  record_len,
+                                                                  pairwise_t_matrix)
+    if comm_masked_feature_tensor is not None:
+        comm_masked_feature = comm_masked_feature_tensor.cpu().data.numpy()
+    else:
+        comm_masked_feature = np.array([])
+
+    if comm_mask_tensor is not None:
+        comm_mask = comm_mask_tensor.cpu().data.numpy()
+    else:
+        comm_mask = np.array([])
+
+    return comm_masked_feature, comm_mask
+
+
 def process_spatial_feature(spatial_feature, shared_info):
     model = shared_info.get_model()
     device = shared_info.get_device()

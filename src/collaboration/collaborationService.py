@@ -13,6 +13,7 @@ from collaboration.message import BroadcastPubMessage, BroadcastSubMessage, Broa
 from collaboration.transactionHandler import transactionHandler
 from appConfig import AppConfig
 from perception.perceptionRPCClient import PerceptionRPCClient
+from detection.detectionRPCClient import DetectionRPCClient
 import numpy as np
 from utils import InfoDTO
 from utils.common import read_binary_file, server_assert, server_logic_error, server_not_implemented
@@ -74,12 +75,14 @@ class CollaborationService:
                  cfg: AppConfig,
                  ctable: 'CollaborationTable',
                  perception_client: 'PerceptionRPCClient',
+                 detection_client: 'DetectionRPCClient',
                  tx_handler: 'transactionHandler'
                  ) -> None:
         self.cfg = cfg 
         self.cid_gen = ContextGenerator(cfg)
         self.ctable = ctable
         self.perception_client = perception_client
+        self.detection_client = detection_client
         self.tx_handler = tx_handler
 
     @ContextStateTransition('cctx')
@@ -116,7 +119,7 @@ class CollaborationService:
         self.ctable.add_cctx(cctx)
 
     @ContextStateTransition('cctx')
-    def cctx_to_subscribed(self, cctx: CContext):
+    def cctx_to_subscribed(self, cctx: CContext, coopmap: CoopMap):
         server_assert(cctx.is_cotor(), "上下文角色必须是协作者")
         if cctx.state != CContextCotorState.SENDNTY:
             return
@@ -124,7 +127,7 @@ class CollaborationService:
         self.ctable.rem_sendnty(cctx)
         logging.debug(f"被 { cctx.remote_id()} 订阅, context: {cctx.cid}")
         cctx.state = CContextCotorState.SUBSCRIBED
-        self.ctable.add_subscribed(cctx)
+        self.ctable.add_subscribed(cctx, coopmap)
 
     @ContextStateTransition('cctx')
     def cctx_to_closed(self, cctx: CContext):
@@ -212,9 +215,18 @@ class CollaborationService:
     def bcctx_rem_cctx(self, bcctx: BCContext, cctx: CContext):
         bcctx.cctx_set.remove(cctx)
 
-    def get_self_coodmap(self):
-        coopmap = CoopMap(self.cfg.id, CoopMapType.DEBUG, None, None)
-        return coopmap
+    def get_self_coopmap(self, coopmap_type: CoopMapType = CoopMapType.CommMask):
+        if coopmap_type == CoopMapType.DEBUG:
+            return CoopMap(self.cfg.id, coopmap_type, None, None)
+
+        comm_mask, _, lidar_pose, _ = self.detection_client.get_comm_mask_and_lidar_pose()
+        if coopmap_type == CoopMapType.Empty:
+            return CoopMap(self.cfg.id, coopmap_type, None, lidar_pose)
+        if coopmap_type == CoopMapType.CommMask:
+            return CoopMap(self.cfg.id, coopmap_type, comm_mask, lidar_pose)
+        if coopmap_type == CoopMapType.RequestMap:
+            request_map = 1 - comm_mask
+            return CoopMap(self.cfg.id, coopmap_type, request_map, lidar_pose)
 
     def check_need_broadcastpub(self, msg: BroadcastPubMessage):
         """
@@ -234,7 +246,7 @@ class CollaborationService:
         coopmap = CoopMap.deserialize(msg.coopmap)
         if coopmap == None:
             return False
-        coopmap_self = self.get_self_coodmap()
+        coopmap_self = self.get_self_coopmap(CoopMapType.CommMask)
         ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self)
         return ratio >= self.cfg.overlap_threshold
 
@@ -248,19 +260,20 @@ class CollaborationService:
         coopmap = CoopMap.deserialize(msg.coopmap)
         if coopmap == None:
             return False
-        coopmap_self = self.get_self_coodmap()
+        coopmap_self = self.get_self_coopmap(CoopMapType.CommMask)
         ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self)
         return ratio >= self.cfg.overlap_threshold
 
     def check_need_subscribe(self, msg: SubscribeMessage):
         """
             是否接受remote的订阅
-                目前开启订阅的操作只有两种:
-                1. broadcastpub
-                2. broadcastsub
-                这两种都已经检查过了重叠率, 所以无需再检查
+            目前开启订阅的操作只有两种:
+            1. broadcastpub
+            2. broadcastsub
+            这两种都已经检查过了重叠率, 所以无需再检查重叠率
+            此时要求协作图类型必须为请求图
         """
-        return True
+        return msg.coopmaptype == CoopMapType.RequestMap
 
     def check_need_broadcastsub(self, msg: BroadcastSubMessage):
         """
@@ -278,7 +291,7 @@ class CollaborationService:
         coopmap = CoopMap.deserialize(msg.coopmap)
         if coopmap == None:
             return False
-        coopmap_self = self.get_self_coodmap()
+        coopmap_self = self.get_self_coopmap(CoopMapType.CommMask)
         ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self)
         return ratio >= self.cfg.overlap_threshold
 
@@ -287,10 +300,10 @@ class CollaborationService:
             广播订阅
                 local开启一个新广播会话bcctx，启动一个新协程bcctx_loop(bcctx)，进行消息接收和处理
         """
+        coopMapType = CoopMapType.CommMask
         cid = self.cid_gen()
-        coopmap = self.get_self_coodmap()
+        coopmap = self.get_self_coopmap(coopMapType)
         decoopmap = CoopMap.serialize(coopmap)
-        coopMapType = 1
         bearCap = 1
         bcctx = BCContext(self.cfg, cid)
         with bcctx.lock:
@@ -301,9 +314,9 @@ class CollaborationService:
         """
             广播推送发送
         """
-        coopmap = self.get_self_coodmap()
+        coopMapType = CoopMapType.CommMask
+        coopmap = self.get_self_coopmap(coopMapType)
         decoopmap = CoopMap.serialize(coopmap)
-        coopMapType = 1
         self.tx_handler.brocastpub(self.cfg.id, self.cfg.topic, decoopmap, coopMapType)
     
     def subscribe(self, did: appType.id_t):
@@ -335,16 +348,17 @@ class CollaborationService:
                     订阅请求或订阅关闭
         """
         if act == SubscribeAct.ACK:
-            coopmap = self.get_self_coodmap()
+            coopMapType = CoopMapType.RequestMap
+            coopmap = self.get_self_coopmap(coopMapType)
             decoopmap = CoopMap.serialize(coopmap)
-            coopMapType = 1
             bearCap = 1
             self.tx_handler.subscribe(self.cfg.id, [cctx.remote_id()], self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)
         elif act == SubscribeAct.FIN:
-            fakecoopmap = np.array([1]).tobytes()
-            coopMapType = 1
+            coopMapType = CoopMapType.Empty
+            coopmap = self.get_self_coopmap(coopMapType)
+            decoopmap = CoopMap.serialize(coopmap)
             bearCap = 0
-            self.tx_handler.subscribe(self.cfg.id, [cctx.remote_id()], self.cfg.topic, act, cctx.cid, fakecoopmap, coopMapType, bearCap)  # TODO 关闭订阅不需要传协作图
+            self.tx_handler.subscribe(self.cfg.id, [cctx.remote_id()], self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)  # 关闭订阅不需要传协作图
         else:
             server_not_implemented('')
 
@@ -368,23 +382,24 @@ class CollaborationService:
                 2. act
         """
         if act == NotifyAct.ACK:
-            coopmap = self.get_self_coodmap()
+            coopMapType = CoopMapType.Empty
+            coopmap = self.get_self_coopmap(coopMapType)
             decoopmap = CoopMap.serialize(coopmap)
-            coopMapType = 1
             bearCap = 1
-            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)
+            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)   # 不需要传协作图
         elif act == NotifyAct.NTY:
             server_not_implemented('')
         elif act == NotifyAct.FIN:
-            fakecoopMap = np.array([1]).tobytes()
-            coopMapType = 1
+            coopMapType = CoopMapType.Empty
+            coopmap = self.get_self_coopmap(coopMapType)
+            decoopmap = CoopMap.serialize(coopmap)
             bearCap = 1 
-            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, fakecoopMap, coopMapType, bearCap) # TODO 这里不需要传协作图
+            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)   # 不需要传协作图
 
     def sendreq_send(self, did: appType.id_t, cid: appType.cid_t, rl, pt, aoi, mode):
         self.tx_handler.sendreq(did, cid, rl, pt, aoi, mode)
 
-    def send_send(self, sid: appType.sid_t, data: bytes):
+    def send_send(self, sid: appType.sid_t, data: str):
         self.tx_handler.send(sid, data)
 
     def sendend_send(self, did: appType.id_t, cid: appType.cid_t, sid: appType.sid_t):
@@ -400,11 +415,12 @@ class CollaborationService:
             mode = 1
             with cctx.lock:
                 self.sendreq_send(cctx.remote_id(), cctx.cid, rl, pt, aoi, mode)
+                # self.sendreq_send(cctx.cotor, cctx.cid, rl, pt, aoi, mode)
                 self.stream_to_sendreq(cctx)
             cctx.sid_set_event.wait()
             server_assert(cctx.stream_state == CSContextCotorState.SENDRDY)
 
-    def send_data(self, cctx: CContext, data: bytes):
+    def send_data(self, cctx: CContext, data: str):
         if cctx.stream_state == CSContextCotorState.SENDEND:
             logging.debug(f"context: {cctx.cid} 发送结束, 发送数据失败")
             return
@@ -441,9 +457,9 @@ class CollaborationService:
         need = self.check_need_broadcastsub(msg)
         if need:
             logging.debug(f"接收 {msg.oid} 的BROADCASTSUB")
-            coopmap = self.get_self_coodmap()
+            coopMapType = CoopMapType.CommMask
+            coopmap = self.get_self_coopmap(coopMapType)
             decoopmap = CoopMap.serialize(coopmap)
-            coopMapType = 1
             bearcap = 1
             # TODO: 这里有一个问题，如果还没有建立会话，就可能对同一个broadcastsub多次发送brocastsubnty
             # , 但broadcastsub发送时间间隔较长, 先忽略这个问题
@@ -534,7 +550,8 @@ class CollaborationService:
             self.cctx_to_sendnty(cctx)
             if self.check_need_subscribe(msg):
                 self.notify_send(cctx)
-                self.cctx_to_subscribed(cctx)
+                coopmap = CoopMap.deserialize(msg.coopmap)
+                self.cctx_to_subscribed(cctx, coopmap)
             else:
                 self.cctx_to_closed(cctx)
 
@@ -575,7 +592,8 @@ class CollaborationService:
         with cctx.lock:
             server_assert(cctx.state == CContextCoteeState.SUBSCRIBING)
             data = read_binary_file(msg.file)
-            de_data = InfoDTO.InfoDTOSerializer.deserialize(data)
+            # de_data = InfoDTO.InfoDTOSerializer.deserialize(data)
+            de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(data)
             if de_data is None:
                 return
             self.ctable.add_data(de_data)
@@ -586,6 +604,7 @@ class CollaborationService:
     def sendrdy_service(self, msg: SendRdyMessage):
         logging.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx(msg.context, self.cfg.id, msg.did)
+        # cctx = self.ctable.get_cctx(msg.context, msg)
         if cctx is None:
             logging.warning(f'sendrdy context不存在: {msg.context}')
             return
@@ -617,7 +636,8 @@ class CollaborationService:
             return
         cctx.update_active()
         with cctx.lock:
-            de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
+            # de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
+            de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(msg.data)
             if de_data is None:
                 return
             self.ctable.add_data(de_data)
@@ -639,7 +659,7 @@ class CollaborationService:
                 logging.debug("收到RECVEND, 会话context: {cctx.cid} 流接收结束")
 
     def disconnect(self, id):
-        subed_cctx = self.ctable.get_subscribed_by_id(id)
+        subed_cctx = self.ctable.get_subscribed_by_id(id)['cctx']
         subing_cctx = self.ctable.get_subscribing_by_id(id)
         if subed_cctx is not None:
             with subed_cctx.lock:

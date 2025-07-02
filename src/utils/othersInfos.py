@@ -6,44 +6,6 @@ from collaboration.collaborationTable import CollaborationTable
 from appConfig import AppConfig
 
 
-class SharedOthersInfo:
-    def __init__(self, ctable: CollaborationTable):
-        self.__ids = []               # 初始化为空数组
-        self.__timestamps = []        # 初始化为空数组
-        self.__poses = np.array([])   # 初始化为空数组
-        self.__pcds = np.array([])    # 初始化为空数组
-        self.__velocities = np.array([])  # 所有他车的速度
-        self.__accelerations = np.array([])  # 所有他车的加速度
-
-        self.__features_lens = []
-        self.__voxel_features = np.array([])  # 所有他车体素特征
-        self.__voxel_coords = np.array([])  # 所有他车体素坐标
-        self.__voxel_num_points = np.array([])  # 所有他车体素点数
-
-        self.__comm_masks = np.array([])
-
-        self.__lock = threading.Lock()
-
-        self.ctable = ctable
-
-    def update_info(self):
-        with self.__lock:
-            infos = self.ctable.get_all_data()
-            self.__ids = [info.id for info in infos]
-            self.__timestamps = [info.ts_feat for info in infos]
-            self.__poses = [info.lidar_pos for info in infos]
-            self.__pcds = [info.pcd for info in infos]
-            self.__velocities = [info.speed for info in infos]
-            self.__accelerations = [info.acc for info in infos]
-
-            self.__features_lens = [info.feat['voxel_features'].shape[0] for info in infos]
-            self.__voxel_features = np.stack([info.feat['voxel_features'] for info in infos])
-            self.__voxel_coords = np.stack([info.feat['voxel_coords'] for info in infos])
-            self.__voxel_num_points = np.stack([info.feat['voxel_num_points'] for info in infos])
-
-            self.__comm_masks = np.stack([self.ctable.get_coopmap(info.id).map for info in infos])
-
-
 class OthersInfos:
     def __init__(self, ctable: CollaborationTable):
         self.__others_infos = {}
@@ -143,6 +105,7 @@ class OthersInfos:
         self.update_infos(others_infos)
 
     def get_infos(self):
+        self.update_infos_ctable()
         infos_copy = {}
         with self.__lock:
             for cav_id, cav_info in self.__others_infos.items():

@@ -11,26 +11,28 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(os.path.join(project_root, 'src'))
 
 from appConfig import AppConfig
-from collaboration.collaborationRPCServer import CollaborationRPCServerThread, SharedOthersInfo
+from collaboration.collaborationRPCServer import CollaborationRPCServerThread
 from collaboration.messageRouter import MessageRouter
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
 from collaboration.transactionHandler import transactionHandler
 from collaboration.collaborationManager import CollaborationManager
 from perception.perceptionRPCClient import PerceptionRPCClient
+from detection.detectionRPCClient import DetectionRPCClient
 from testICPServer import TestICPServer
 from TestICPClient import TestICPClient
-
+from utils.othersInfos import OthersInfos
 from utils.common import mstime
 
 def log_init(cfg: AppConfig):
-    path = f'tests/collaboration/tmp{str(mstime())[:8]}'
-    try:
-        os.mkdir(path)
-    except Exception:
-        pass
+    # path = f'tests/collaboration/tmp{str(mstime())[:8]}'
+    path = f'../../tests/collaboration/tmp{str(mstime())[:8]}'
+    # try:
+    #     os.mkdir(path)
+    # except Exception:
+    #     pass
     logging.basicConfig(level=logging.DEBUG,
-                        filename=f'{path}/test_collaboration_{cfg.id}.log',
+                        # filename=f'{path}/test_collaboration_{cfg.id}.log',
                         filemode='w',
                         format='%(asctime)s - %(levelname)s - %(message)s')
     logging.info("协同模块启动")
@@ -50,20 +52,21 @@ def main():
     icp_client, icp_server = ICP_init(cfg)
 
     perception_client = PerceptionRPCClient(cfg)
+    detection_client = DetectionRPCClient()
     ctable = CollaborationTable(cfg)
     tx_handler = transactionHandler(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, tx_handler)
     message_handler = MessageRouter(cfg, ctable, tx_handler, perception_client, collaboration_service)
-    collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, collaboration_service)
+    collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, detection_client, collaboration_service)
 
-    shared_other_info = SharedOthersInfo(ctable)
-    collaboration_rpc_server = CollaborationRPCServerThread(cfg, shared_other_info)
+    others_infos = OthersInfos(ctable)
+    collaboration_rpc_server = CollaborationRPCServerThread(cfg, others_infos)
 
     tx_handler.start_recv()
     message_handler.start_recv()
     collaboration_manager.start_send_loop()
 
-    collaboration_rpc_server.start()
+    # collaboration_rpc_server.start()
 
     try:
         collaboration_manager.command_loop()

@@ -78,7 +78,7 @@ class Communication(nn.Module):
 
             communication_rate = communication_mask.sum() / (L * H * W)
             # Ego
-            communication_mask[0] = 1
+            # communication_mask[0] = 1
 
             communication_masks.append(communication_mask)
             communication_rates.append(communication_rate)
@@ -161,7 +161,7 @@ class Where2comm(nn.Module):
                     else:
                         # Prune
                         batch_confidence_maps = self.regroup(psm_single, record_len)
-                        
+
                         # for i in range(len(batch_confidence_maps)):
                         #     print(batch_confidence_maps[i].shape)
                         # print("----------------")
@@ -181,6 +181,9 @@ class Where2comm(nn.Module):
                         # -------------------------------
 
                         communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
+                        comm_mask = communication_masks[0]
+                        # Ego
+                        communication_masks[::x.shape[0]] = 1
                         if x.shape[-1] != communication_masks.shape[-1]:
                             communication_masks = F.interpolate(communication_masks, size=(x.shape[-2], x.shape[-1]),
                                                                 mode='bilinear', align_corners=False)
@@ -236,3 +239,26 @@ class Where2comm(nn.Module):
                 x_fuse.append(self.fuse_modules(neighbor_feature))
             x_fuse = torch.stack(x_fuse)
         return x_fuse, communication_rates
+
+    def spatial_feature_to_comm_masked_feature(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None):
+        _, C, H, W = spatial_feature.shape  # [1, 64, 192, 704]
+        B = pairwise_t_matrix.shape[0]
+
+        if self.multi_scale:
+            x = backbone.blocks[0](spatial_feature)
+            # 1. Communication (mask the features)
+            # Prune
+            batch_confidence_maps = self.regroup(psm_single, record_len)
+
+            communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
+            comm_mask_tensor = communication_masks
+            comm_masked_feature_tensor = x          # TODO: 并没有进行comm_masked
+        else:
+            # 1. Communication (mask the features)
+            # Prune
+            batch_confidence_maps = self.regroup(psm_single, record_len)
+            communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
+            comm_mask_tensor = communication_masks
+            comm_masked_feature_tensor = spatial_feature
+
+        return comm_masked_feature_tensor, comm_mask_tensor

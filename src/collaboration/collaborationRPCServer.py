@@ -50,13 +50,13 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
 
 
 class CollaborationRPCServerThread:  # 协同感知子系统的Server线程
-    def __init__(self, cfg: AppConfig, others_info):
+    def __init__(self, cfg: AppConfig, others_infos):
         self.cfg = cfg
-        self.others_info = others_info
+        self.others_infos = others_infos
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_CollaborationServiceServicer_to_server(CollaborationRPCService(self.cfg, self.others_info),
+        Service_pb2_grpc.add_CollaborationServiceServicer_to_server(CollaborationRPCService(self.cfg, self.others_infos),
                                                                     self.server)
         self.stop_event = threading.Event()
         self.run_thread = threading.Thread(target=self.run, name='collaboration rpc server', daemon=True)

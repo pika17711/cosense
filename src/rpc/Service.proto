@@ -15,12 +15,14 @@ service CollaborationService {                                          // 协�
 }
 
 service DetectionService {                                              // 融合检测子系统
+    rpc GetCommMaskAndLidarPose (Empty) returns (CommMaskAndLidarPose); // 向其他进程提供欧内该“获取协作图”
     rpc GetFusedFeature (Empty) returns (Feature);                      // 向其他进程提供“获取融合后的特征”的服务
     rpc GetFusedCommMask (Empty) returns (CommMask);                    // 向其他进程提供“获取融合后的协作图”的服务
     rpc GetLatestPredBox (Empty) returns (PredBox);                     // 向其他进程提供“获取最新检测框”的服务
     rpc PCD2Feature (PCD) returns (Feature);                            // 向其他进程提供“根据点云获取特征”的服务
     rpc PCD2FeatureAndConfMap (PCD) returns (FeatureAndConfMap);        // 向其他进程提供“根据点云获取特征和置信图”的服务
     rpc LidarPoses2ProjectedFeatures (LidarPoses) returns (Features);    // 向其他进程提供“根据位姿获取投射后的特征”的服务
+    rpc LidarPoses2ProjectedCommMaskedFeatures (LidarPoses) returns (CommMaskedFeatures);
     rpc Feature2ConfMap (Feature) returns (ConfMap);                    // 向其他进程提供“根据特征获取置信图”的服务
     rpc Feature2PredBox (Feature) returns (PredBox);                    // 向其他进程提供“根据特征获取检测框”的服务
 }
@@ -82,6 +84,13 @@ message OthersCommMasks {                           // 所有他车协作图
     map<string, CommMask> others_comm_masks = 1;    // 所有他车协作图
 }
 
+message CommMaskAndLidarPose {
+    NDArray comm_mask = 1;
+    int64 ts_comm_mask = 2;
+    NDArray lidar_pose = 3;
+    int64 ts_lidar_pose = 4;
+}
+
 message Feature {                       // 特征
     NDArray feature = 1;                // 特征
     int64 ts_feature = 2;               // 特征对应时间戳
@@ -115,6 +124,16 @@ message LidarPoses {                            // 多个雷达位姿
 
 message Features {                              // 多个特征
     map<string, Feature> features = 1;          // 多个特征
+}
+
+message CommMaskedFeatures {
+    map<string, CommMaskedFeature> comm_masked_features = 1;
+
+    message CommMaskedFeature {
+        NDArray comm_masked_feature = 1;
+        NDArray comm_mask = 2;
+        int64 ts_feature = 3;
+    }
 }
 
 message ConfMap {                       // 置信图

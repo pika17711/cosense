@@ -23,16 +23,16 @@ class AppConfig:
     bcctx_keepalive = 120 * 1000      # 广播会话的存活时间，单位ms
     cctx_keepalive = 60 * 1000        # 协作会话的存活时间，单位ms
 
-    broadcastpub_period = 10 * 1000   # 广播推送的发送间隔，单位ms
-    broadcastsub_period = 10 * 1000   # 广播订阅的发送间隔，单位ms
-    send_data_period = 10 * 1000      # 想订阅者发送数据的间隔，单位ms
+    broadcastpub_period = 3 * 1000   # 广播推送的发送间隔，单位ms
+    broadcastsub_period = 3 * 1000   # 广播订阅的发送间隔，单位ms
+    send_data_period = 1 * 1000      # 想订阅者发送数据的间隔，单位ms
 
     tx_timeout = 50                   # 事务超时时间，单位ms，目前事务是同步的，
                                       # 所以这个超时时间=调用tx_handler事务方法的阻塞时间，所以不要设太久
 
     close_timeout = 0.5               # 关闭服务器，各个线程和线程池的关闭等待时间，单位是s
 
-    collaboration_debug = True        # collaboration子系统是否开启debug模式，
+    collaboration_debug = False        # collaboration子系统是否开启debug模式，
                                       # 这个配置以及下面的两个配置均是为debug而生的，使有些地方的线程池调用变为同步调用，
                                       # 使有些地方的RPC server使用固定的数据（下方static_asset_path）
                                       # 使有些地方的RPC client不使用RPC，而使用固定的数据（下方static_asset_path）
@@ -48,4 +48,6 @@ class AppConfig:
     overlap_threshold = 0.3           # 协作图的重叠率阈值，高于此阈值才建立会话
 
     model_dir = 'opencood/logs/point_pillar_where2comm_2024_10_28_23_24_50/'  # 模型位置
+    obu_output_file_path = '/home/nvidia/mydisk/czl/InteroperationApp/data/output.json'       # OBU获取的数据导出的文件位置
     static_asset_path = 'datasets/OPV2V/test_culver_city_part/2021_09_03_09_32_17' + '/302'  # 静态数据位置
+    # static_asset_path = 'D:\\Documents\\datasets\\OPV2V\\test_tmp\\two\\2021_09_03_09_32_17\\' + '302'
