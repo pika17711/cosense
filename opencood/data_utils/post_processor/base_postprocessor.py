@@ -119,7 +119,8 @@ class BasePostprocessor(object):
         object_ids : list
             Length is number of bbx in current sample.
         """
-        from opencood.data_utils.datasets import GT_RANGE
+        # from opencood.data_utils.datasets import GT_RANGE
+        GT_RANGE = [-140, -40, -3, 140, 40, 1]
 
         tmp_object_dict = {}
         for cav_content in cav_contents:

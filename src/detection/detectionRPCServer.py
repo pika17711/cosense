@@ -9,7 +9,8 @@ from rpc import Service_pb2
 from utils.sharedInfo import SharedInfo
 from utils.rpc_utils import np_to_protobuf, protobuf_to_np, protobuf_to_dict
 from utils.detection_utils import pcd_to_spatial_feature, lidar_poses_to_projected_spatial_features, \
-    spatial_feature_to_conf_map, spatial_feature_to_pred_box, spatial_feature_to_comm_masked_feature
+    spatial_feature_to_conf_map, spatial_feature_to_pred_box, spatial_feature_to_comm_masked_feature, \
+    request_map_to_comm_masked_feature
 
 
 class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检测子系统的Service类
@@ -23,8 +24,8 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
 
         lidar_pose = self.shared_info.get_lidar_pose_copy()
         ts_lidar_pose = int(time.time())
-        return Service_pb2.CommMaskAndLidarPose(comm_mask=comm_mask, ts_comm_mask=ts_comm_mask,
-                                                lidar_pose=lidar_pose, ts_lidar_pose=ts_lidar_pose)
+        return Service_pb2.CommMaskAndLidarPose(comm_mask=np_to_protobuf(comm_mask), ts_comm_mask=ts_comm_mask,
+                                                lidar_pose=np_to_protobuf(lidar_pose), ts_lidar_pose=ts_lidar_pose)
 
     def GetFusedFeature(self, request, context):  # 融合检测子系统向其他进程提供“获取融合后的特征”的服务
         fused_feature = self.shared_info.get_fused_feature_copy()
@@ -108,6 +109,20 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
 
         return Service_pb2.CommMaskedFeatures(comm_masked_features=projected_comm_masked_features_protobuf)
 
+    def RequestMap2ProjectedCommMaskedFeature(self, request, context):
+        lidar_pose = protobuf_to_np(request.lidar_pose)
+        request_map = protobuf_to_np(request.request_map)
+        ts_request_map = request.ts_request_map
+
+        my_lidar_pose = self.shared_info.get_lidar_pose_copy()
+        my_pcd = self.shared_info.get_pcd_copy()
+
+        comm_masked_feature, comm_mask = request_map_to_comm_masked_feature(my_lidar_pose, my_pcd, lidar_pose, request_map, self.shared_info)
+
+        return Service_pb2.CommMaskedFeature(comm_masked_feature=np_to_protobuf(comm_masked_feature),
+                                             comm_mask=np_to_protobuf(comm_mask),
+                                             ts_feature=ts_request_map)
+
     def Feature2ConfMap(self, request, context):  # 融合检测子系统向其他进程提供“根据特征获取置信图”的服务
         spatial_feature = protobuf_to_np(request.feature)
         ts_spatial_feature = request.ts_feature
@@ -121,7 +136,7 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
         spatial_feature = protobuf_to_np(request.feature)
         ts_spatial_feature = request.feature
         # 检测框
-        pred_box = spatial_feature_to_pred_box(spatial_feature, self.shared_info)
+        pred_box, _ = spatial_feature_to_pred_box(spatial_feature, self.shared_info)
 
         return Service_pb2.PredBox(pred_box=np_to_protobuf(pred_box),
                                    ts_pred_box=ts_spatial_feature)

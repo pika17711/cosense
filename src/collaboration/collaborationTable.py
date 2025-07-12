@@ -44,8 +44,8 @@ class CollaborationTable:
         self.sendnty: Dict[appType.id_t, CContext] = dict()
 
         self.subscribed_lock = threading.Lock()
-        # cotee id -> dict 正在被订阅的信息{'cctx': CContext, 'coopmap': CoopMap}
-        self.subscribed: Dict[appType.id_t, Dict] = dict()
+        # cotee id -> cctx 正在被订阅的cctx
+        self.subscribed: Dict[appType.id_t, CContext] = dict()
 
         self.waitnty_lock = threading.Lock()
         # cotor id -> cctx 正在waitnty状态的cctx, 因为只有当前是cotee的时候状态才可能为waitnty，用cotor id做为索引
@@ -187,17 +187,20 @@ class CollaborationTable:
         with self.sendnty_lock:
             return self.sendnty[cotee_id] if cotee_id in self.sendnty else None
 
-    def add_subscribed(self, cctx: CContext, coopmap: CoopMap):
-        subed = {'cctx': cctx, 'coopmap': coopmap}
+    def add_subscribed(self, cctx: CContext):
         with self.subscribed_lock:
-            self.subscribed[cctx.cotee] = subed
+            self.subscribed[cctx.cotee] = cctx
 
     def rem_subscribed(self, cctx: CContext):
         with self.subscribed_lock:
             server_assert(cctx.cotee in self.subscribed)
             self.subscribed.pop(cctx.cotee)
 
-    def get_subscribed(self) -> List[Dict]:
+    def get_subscribed(self) -> List[CContext]:
+        with self.subscribed_lock:
+            return list(self.subscribed.values())
+
+    def pop_subscribed(self) -> List[CContext]:
         with self.subscribed_lock:
             return list(self.subscribed.values())
     
@@ -214,10 +217,20 @@ class CollaborationTable:
             datas_copy = [copy.deepcopy(info) for info in self.data_cache.values()]
         return datas_copy
 
+    def pop_all_data(self):
+        with self.data_cache_lock:
+            datas_copy = [copy.deepcopy(info) for info in self.data_cache.values()]
+            self.data_cache.clear()
+        return datas_copy
+
     def add_coopmap(self, oid, coopMap: CoopMap):
         with self.coopmap_cache_lock:
             self.coopmap_cache[oid] = coopMap
 
     def get_coopmap(self, oid):
         with self.coopmap_cache_lock:
-            return self.coopmap_cache[oid]
+            return self.coopmap_cache.get(oid)
+
+    def pop_coopmap(self, oid):
+        with self.coopmap_cache_lock:
+            return self.coopmap_cache.pop(oid) if oid in self.coopmap_cache else None

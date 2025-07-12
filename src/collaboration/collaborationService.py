@@ -127,7 +127,8 @@ class CollaborationService:
         self.ctable.rem_sendnty(cctx)
         logging.debug(f"被 { cctx.remote_id()} 订阅, context: {cctx.cid}")
         cctx.state = CContextCotorState.SUBSCRIBED
-        self.ctable.add_subscribed(cctx, coopmap)
+        self.ctable.add_subscribed(cctx)
+        self.ctable.add_coopmap(cctx.remote_id(), coopmap)
 
     @ContextStateTransition('cctx')
     def cctx_to_closed(self, cctx: CContext):
@@ -286,7 +287,7 @@ class CollaborationService:
         if msg.oid == self.cfg.id:
             return False
 
-        if self.ctable.get_sendnty_by_id(msg.oid) is not None or self.ctable.get_subscribed_by_id(msg.oid):
+        if self.ctable.get_sendnty_by_id(msg.oid) is not None or self.ctable.get_subscribed_by_id(msg.oid) is not None:
             return False
         coopmap = CoopMap.deserialize(msg.coopmap)
         if coopmap == None:
@@ -636,8 +637,8 @@ class CollaborationService:
             return
         cctx.update_active()
         with cctx.lock:
-            # de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
-            de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(msg.data)
+            de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
+            # de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(msg.data)
             if de_data is None:
                 return
             self.ctable.add_data(de_data)
@@ -659,7 +660,7 @@ class CollaborationService:
                 logging.debug("收到RECVEND, 会话context: {cctx.cid} 流接收结束")
 
     def disconnect(self, id):
-        subed_cctx = self.ctable.get_subscribed_by_id(id)['cctx']
+        subed_cctx = self.ctable.get_subscribed_by_id(id)
         subing_cctx = self.ctable.get_subscribing_by_id(id)
         if subed_cctx is not None:
             with subed_cctx.lock:

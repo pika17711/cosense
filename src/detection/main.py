@@ -15,7 +15,6 @@ def main():
     opt = argparse.Namespace()
     opt.fusion_method = 'intermediate'
     opt.model_dir = cfg.model_dir
-    # opt.model_dir = r'D:\WorkSpace\Python\interopera\opencood\logs\point_pillar_where2comm_2024_10_28_23_24_50'
     opt.show_vis = True
 
     detection_manager = DetectionManager(opt, cfg)

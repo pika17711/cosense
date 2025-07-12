@@ -42,10 +42,10 @@ class SharedInfo:
         self.__comm_mask_lock = threading.Lock()
 
     def update_perception_info(self,
-                               pcd=np.array([]),
-                               lidar_pose=np.array([]),
-                               speed=0.0,
-                               acceleration=0.0):
+                               pcd=None,
+                               lidar_pose=None,
+                               speed=None,
+                               acceleration=None):
         with self.__perception_lock:
             self.__pcd = pcd
             self.__lidar_pose = lidar_pose
@@ -53,10 +53,10 @@ class SharedInfo:
             self.__acceleration = acceleration
 
     def update_perception_info_dict(self, perception_info):
-        pcd = perception_info.get('pcd', np.array([]))
-        lidar_pose = perception_info.get('lidar_pose', np.array([]))
-        speed = perception_info.get('speed', 0.0)
-        acceleration = perception_info.get('acceleration', 0.0)
+        pcd = perception_info.get('pcd', None)
+        lidar_pose = perception_info.get('lidar_pose', None)
+        speed = perception_info.get('speed', None)
+        acceleration = perception_info.get('acceleration', None)
 
         self.update_perception_info(pcd=pcd, lidar_pose=lidar_pose, speed=speed, acceleration=acceleration)
 
@@ -105,7 +105,7 @@ class SharedInfo:
 
     def get_pcd_copy(self):
         with self.__perception_lock:
-            return self.__pcd.copy()
+            return self.__pcd.copy() if self.__pcd is not None else self.__pcd
 
     def get_lidar_pose_copy(self):
         with self.__perception_lock:

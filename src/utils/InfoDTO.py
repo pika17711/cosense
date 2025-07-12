@@ -10,11 +10,11 @@ import numpy as np
 @dataclass
 class InfoDTO:
     type: int
-    id: appType.id_t # id
+    id: appType.id_t    # id
     lidar2world:        Optional[NDArray[np.float64]] # 雷达到世界的外参矩阵
     camera2world:       Optional[NDArray] # 相机到世界的外参矩阵
     camera_intrinsic:   Optional[NDArray] # 相机的内参矩阵
-    feat:               Optional[NDArray] # 特征
+    feat:               Optional[Dict[str, NDArray]]  # 特征 {'spatial_feature': array, Optional['comm_mask': array]}
     ts_feat:            Optional[appType.timestamp_t] # 时间戳
     speed:              Optional[NDArray] # 速度
     ts_speed:           Optional[appType.timestamp_t] # 时间戳

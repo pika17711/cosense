@@ -16,7 +16,8 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
         self.others_infos = others_infos
 
     def GetOthersInfos(self, request, context):  # 协同感知子系统向其他进程提供“获取所有他车信息”的服务
-        others_infos = self.others_infos.get_infos()
+        # others_infos = self.others_infos.get_infos()
+        others_infos = self.others_infos.pop_infos()
 
         others_infos_protobuf = {}
 
@@ -31,12 +32,16 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
                 feature=np_to_protobuf(cav_info['feature']),
                 ts_feature=cav_info['ts_feature'])
 
+            if 'comm_mask' in cav_info and cav_info['comm_mask'] is not None:
+                cav_info_protobuf.comm_mask.CopyFrom(np_to_protobuf(cav_info['comm_mask']))
+
             others_infos_protobuf[cav_id] = cav_info_protobuf
 
         return Service_pb2.OthersInfos(others_infos=others_infos_protobuf)
 
     def GetOthersCommMasks(self, request, context):  # 协同感知子系统向其他进程提供“获取所有他车协作图”的服务
-        others_infos = self.others_infos.get_infos()
+        # others_infos = self.others_infos.get_infos()
+        others_infos = self.others_infos.pop_infos()
 
         others_comm_masks = {}
 

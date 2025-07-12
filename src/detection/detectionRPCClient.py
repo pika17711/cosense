@@ -96,6 +96,9 @@ class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合
         ts_conf_map = response.ts_conf_map
         return spatial_feature, ts_spatial_feature, conf_map, ts_conf_map
 
+    def lidar_pose_to_projected_spatial_feature(self, lidar_pose):
+        pass
+
     def lidar_poses_to_projected_spatial_features(self, lidar_poses):
         lidar_poses_protobuf = {}
         for cav_id, lidar_pose in lidar_poses.items():
@@ -133,6 +136,23 @@ class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合
         projected_comm_masked_features = protobuf_to_dict(projected_comm_masked_features_protobuf)
 
         return projected_comm_masked_features
+
+    def request_map_to_projected_comm_masked_feature(self, lidar_pose, request_map, ts_request_map):
+        request = Service_pb2.RequestMap(lidar_pose=np_to_protobuf(lidar_pose),
+                                         request_map=np_to_protobuf(request_map),
+                                         ts_request_map=ts_request_map)
+
+        try:
+            response = self.__detection_stub.RequestMap2ProjectedCommMaskedFeature(request, timeout=10)  # 请求融合检测子系统并获得响应
+        except grpc.RpcError as e:  # 捕获grpc异常
+            logging.error(f"RPC request_map_to_projected_comm_masked_feature failed: code={e.code()}")  # 记录grpc异常
+            return None, None, None
+
+        comm_masked_feature = protobuf_to_np(response.comm_masked_feature)
+        comm_mask = protobuf_to_np(response.comm_mask)
+        ts_feature = response.ts_feature
+
+        return comm_masked_feature, comm_mask, ts_feature
 
     def spatial_feature_to_conf_map(self, ts_spatial_feature, spatial_feature):  # 融合检测子系统根据特征返回置信图
         request = Service_pb2.Feature(feature=np_to_protobuf(spatial_feature),

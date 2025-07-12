@@ -11,10 +11,10 @@ from opencood.tools import train_utils
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.visualization.vis_utils import bbx2oabb
-# from src.detection.utils_test import get_oabbs_gt
+# from tests.detection.utils_test import get_oabbs_gt
 
 from utils.detection_utils import fuse_spatial_feature, pcd_to_spatial_feature, spatial_feature_to_pred_box, \
-                                    spatial_feature_to_comm_masked_feature
+                                  get_features_from_cav_infos
 from detection.detectionRPCServer import DetectionServerThread
 from perception.perceptionRPCClient import PerceptionRPCClient
 from collaboration.collaborationRPCClient import CollaborationRPCClient
@@ -45,7 +45,7 @@ class DetectionManager:
 
         if opt.show_vis:
             self.vis = o3d.visualization.Visualizer()
-            self.vis.create_window(visible=True)
+            self.vis.create_window(visible=True, window_name='Detection')
             vis_opt = self.vis.get_render_option()
             vis_opt.background_color = np.asarray([0, 0, 0])
             vis_opt.point_size = 1.0
@@ -77,7 +77,7 @@ class DetectionManager:
         self.__loop()
 
     def __loop(self):
-        loop_time = 3
+        loop_time = 6
         last_t = 0
 
         while self.running:
@@ -97,25 +97,31 @@ class DetectionManager:
             print('my_spatial_feature.shape: ' + str(my_spatial_feature.shape))
             # 获取他车特征
             cav_infos = self.collaboration_client.get_others_infos()
-            if cav_infos is not None and len(cav_infos) > 0:
-                fused_spatial_feature = fuse_spatial_feature(my_spatial_feature, cav_infos)
-            else:
-                fused_spatial_feature = my_spatial_feature
+
+            spatial_features, comm_masked_features = get_features_from_cav_infos(cav_infos)
+
+            fused_spatial_feature = fuse_spatial_feature(my_spatial_feature, spatial_features)
             print('fused_spatial_feature.shape: ' + str(fused_spatial_feature.shape))
 
             # 根据融合后的特征得到检测框
-            pred_box = spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info)
+            pred_box, ego_comm_mask = spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info, comm_masked_features)
             self.shared_info.update_pred_box(pred_box)
+            self.shared_info.update_comm_mask(ego_comm_mask)
 
             if self.opt.show_vis:
                 self.__show_vis(processed_pcd, pred_box)
 
-    def __show_vis(self, processed_pcd, pred_box):
+    def __show_vis(self, processed_pcd, pred_box=None):
         self.vis.clear_geometries()
+
+        axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=5, origin=[0, 0, 0])  # 坐标系
+        self.vis.add_geometry(axis)
+
         pcd = o3d.geometry.PointCloud()
 
-        # o3d use right-hand coordinate
-        processed_pcd[:, :1] = -processed_pcd[:, :1]
+        left_hand_coordinate = self.cfg.perception_debug and self.cfg.perception_debug_data_from_OPV2V
+        if left_hand_coordinate:
+            processed_pcd[:, :1] = -processed_pcd[:, :1]
 
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 
@@ -123,8 +129,8 @@ class DetectionManager:
         # pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
 
         self.vis.add_geometry(pcd)
-        if pred_box.size > 0:
-            oabbs_pred = bbx2oabb(pred_box, color=(1, 0, 0))
+        if pred_box is not None and pred_box.size > 0:
+            oabbs_pred = bbx2oabb(pred_box, color=(1, 0, 0), left_hand_coordinate=left_hand_coordinate)
             for oabb in oabbs_pred:
                 self.vis.add_geometry(oabb)
 
@@ -133,8 +139,11 @@ class DetectionManager:
         #     self.vis.add_geometry(oabb)
 
         # 渲染场景
-        self.vis.poll_events()
-        self.vis.update_renderer()
+        # self.vis.poll_events()
+        # self.vis.update_renderer()
+
+        self.vis.run()
+
         # save_path = 'vis.png'
         # # 截图并保存
         # self.vis.capture_screen_image(save_path)

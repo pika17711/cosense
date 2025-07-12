@@ -4,6 +4,7 @@ import asyncio
 import logging
 import concurrent.futures
 import threading
+import time
 from time import sleep
 
 import numpy as np
@@ -110,7 +111,7 @@ class CollaborationManager:
             if argv[1] == 'subing':
                 print([cctx.remote_id() for cctx in self.ctable.get_subscribing()])
             elif argv[1] == 'subed':
-                print([subed['cctx'].remote_id() for subed in self.ctable.get_subscribed()])
+                print([subed.remote_id() for subed in self.ctable.get_subscribed()])
             else:
                 print('syntax error')
         elif len(argv) == 2 and argv[0] == 'subscribe':
@@ -171,13 +172,14 @@ class CollaborationManager:
 
     def get_all_data(self, coopmap: CoopMap):
         lidar_pose, ts_lidar_pose, velocity, ts_v, acceleration, ts_a = self.perception_client.get_my_pva()
-        my_extrinsic_matrix, ts_extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
-        projected_spatial_feature = self.detection_client.lidar_poses_to_projected_spatial_features(coopmap.lidar_pose)
-        feat = projected_spatial_feature['feature']
-        ts3 = projected_spatial_feature['ts_feature']
+        # my_extrinsic_matrix, ts_extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
+        lidar_poses = {'other': {'lidar_pose': coopmap.lidar_pose, 'ts_lidar_pose': int(time.time())}}
+        projected_spatial_feature = self.detection_client.lidar_poses_to_projected_spatial_features(lidar_poses)
+        feat = projected_spatial_feature['other']['feature']
+        ts3 = projected_spatial_feature['other']['ts_feature']
         infodto = InfoDTO.InfoDTO(type=1,
                                   id=self.cfg.id,
-                                  lidar2world=my_extrinsic_matrix,
+                                  lidar2world=None,
                                   camera2world=None,
                                   camera_intrinsic=None,
                                   feat=feat,
@@ -190,19 +192,19 @@ class CollaborationManager:
                                   ts_acc=ts_a,
                                   pcd=None,
                                   ts_pcd=None)
-        # data = InfoDTO.InfoDTOSerializer.serialize(infodto)
-        data = InfoDTO.InfoDTOSerializer.serialize_to_str(infodto)
+        data = InfoDTO.InfoDTOSerializer.serialize(infodto)
+        # data = InfoDTO.InfoDTOSerializer.serialize_to_str(infodto)
         return data
 
     def subscribed_send_loop(self):
         logging.info("订阅者数据发送循环启动")
         while self.running:
             subeds = self.ctable.get_subscribed()
-            logging.info(f"订阅者数据发送, 订阅者列表{[subed['cctx'].remote_id() for subed in subeds]}")
+            logging.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
             if len(subeds) > 0:
-                for subed in subeds:
-                    data = self.get_all_data(subed['coopmap'])
-                    cctx = subed['cctx']
+                for cctx in subeds:
+                    coopmap = self.ctable.get_coopmap(cctx.remote_id())
+                    data = self.get_all_data(coopmap)
                     self.executor.submit(self.collaboration_service.send_data, cctx, data)
                     self.executor.submit(self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid))
             self.subscribed_send_event.wait(ms2s(self.cfg.send_data_period))

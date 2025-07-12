@@ -23,6 +23,7 @@ service DetectionService {                                              // 融�
     rpc PCD2FeatureAndConfMap (PCD) returns (FeatureAndConfMap);        // 向其他进程提供“根据点云获取特征和置信图”的服务
     rpc LidarPoses2ProjectedFeatures (LidarPoses) returns (Features);    // 向其他进程提供“根据位姿获取投射后的特征”的服务
     rpc LidarPoses2ProjectedCommMaskedFeatures (LidarPoses) returns (CommMaskedFeatures);
+    rpc RequestMap2ProjectedCommMaskedFeature (RequestMap) returns (CommMaskedFeature);
     rpc Feature2ConfMap (Feature) returns (ConfMap);                    // 向其他进程提供“根据特征获取置信图”的服务
     rpc Feature2PredBox (Feature) returns (PredBox);                    // 向其他进程提供“根据特征获取检测框”的服务
 }
@@ -77,6 +78,7 @@ message OthersInfos {                       // 所有他车信息
         int64 ts_a = 6;                     // 加速度对应时间戳
         NDArray feature = 7;                // 特征
         int64 ts_feature = 8;               // 特征对应时间戳
+        optional NDArray comm_mask = 9;
     }
 }
 
@@ -126,14 +128,20 @@ message Features {                              // 多个特征
     map<string, Feature> features = 1;          // 多个特征
 }
 
-message CommMaskedFeatures {
-    map<string, CommMaskedFeature> comm_masked_features = 1;
-
-    message CommMaskedFeature {
+message CommMaskedFeature {
         NDArray comm_masked_feature = 1;
         NDArray comm_mask = 2;
         int64 ts_feature = 3;
     }
+
+message CommMaskedFeatures {
+    map<string, CommMaskedFeature> comm_masked_features = 1;
+}
+
+message RequestMap {
+    NDArray lidar_pose = 1;
+    NDArray request_map = 2;
+    int64 ts_request_map = 3;
 }
 
 message ConfMap {                       // 置信图

@@ -4,12 +4,13 @@ import time
 import threading
 import open3d as o3d
 from appConfig import AppConfig
+from collections import deque
 
 import concurrent.futures
 from perception.perceptionRPCServer import PerceptionServerThread
 from perception.rosWrapper import ROSWrapper
 from utils.sharedInfo import SharedInfo
-from utils.perception_utils import get_lidar_pose_and_pcd_from_dataset, get_psa_from_obu, save_lidar_pose_and_pcd
+from utils.perception_utils import get_lidar_pose_and_pcd_from_dataset, get_psa_from_obu, save_lidar_pose_and_pcd, ros_pcd_to_numpy
 
 import numpy as np
 import queue
@@ -22,13 +23,14 @@ class PerceptionManager:
         self.running = False
         self.opt = opt
         self.cfg = cfg
-        self.pcd_queue = queue.Queue(1)
+        # self.pcd_queue = queue.Queue(1)
+        self.pcd_queue = deque(maxlen=10)
         self.perception_rpc_server = PerceptionServerThread(self.my_info)
         self.ros_thread = threading.Thread(target=self.__ros_start)
 
         if opt.show_vis:
             self.vis = o3d.visualization.Visualizer()
-            self.vis.create_window(visible=True)
+            self.vis.create_window(visible=True, window_name='Perception')
             vis_opt = self.vis.get_render_option()
             vis_opt.background_color = np.asarray([0, 0, 0])
             vis_opt.point_size = 1.0
@@ -58,7 +60,9 @@ class PerceptionManager:
             self.__update_perception_info(loop_index)
 
             if self.opt.show_vis:
-                self.__show_vis(self.my_info.get_pcd_copy())
+                pcd = self.my_info.get_pcd_copy()
+                if pcd is not None:
+                    self.__show_vis(pcd)
 
             loop_index += 1
 
@@ -74,9 +78,12 @@ class PerceptionManager:
         self.my_info.update_perception_info_dict(perception_info)
 
     def __get_info_from_dataset(self, index):
-        paths = sorted([os.path.join(self.cfg.static_asset_path, file_name[:-5])
-                        for file_name in os.listdir(self.cfg.static_asset_path) if file_name.endswith('.yaml')])
-        lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(paths[index % len(paths)])
+        if self.cfg.static_asset_path.endswith(('.pcd', '.yaml', '.json', '.txt')):
+            lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(self.cfg.static_asset_path)
+        else:
+            paths = sorted([os.path.join(self.cfg.static_asset_path, file_name)
+                            for file_name in os.listdir(self.cfg.static_asset_path) if file_name.endswith(('.pcd', '.yaml', '.json', '.txt'))])
+            lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(paths[index % len(paths)])
 
         perception_info = {'lidar_pose': lidar_pose,
                            'pcd': pcd}
@@ -86,26 +93,29 @@ class PerceptionManager:
     def __get_info(self, loop_index):
         pcd = self.__retrieve_from_ros(loop_index)
         lidar_pose, speed, acceleration = get_psa_from_obu(self.cfg.obu_output_file_path)
+
         perception_info = {'lidar_pose': lidar_pose,
                            'pcd': pcd}
         return perception_info
 
     def __retrieve_from_ros(self, index):
-        ori_pcd = self.pcd_queue.get()
+        # ori_pcd = self.pcd_queue.get()
+        if len(self.pcd_queue) > 0:
+            ros_pcd = self.pcd_queue.pop()
 
-        coord_valid = ~np.isnan(ori_pcd[:, :3]).any(axis=1)
-        valid_pcd = ori_pcd[coord_valid]
+            pcd = ros_pcd_to_numpy(ros_pcd)
+            logging.info(f'received valid pcd {len(pcd)}')
+            return pcd
 
-        # logging.info(f'received valid pcd {len(valid_pcd)}')
-        print(f'received valid pcd {len(valid_pcd)}')
-        return valid_pcd
+        return None
 
     def __show_vis(self, processed_pcd):
         self.vis.clear_geometries()
         pcd = o3d.geometry.PointCloud()
 
         # o3d use right-hand coordinate
-        processed_pcd[:, :1] = -processed_pcd[:, :1]
+        # if self.cfg.perception_debug:
+        #     processed_pcd[:, :1] = -processed_pcd[:, :1]
 
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 
@@ -115,8 +125,11 @@ class PerceptionManager:
         self.vis.add_geometry(pcd)
 
         # 渲染场景
-        self.vis.poll_events()
-        self.vis.update_renderer()
+        # self.vis.poll_events()
+        # self.vis.update_renderer()
+
+        self.vis.run()
+
         # save_path = 'vis.png'
         # # 截图并保存
         # self.vis.capture_screen_image(save_path)

@@ -40,10 +40,12 @@ class AppConfig:
     rpc_collaboration_server_debug = False  # collaboration子系统RPC server是否开启debug模式
     rpc_collaboration_client_debug = False  # collaboration子系统RPC client是否开启debug模式
 
-    perception_debug = False          # 同上
+    collaboration_request_map_debug = True
+
+    perception_debug = True          # 同上
+    perception_debug_data_from_OPV2V = True
     rpc_perception_server_debug = False
     rpc_perception_client_debug = False
-
 
     overlap_threshold = 0.3           # 协作图的重叠率阈值，高于此阈值才建立会话
 

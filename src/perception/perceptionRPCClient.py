@@ -46,7 +46,7 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         my_lidar_pose = protobuf_to_np(response.lidar_pose)
         ts_lidar_pose = response.ts_lidar_pose
         # 自车点云
-        my_pcd = protobuf_to_np(response.pcd)
+        my_pcd = protobuf_to_np(response.pcd).copy()
         ts_pcd = response.ts_pcd
         return my_lidar_pose, ts_lidar_pose, my_pcd, ts_pcd
 

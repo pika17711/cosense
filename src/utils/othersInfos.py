@@ -27,7 +27,7 @@ class OthersInfos:
 
         def update_info(self, lidar_pose=None, ts_lidar_pose=None, velocity=None, ts_v=None,
                         acceleration=None, ts_a=None, feature=None, ts_feature=None, comm_mask=None, ts_comm_mask=None):
-            params = {
+            cav_info = {
                 'lidar_pose': lidar_pose,
                 'ts_lidar_pose': ts_lidar_pose,
                 'velocity': velocity,
@@ -40,9 +40,7 @@ class OthersInfos:
                 'ts_comm_mask': ts_comm_mask,
             }
 
-            for key, value in params.items():
-                if value is not None:
-                    self.__info[key] = value
+            self.update_info_dict(cav_info)
 
         def update_info_dict(self, cav_info):
             if cav_info is not None:
@@ -86,20 +84,25 @@ class OthersInfos:
                 self.__update_info_dict(cav_id, cav_info)
 
     def update_infos_ctable(self):
-        infos = self.__ctable.get_all_data()
+        # infos = self.__ctable.get_all_data()
+        infos = self.__ctable.pop_all_data()
+
         others_infos = {}
         for info in infos:
             cav_id = info.id
+
+            feature = info.feat['spatial_feature']
+            comm_mask = info.feat.get('comm_mask')
+
             cav_info = {'lidar_pose': info.lidar_pos,
                         'ts_lidar_pose': info.ts_lidar_pos,
                         'velocity': info.speed,
                         'ts_v': info.ts_speed,
                         'acceleration': info.acc,
                         'ts_a': info.ts_acc,
-                        'feature': info.feat,
+                        'feature': feature,
                         'ts_feature': info.ts_feat,
-                        'comm_mask': self.__ctable.get_coopmap(info.id).map,
-                        'ts_comm_mask': int(time.time())}
+                        'comm_mask': comm_mask}
             others_infos[cav_id] = cav_info
 
         self.update_infos(others_infos)
@@ -110,4 +113,13 @@ class OthersInfos:
         with self.__lock:
             for cav_id, cav_info in self.__others_infos.items():
                 infos_copy[cav_id] = cav_info.get_info()
+        return infos_copy
+
+    def pop_infos(self):
+        self.update_infos_ctable()
+        infos_copy = {}
+        with self.__lock:
+            for cav_id, cav_info in self.__others_infos.items():
+                infos_copy[cav_id] = cav_info.get_info()
+            self.__others_infos = {}
         return infos_copy

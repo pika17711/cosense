@@ -75,7 +75,7 @@ class MessageRouter:
             self.collaboration_service.subscribe_send(cctx, SubscribeAct.FIN)
 
         for subed in self.ctable.get_subscribed():
-            self.collaboration_service.notify_send(subed['cctx'], NotifyAct.FIN)
+            self.collaboration_service.notify_send(subed, NotifyAct.FIN)
 
     def check_expire(self):
         cctxs = self.ctable.get_all_cctx()

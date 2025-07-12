@@ -2,16 +2,19 @@ import concurrent.futures
 import queue
 import logging
 import numpy as np
+import ros_numpy
 
 from appConfig import AppConfig
+from utils.perception_utils import ros_pcd_to_numpy
 
 import rospy
+from collections import deque
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs import point_cloud2
 
 
 class ROSWrapper:
-    def __init__(self, pcd_queue: queue.Queue):
+    def __init__(self, pcd_queue: deque):
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         rospy.init_node("cosense_ros_node", disable_signals=True)
         self.pcd_queue = pcd_queue
@@ -25,12 +28,9 @@ class ROSWrapper:
         )
         rospy.spin()
 
-    def pointcloud_callback(self, msg):
+    def pointcloud_callback(self, ros_pcd: PointCloud2):
         try:
-            points = point_cloud2.read_points_list(msg, field_names=("x", "y", "z", "intensity"))
-            pcd = np.array(points)
-            self.pcd_queue.put(pcd)
-            logging.info(f"收到点云数据: {len(points)} 个点")
+            self.pcd_queue.append(ros_pcd) # deque
         except Exception as e:
             logging.error(f"点云处理失败: {str(e)}")
 

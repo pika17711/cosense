@@ -294,7 +294,7 @@ def project_points_to_world(points, pose):
 def calculate_confidence_map_overlap(
     map1: np.ndarray, pose1: np.ndarray,  # pose1 shape: (6,)
     map2: np.ndarray, pose2: np.ndarray,  # pose2 shape: (6,)
-    grid_size: float = 0.1,  # 网格尺寸（米），假设z轴网格为0（俯视投影）
+    grid_size: float = 0.4 ,  # 网格尺寸（米），假设z轴网格为0（俯视投影）
 ):
     """计算两个三维置信图的重叠率（投影到XY平面）"""
     h1, w1 = map1.shape

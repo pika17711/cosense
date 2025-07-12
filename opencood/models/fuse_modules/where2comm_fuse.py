@@ -50,6 +50,7 @@ class Communication(nn.Module):
 
         communication_masks = []
         communication_rates = []
+        ego_comm_mask = None
         for b in range(B):
             # [2,1,48,176]
             ori_communication_maps, _ = batch_confidence_maps[b].sigmoid().max(dim=1, keepdim=True)
@@ -78,13 +79,16 @@ class Communication(nn.Module):
 
             communication_rate = communication_mask.sum() / (L * H * W)
             # Ego
-            # communication_mask[0] = 1
+            if b == 0:
+                ego_comm_mask = communication_mask[0].clone().unsqueeze(0)
+
+            communication_mask[0] = 1
 
             communication_masks.append(communication_mask)
             communication_rates.append(communication_rate)
         communication_rates = sum(communication_rates) / B
         communication_masks = torch.cat(communication_masks, dim=0)
-        return communication_masks, communication_rates
+        return communication_masks, communication_rates, ego_comm_mask
 
 
 class AttentionFusion(nn.Module):
@@ -132,7 +136,7 @@ class Where2comm(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, psm_single, record_len, pairwise_t_matrix, backbone=None):
+    def forward(self, x, psm_single, record_len, pairwise_t_matrix, backbone=None, comm_masked_features=None):
         """
         Fusion forwarding.
 
@@ -180,14 +184,46 @@ class Where2comm(nn.Module):
                         # batch_confidence_maps=pickle.loads(from_server_msg)
                         # -------------------------------
 
-                        communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
-                        comm_mask = communication_masks[0]
-                        # Ego
-                        communication_masks[::x.shape[0]] = 1
+                        communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+
                         if x.shape[-1] != communication_masks.shape[-1]:
                             communication_masks = F.interpolate(communication_masks, size=(x.shape[-2], x.shape[-1]),
                                                                 mode='bilinear', align_corners=False)
                         x = x * communication_masks
+
+                        if comm_masked_features is not None:
+                            features = []
+
+                            for comm_masked_feature_dict in comm_masked_features:
+                                comm_masked_feature = comm_masked_feature_dict['comm_masked_feature']
+                                comm_mask = comm_masked_feature_dict['comm_mask']
+
+                                # 1. 插值掩码到目标尺寸
+                                if x.shape[-1] != comm_mask.shape[-1]:
+                                    comm_mask = F.interpolate(comm_mask,
+                                                              size=(x.shape[-2], x.shape[-1]),
+                                                              mode='bilinear', align_corners=False)     # [1, 1, H, W]
+
+                                # 2. 获取掩码的非零位置索引
+                                spatial_mask = comm_mask.squeeze(0).squeeze(0)  # [H, W]
+                                non_zero_indices = torch.nonzero(spatial_mask != 0, as_tuple=False)  # [N, 2]
+
+                                # 3. 创建全零特征图
+                                c = comm_masked_feature.shape[0]
+                                feature = torch.zeros((1, c, x.shape[-2], x.shape[-1]),
+                                                      dtype=comm_masked_feature.dtype,
+                                                      device=comm_masked_feature.device)  # [1, C, H, W]
+
+                                # 4. 将提取的特征填充到非零位置
+                                # 对于每个通道
+                                for ch in range(c):
+                                    # 在非零位置填充值
+                                    feature[0, ch, non_zero_indices[:, 0], non_zero_indices[:, 1]] = comm_masked_feature[ch]
+
+                                features.append(feature)
+
+                            features.insert(0, x)
+                            x = torch.cat(features, dim=0)
 
                 # 2. Split the features
                 # split_x: [(L1, C, H, W), (L2, C, H, W), ...]
@@ -224,8 +260,42 @@ class Where2comm(nn.Module):
             else:
                 # Prune
                 batch_confidence_maps = self.regroup(psm_single, record_len)
-                communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
+                communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
                 x = x * communication_masks  # 特征与通信掩码相乘
+
+                if comm_masked_features is not None:
+                    features = []
+
+                    for comm_masked_feature_dict in comm_masked_features:
+                        comm_masked_feature = comm_masked_feature_dict['feature']
+                        comm_mask = comm_masked_feature_dict['comm_mask']
+
+                        # 1. 插值掩码到目标尺寸
+                        if x.shape[-1] != comm_mask.shape[-1]:
+                            comm_mask = F.interpolate(comm_mask,
+                                                      size=(x.shape[-2], x.shape[-1]),
+                                                      mode='bilinear', align_corners=False)  # [1, 1, H, W]
+
+                        # 2. 获取掩码的非零位置索引
+                        spatial_mask = comm_mask.squeeze(0).squeeze(0)  # [H, W]
+                        non_zero_indices = torch.nonzero(spatial_mask != 0, as_tuple=False)  # [N, 2]
+
+                        # 3. 创建全零特征图
+                        c = comm_masked_feature.shape[0]
+                        feature = torch.zeros((1, c, x.shape[-2], x.shape[-1]),
+                                              dtype=comm_masked_feature.dtype,
+                                              device=comm_masked_feature.device)  # [1, C, H, W]
+
+                        # 4. 将提取的特征填充到非零位置
+                        # 对于每个通道
+                        for ch in range(c):
+                            # 在非零位置填充值
+                            feature[0, ch, non_zero_indices[:, 0], non_zero_indices[:, 1]] = comm_masked_feature[ch]
+
+                        features.append(feature)
+
+                    features.insert(0, x)
+                    x = torch.cat(features, dim=0)
 
             # 2. Split the features
             # split_x: [(L1, C, H, W), (L2, C, H, W), ...]
@@ -238,27 +308,71 @@ class Where2comm(nn.Module):
                 neighbor_feature = batch_node_features[b]
                 x_fuse.append(self.fuse_modules(neighbor_feature))
             x_fuse = torch.stack(x_fuse)
-        return x_fuse, communication_rates
+        return x_fuse, communication_rates, ego_comm_mask
 
-    def spatial_feature_to_comm_masked_feature(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None):
+    def spatial_feature_to_comm_mask(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None):
         _, C, H, W = spatial_feature.shape  # [1, 64, 192, 704]
         B = pairwise_t_matrix.shape[0]
 
         if self.multi_scale:
             x = backbone.blocks[0](spatial_feature)
-            # 1. Communication (mask the features)
             # Prune
             batch_confidence_maps = self.regroup(psm_single, record_len)
 
-            communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
-            comm_mask_tensor = communication_masks
-            comm_masked_feature_tensor = x          # TODO: 并没有进行comm_masked
+            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
         else:
-            # 1. Communication (mask the features)
+            x = spatial_feature
             # Prune
             batch_confidence_maps = self.regroup(psm_single, record_len)
-            communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
+            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+
+        comm_mask_tensor = ego_comm_mask
+        return comm_mask_tensor
+
+    def spatial_feature_to_comm_masked_feature(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None, request_map=None):
+        _, C, H, W = spatial_feature.shape  # [1, 64, 192, 704]
+        B = pairwise_t_matrix.shape[0]
+
+        if self.multi_scale:
+            x = backbone.blocks[0](spatial_feature)
+            # Prune
+            batch_confidence_maps = self.regroup(psm_single, record_len)
+
+            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+
+            if request_map is not None:
+                communication_masks = communication_masks * request_map
+
             comm_mask_tensor = communication_masks
-            comm_masked_feature_tensor = spatial_feature
+
+            # 1. 插值掩码到特征图尺寸
+            if x.shape[-1] != communication_masks.shape[-1]:
+                communication_masks = F.interpolate(communication_masks, size=(x.shape[-2], x.shape[-1]),
+                                                    mode='bilinear', align_corners=False)
+        else:
+            x = spatial_feature
+            # Prune
+            batch_confidence_maps = self.regroup(psm_single, record_len)
+            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+
+            if request_map is not None:
+                communication_masks = communication_masks * request_map
+
+            comm_mask_tensor = communication_masks
+
+        # 2. 应用掩码
+        x = x * communication_masks
+
+        # 3. 获取掩码的非零位置索引 (空间位置)
+        # 掩码形状: [1, 1, H, W]
+        spatial_mask = communication_masks.squeeze(0).squeeze(0)  # [H, W]
+        non_zero_indices = torch.nonzero(spatial_mask != 0, as_tuple=False)  # [N, 2] (h, w)
+
+        # 4. 提取特征 (每个通道在非零位置的值)
+        # x形状: [1, C, H, W] -> [C, H, W]
+        x_squeezed = x.squeeze(0)  # [C, H, W]
+
+        # 提取特征: [C, N]
+        comm_masked_feature_tensor = x_squeezed[:, non_zero_indices[:, 0], non_zero_indices[:, 1]]
 
         return comm_masked_feature_tensor, comm_mask_tensor

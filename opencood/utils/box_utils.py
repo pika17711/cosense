@@ -347,7 +347,8 @@ def get_mask_for_boxes_within_range_torch(boxes):
         bbx is within the range and False means the
         bbx is outside the range.
     """
-    from opencood.data_utils.datasets import GT_RANGE
+    # from opencood.data_utils.datasets import GT_RANGE
+    GT_RANGE = [-140, -40, -3, 140, 40, 1]
 
     # mask out the gt bounding box out fixed range (-140, -40, -3, 140, 40 1)
     device = boxes.device

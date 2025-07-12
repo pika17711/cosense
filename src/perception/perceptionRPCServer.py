@@ -3,6 +3,7 @@ import logging
 
 import grpc
 from concurrent import futures
+import numpy as np
 from rpc import Service_pb2
 from rpc import Service_pb2_grpc
 from utils.rpc_utils import np_to_protobuf
@@ -35,9 +36,12 @@ class PerceptionRPCService(Service_pb2_grpc.PerceptionServiceServicer):  # 感�
     def GetMyPVA(self, request, context):  # 感知子系统向其他进程提供“获取自车位置、速度、加速度信息”的服务
         lidar_pose = self.my_info.get_lidar_pose_copy()
         ts_lidar_pose = int(time.time())
-        velocity = self.my_info.get_velocity_copy()
+        # velocity = self.my_info.get_velocity_copy()
+        velocity = self.my_info.get_speed_copy()
+        velocity = np.array(velocity if velocity is not None else -1)
         ts_v = ts_lidar_pose
         acceleration = self.my_info.get_acceleration_copy()
+        acceleration = np.array(acceleration if acceleration is not None else -1)
         ts_a = ts_lidar_pose
 
         return Service_pb2.PVA(lidar_pose=np_to_protobuf(lidar_pose),

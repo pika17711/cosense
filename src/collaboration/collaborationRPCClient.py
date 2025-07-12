@@ -36,7 +36,7 @@ class CollaborationRPCClient:  # 协同感知子系统的Client类，用于向�
 
         others_infos_protobuf = response.others_infos
 
-        others_infos = protobuf_to_dict(others_infos_protobuf)
+        others_infos = protobuf_to_dict(others_infos_protobuf) # TODO: 没有判断comm_mask字段是否存在
 
         return others_infos
 
