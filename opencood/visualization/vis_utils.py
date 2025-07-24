@@ -69,7 +69,7 @@ def bbx2linset(bbx_corner, order='hwl', color=(0, 1, 0)):
     return bbx_linset
 
 
-def bbx2oabb(bbx_corner, order='hwl', color=(0, 0, 1)):
+def bbx2oabb(bbx_corner, order='hwl', color=(0, 0, 1), left_hand_coordinate=True):
     """
     Convert the torch tensor bounding box to o3d oabb for visualization.
 
@@ -100,7 +100,8 @@ def bbx2oabb(bbx_corner, order='hwl', color=(0, 0, 1)):
     for i in range(bbx_corner.shape[0]):
         bbx = bbx_corner[i]
         # o3d use right-hand coordinate
-        bbx[:, :1] = - bbx[:, :1]
+        if left_hand_coordinate:
+            bbx[:, :1] = -bbx[:, :1]
 
         tmp_pcd = o3d.geometry.PointCloud()
         tmp_pcd.points = o3d.utility.Vector3dVector(bbx)

@@ -10,8 +10,10 @@ from opencood.hypes_yaml import yaml_utils
 from opencood.tools import train_utils
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.data_utils.post_processor import build_postprocessor
-from opencood.visualization.vis_utils import bbx2oabb
+from opencood.visualization.vis_utils import bbx2oabb, color_encoding
 # from tests.detection.utils_test import get_oabbs_gt
+from opencood.utils import box_utils
+from opencood.utils.transformation_utils import gps_to_utm_transformation, gps_to_enu_transformation
 
 from utils.detection_utils import fuse_spatial_feature, pcd_to_spatial_feature, spatial_feature_to_pred_box, \
                                   get_features_from_cav_infos
@@ -66,7 +68,7 @@ class DetectionManager:
         return model
 
     def __grpc_prepare(self):
-        self.detection_rpc_server = DetectionServerThread(self.shared_info)
+        self.detection_rpc_server = DetectionServerThread(self.cfg, self.shared_info)
 
         self.perception_client = PerceptionRPCClient(self.cfg)
         self.collaboration_client = CollaborationRPCClient(self.cfg)
@@ -77,14 +79,16 @@ class DetectionManager:
         self.__loop()
 
     def __loop(self):
-        loop_time = 6
-        last_t = 0
+        loop_time = 0.3
+        last_t = time.time() - loop_time
 
         while self.running:
             t = time.time()
             if t - last_t < loop_time:
                 time.sleep(loop_time + last_t - t)
-            last_t = time.time()
+            t = time.time()
+            print(f'last loop time: {t - last_t}s')
+            last_t = t
 
             logging.info("融合检测进行中...")
             # 获取自车pcd并处理得到自车特征
@@ -97,6 +101,8 @@ class DetectionManager:
             print('my_spatial_feature.shape: ' + str(my_spatial_feature.shape))
             # 获取他车特征
             cav_infos = self.collaboration_client.get_others_infos()
+            if self.cfg.collaboration_pcd_debug:
+                others_lidar_poses_and_pcds = self.collaboration_client.get_others_lidar_poses_and_pcds()
 
             spatial_features, comm_masked_features = get_features_from_cav_infos(cav_infos)
 
@@ -108,10 +114,22 @@ class DetectionManager:
             self.shared_info.update_pred_box(pred_box)
             self.shared_info.update_comm_mask(ego_comm_mask)
 
-            if self.opt.show_vis:
-                self.__show_vis(processed_pcd, pred_box)
+            projected_others_pcds = None
+            if self.cfg.collaboration_pcd_debug:
+                projected_others_pcds = []
+                if others_lidar_poses_and_pcds is not None:
+                    for cav_id, cav_lidar_pose_and_pcd in others_lidar_poses_and_pcds.items():
+                        cav_lidar_pose = cav_lidar_pose_and_pcd['lidar_pose']
+                        cav_pcd = cav_lidar_pose_and_pcd['pcd']
 
-    def __show_vis(self, processed_pcd, pred_box=None):
+                        transformation_matrix = gps_to_utm_transformation(cav_lidar_pose, my_lidar_pose)
+                        cav_pcd[:, :3] = box_utils.project_points_by_matrix_torch(cav_pcd[:, :3], transformation_matrix)
+                        projected_others_pcds.append(cav_pcd)
+
+            if self.opt.show_vis:
+                self.__show_vis(processed_pcd, pred_box, projected_others_pcds)
+
+    def __show_vis(self, processed_pcd, pred_box=None, projected_others_pcds=None):
         self.vis.clear_geometries()
 
         axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=5, origin=[0, 0, 0])  # 坐标系
@@ -125,10 +143,20 @@ class DetectionManager:
 
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 
-        # origin_lidar_intcolor = color_encoding(origin_lidar[:, 2], mode='constant')
-        # pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
+        origin_lidar_intcolor = color_encoding(processed_pcd[:, 2], mode='constant')
+        pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
 
         self.vis.add_geometry(pcd)
+
+        if projected_others_pcds is not None:
+            for projected_pcd in projected_others_pcds:
+                pcd = o3d.geometry.PointCloud()
+                pcd.points = o3d.utility.Vector3dVector(projected_pcd[:, :3])
+                red_color = np.array([1.0, 0, 0])  # RGB值范围[0,1]
+                pcd.colors = o3d.utility.Vector3dVector(np.tile(red_color, (len(pcd.points), 1)))  # 复制颜色到所有点
+
+                self.vis.add_geometry(pcd)
+
         if pred_box is not None and pred_box.size > 0:
             oabbs_pred = bbx2oabb(pred_box, color=(1, 0, 0), left_hand_coordinate=left_hand_coordinate)
             for oabb in oabbs_pred:
@@ -139,10 +167,10 @@ class DetectionManager:
         #     self.vis.add_geometry(oabb)
 
         # 渲染场景
-        # self.vis.poll_events()
-        # self.vis.update_renderer()
+        self.vis.poll_events()
+        self.vis.update_renderer()
 
-        self.vis.run()
+        # self.vis.run()
 
         # save_path = 'vis.png'
         # # 截图并保存

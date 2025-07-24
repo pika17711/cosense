@@ -41,15 +41,20 @@ class AppConfig:
     rpc_collaboration_client_debug = False  # collaboration子系统RPC client是否开启debug模式
 
     collaboration_request_map_debug = True
+    collaboration_pcd_debug = True
 
-    perception_debug = True          # 同上
-    perception_debug_data_from_OPV2V = True
+    perception_debug = False          # 同上
+    perception_hea_debug = True
     rpc_perception_server_debug = False
     rpc_perception_client_debug = False
 
-    overlap_threshold = 0.3           # 协作图的重叠率阈值，高于此阈值才建立会话
+    overlap_threshold = 0.0           # 协作图的重叠率阈值，高于此阈值才建立会话
 
-    model_dir = 'opencood/logs/point_pillar_where2comm_2024_10_28_23_24_50/'  # 模型位置
+    # model_dir = 'opencood/logs/point_pillar_where2comm_2024_10_28_23_24_50/'  # 模型位置
+    model_dir = r'D:\WorkSpace\Python\interopera\opencood\logs\point_pillar_where2comm_2024_10_28_23_24_50'
     obu_output_file_path = '/home/nvidia/mydisk/czl/InteroperationApp/data/output.json'       # OBU获取的数据导出的文件位置
-    static_asset_path = 'datasets/OPV2V/test_culver_city_part/2021_09_03_09_32_17' + '/302'  # 静态数据位置
-    # static_asset_path = 'D:\\Documents\\datasets\\OPV2V\\test_tmp\\two\\2021_09_03_09_32_17\\' + '302'
+    # static_asset_path = 'datasets/OPV2V/test_culver_city_part/2021_09_03_09_32_17' + '/302'  # 静态数据位置
+    static_asset_path = 'D:\\Documents\\datasets\\OPV2V\\test_tmp\\two\\2021_09_03_09_32_17\\' + '302'
+    # static_asset_path = 'D:\\WorkSpace\\Python\\cosense\\tests\\pcds\\25_07_09\\199\\json\\301.json'
+
+    perception_debug_data_from_OPV2V = 'OPV2V' in static_asset_path

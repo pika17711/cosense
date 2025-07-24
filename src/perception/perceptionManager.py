@@ -9,8 +9,10 @@ from collections import deque
 import concurrent.futures
 from perception.perceptionRPCServer import PerceptionServerThread
 from perception.rosWrapper import ROSWrapper
+from opencood.visualization.vis_utils import color_encoding
 from utils.sharedInfo import SharedInfo
-from utils.perception_utils import get_lidar_pose_and_pcd_from_dataset, get_psa_from_obu, save_lidar_pose_and_pcd, ros_pcd_to_numpy
+from utils.perception_utils import get_lidar_pose_and_pcd_from_dataset, get_psa_from_obu, save_lidar_pose_and_pcd, \
+    ros_pcd_to_numpy
 
 import numpy as np
 import queue
@@ -23,7 +25,6 @@ class PerceptionManager:
         self.running = False
         self.opt = opt
         self.cfg = cfg
-        # self.pcd_queue = queue.Queue(1)
         self.pcd_queue = deque(maxlen=10)
         self.perception_rpc_server = PerceptionServerThread(self.my_info)
         self.ros_thread = threading.Thread(target=self.__ros_start)
@@ -37,18 +38,19 @@ class PerceptionManager:
 
     def start(self):
         self.running = True
-        self.ros_thread.start()
+        if not self.cfg.perception_debug:
+            self.ros_thread.start()
         self.perception_rpc_server.start()
-        logging.debug('roswrapper start')
 
         self.__loop()
 
     def __ros_start(self):
         self.ros_wrapper = ROSWrapper(self.pcd_queue)
         self.ros_wrapper.start()
+        logging.debug('roswrapper start')
 
     def __loop(self):
-        loop_time = 1
+        loop_time = 0.1
         last_t = 0
         loop_index = 0
         while self.running:
@@ -79,12 +81,13 @@ class PerceptionManager:
 
     def __get_info_from_dataset(self, index):
         if self.cfg.static_asset_path.endswith(('.pcd', '.yaml', '.json', '.txt')):
-            lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(self.cfg.static_asset_path)
+            file_path = self.cfg.static_asset_path
         else:
-            paths = sorted([os.path.join(self.cfg.static_asset_path, file_name)
-                            for file_name in os.listdir(self.cfg.static_asset_path) if file_name.endswith(('.pcd', '.yaml', '.json', '.txt'))])
-            lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(paths[index % len(paths)])
+            file_names = sorted([file_name for file_name in os.listdir(self.cfg.static_asset_path)
+                                 if file_name.endswith(('.pcd', '.json', '.txt'))])
+            file_path = os.path.join(self.cfg.static_asset_path, file_names[index % len(file_names)])
 
+        lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(file_path)
         perception_info = {'lidar_pose': lidar_pose,
                            'pcd': pcd}
 
@@ -94,8 +97,16 @@ class PerceptionManager:
         pcd = self.__retrieve_from_ros(loop_index)
         lidar_pose, speed, acceleration = get_psa_from_obu(self.cfg.obu_output_file_path)
 
+        if self.cfg.perception_hea_debug:
+            with open('./hea_debug.txt', 'r') as file:
+                hea = float(file.readline())
+                lidar_pose[5] = hea
+
         perception_info = {'lidar_pose': lidar_pose,
                            'pcd': pcd}
+
+        print(lidar_pose)
+
         return perception_info
 
     def __retrieve_from_ros(self, index):
@@ -114,26 +125,21 @@ class PerceptionManager:
         pcd = o3d.geometry.PointCloud()
 
         # o3d use right-hand coordinate
-        # if self.cfg.perception_debug:
-        #     processed_pcd[:, :1] = -processed_pcd[:, :1]
+        if self.cfg.perception_debug and self.cfg.perception_debug_data_from_OPV2V:
+            processed_pcd[:, :1] = -processed_pcd[:, :1]
 
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 
-        # origin_lidar_intcolor = color_encoding(origin_lidar[:, 2], mode='constant')
-        # pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
+        origin_lidar_intcolor = color_encoding(processed_pcd[:, 2], mode='constant')
+        pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
 
         self.vis.add_geometry(pcd)
 
         # 渲染场景
-        # self.vis.poll_events()
-        # self.vis.update_renderer()
+        self.vis.poll_events()
+        self.vis.update_renderer()
 
-        self.vis.run()
-
-        # save_path = 'vis.png'
-        # # 截图并保存
-        # self.vis.capture_screen_image(save_path)
-        # print(f"Saved visualization to {save_path}")
+        # self.vis.run()
 
     def close(self):
         self.running = False

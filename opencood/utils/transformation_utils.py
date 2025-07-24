@@ -152,11 +152,9 @@ def gps_to_enu(ref_gps, target_gps):
     e = dist * math.sin(azimuth_rad)  # 东向分量
     n = dist * math.cos(azimuth_rad)  # 北向分量
 
-    # 计算相对航向角（转换为ENU坐标系下的yaw）
-    # 航向角是相对于正北方向顺时针的角度
-    # ENU坐标系中yaw是相对于东方向逆时针的角度
-    rel_heading = (360.0 - (hea - hea_ref)) % 360.0
-    yaw = math.radians(rel_heading)  # 转换为数学标准
+    # 计算绝对航向角（在ENU坐标系中）
+    # 航向角0°(北) → 90°(东), 90°(东) → 0°, 180°(南) → -90°(西)
+    yaw = math.radians(90 - hea)
 
     return [e, n, du, 0, 0, yaw]
 
@@ -242,13 +240,15 @@ def gps_to_enu_transformation(x1_gps, x2_gps):
     """
     # 以x1为参考点建立ENU坐标系
     # x1在ENU坐标系中的位姿是原点
-    x1_pose = [0, 0, 0, 0, 0, 0]  # (e, n, u) = (0,0,0), yaw=0
+    # 计算绝对航向角（在ENU坐标系中）
+    # 航向角0°(北) → 90°(东), 90°(东) → 0°, 180°(南) → -90°(西)
+    x1_pose = [0, 0, 0, 0, 0, math.radians(90 - x1_gps[5])]  # (e, n, u) = (0,0,0), yaw=90-hea1
 
     # 计算x2相对于x1的ENU位姿
     x2_pose = gps_to_enu(x1_gps, x2_gps)
 
     # 转换为变换矩阵
-    x1_to_world = np.eye(4)
+    x1_to_world = pose_to_matrix(x1_pose)
     x2_to_world = pose_to_matrix(x2_pose)
 
     # 计算世界坐标系(ENU)到x2坐标系的逆变换

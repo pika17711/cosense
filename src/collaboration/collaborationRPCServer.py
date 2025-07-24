@@ -16,8 +16,8 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
         self.others_infos = others_infos
 
     def GetOthersInfos(self, request, context):  # 协同感知子系统向其他进程提供“获取所有他车信息”的服务
-        # others_infos = self.others_infos.get_infos()
-        others_infos = self.others_infos.pop_infos()
+        others_infos = self.others_infos.get_infos()
+        # others_infos = self.others_infos.pop_infos()
 
         others_infos_protobuf = {}
 
@@ -52,6 +52,22 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
             others_comm_masks[cav_id] = cav_comm_mask
 
         return Service_pb2.OthersCommMasks(others_comm_masks=others_comm_masks)
+
+    def GetOthersLidarPosesAndPCDs(self, request, context):
+        others_infos = self.others_infos.get_infos()
+        # others_infos = self.others_infos.pop_infos()
+
+        others_lidar_poses_and_pcds = {}
+
+        for cav_id, cav_info in others_infos.items():
+            cav_lidar_pose_and_pcd = Service_pb2.LidarPoseAndPCD(lidar_pose=np_to_protobuf(cav_info['lidar_pose']),
+                                                                 ts_lidar_pose=cav_info['ts_lidar_pose'],
+                                                                 pcd=np_to_protobuf(cav_info['pcd']),
+                                                                 ts_pcd=cav_info['ts_pcd'])
+
+            others_lidar_poses_and_pcds[cav_id] = cav_lidar_pose_and_pcd
+
+        return Service_pb2.LidarPosesAndPCDs(others_lidar_poses_and_pcds=others_lidar_poses_and_pcds)
 
 
 class CollaborationRPCServerThread:  # 协同感知子系统的Server线程

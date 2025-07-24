@@ -134,9 +134,10 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
     if isinstance(spatial_feature, np.ndarray):
         spatial_feature = torch.from_numpy(spatial_feature).to(device)
 
-    for comm_masked_feature in comm_masked_features:
-        for key, value in comm_masked_feature.items():
-            comm_masked_feature[key] = torch.from_numpy(value.copy()).to(device)
+    if comm_masked_features is not None:
+        for comm_masked_feature in comm_masked_features:
+            for key, value in comm_masked_feature.items():
+                comm_masked_feature[key] = torch.from_numpy(value.copy()).to(device)
 
     record_len = torch.tensor([spatial_feature.shape[0]], dtype=torch.int32).to(device)
     pairwise_t_matrix = torch.zeros((1, 5, 5, 4, 4), dtype=torch.float64).to(device)

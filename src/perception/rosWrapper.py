@@ -30,7 +30,7 @@ class ROSWrapper:
 
     def pointcloud_callback(self, ros_pcd: PointCloud2):
         try:
-            self.pcd_queue.append(ros_pcd) # deque
+            self.pcd_queue.append(ros_pcd)  # deque
         except Exception as e:
             logging.error(f"点云处理失败: {str(e)}")
 

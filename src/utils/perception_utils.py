@@ -66,8 +66,8 @@ def get_lidar_pose_and_pcd_from_dataset(file_path):
 
         lidar_pose = np.array(json_load['lidar_pose']) if 'lidar_pose' in json_load else None
         pcd = np.array(json_load['pcd']) if 'pcd' in json_load else None
-        # if isinstance(pcd, np.ndarray):
-        #     pcd[:, 3] = pcd[:, 3] / 255.0
+        if isinstance(pcd, np.ndarray):
+            pcd[:, 3] = pcd[:, 3] / 255.0
     elif file_type == 'txt':
         with open(file_path, 'rb') as file:
             binary_data = file.read()
@@ -75,8 +75,8 @@ def get_lidar_pose_and_pcd_from_dataset(file_path):
 
         lidar_pose = np.array(data_dict['lidar_pose']) if 'lidar_pose' in data_dict else None
         pcd = np.array(data_dict['pcd']) if 'pcd' in data_dict else None
-        # if isinstance(pcd, np.ndarray):
-        #     pcd[:, 3] = pcd[:, 3] / 255.0
+        if isinstance(pcd, np.ndarray):
+            pcd[:, 3] = pcd[:, 3] / 255.0
 
     return lidar_pose, pcd
 

@@ -84,8 +84,8 @@ class OthersInfos:
                 self.__update_info_dict(cav_id, cav_info)
 
     def update_infos_ctable(self):
-        # infos = self.__ctable.get_all_data()
-        infos = self.__ctable.pop_all_data()
+        infos = self.__ctable.get_all_data()
+        # infos = self.__ctable.pop_all_data()
 
         others_infos = {}
         for info in infos:
@@ -102,7 +102,9 @@ class OthersInfos:
                         'ts_a': info.ts_acc,
                         'feature': feature,
                         'ts_feature': info.ts_feat,
-                        'comm_mask': comm_mask}
+                        'comm_mask': comm_mask,
+                        'pcd': info.pcd,
+                        'ts_pcd': info.ts_pcd}
             others_infos[cav_id] = cav_info
 
         self.update_infos(others_infos)

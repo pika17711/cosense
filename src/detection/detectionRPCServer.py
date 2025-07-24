@@ -6,6 +6,7 @@ from concurrent import futures
 
 from rpc import Service_pb2_grpc
 from rpc import Service_pb2
+from appConfig import AppConfig
 from utils.sharedInfo import SharedInfo
 from utils.rpc_utils import np_to_protobuf, protobuf_to_np, protobuf_to_dict
 from utils.detection_utils import pcd_to_spatial_feature, lidar_poses_to_projected_spatial_features, \
@@ -14,8 +15,9 @@ from utils.detection_utils import pcd_to_spatial_feature, lidar_poses_to_project
 
 
 class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检测子系统的Service类
-    def __init__(self, shared_info: SharedInfo):
+    def __init__(self, cfg: AppConfig, shared_info: SharedInfo):
         super().__init__()
+        self.cfg = cfg
         self.shared_info = shared_info
 
     def GetCommMaskAndLidarPose(self, request, context):
@@ -117,7 +119,7 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
         my_lidar_pose = self.shared_info.get_lidar_pose_copy()
         my_pcd = self.shared_info.get_pcd_copy()
 
-        comm_masked_feature, comm_mask = request_map_to_comm_masked_feature(my_lidar_pose, my_pcd, lidar_pose, request_map, self.shared_info)
+        comm_masked_feature, comm_mask = request_map_to_comm_masked_feature(my_lidar_pose, my_pcd, lidar_pose, request_map, self.shared_info, gps=not self.cfg.perception_debug)
 
         return Service_pb2.CommMaskedFeature(comm_masked_feature=np_to_protobuf(comm_masked_feature),
                                              comm_mask=np_to_protobuf(comm_mask),
@@ -143,12 +145,13 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
 
 
 class DetectionServerThread:  # 融合检测子系统的Server线程
-    def __init__(self, shared_info):
+    def __init__(self, cfg: AppConfig, shared_info):
+        self.cfg = cfg
         self.shared_info = shared_info
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_DetectionServiceServicer_to_server(DetectionRPCService(self.shared_info), self.server)
+        Service_pb2_grpc.add_DetectionServiceServicer_to_server(DetectionRPCService(self.cfg, self.shared_info), self.server)
         self.stop_event = threading.Event()
         self.run_thread = threading.Thread(target=self.run, name='detection rpc server', daemon=True)
 

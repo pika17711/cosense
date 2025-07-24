@@ -12,6 +12,7 @@ service PerceptionService {                                             // 感�
 service CollaborationService {                                          // 协同感知子系统
     rpc GetOthersInfos (Empty) returns (OthersInfos);                 // 向其他进程提供“获取所有他车信息”的服务
     rpc GetOthersCommMasks (Empty) returns (OthersCommMasks);        // 向其他进程提供“获取所有他车协作图”的服务
+    rpc GetOthersLidarPosesAndPCDs (Empty) returns (LidarPosesAndPCDs);
 }
 
 service DetectionService {                                              // 融合检测子系统
@@ -84,6 +85,10 @@ message OthersInfos {                       // 所有他车信息
 
 message OthersCommMasks {                           // 所有他车协作图
     map<string, CommMask> others_comm_masks = 1;    // 所有他车协作图
+}
+
+message LidarPosesAndPCDs {
+    map<string, LidarPoseAndPCD> others_lidar_poses_and_pcds = 1;
 }
 
 message CommMaskAndLidarPose {

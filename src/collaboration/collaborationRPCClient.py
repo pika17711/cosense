@@ -56,3 +56,22 @@ class CollaborationRPCClient:  # 协同感知子系统的Client类，用于向�
         others_comm_masks = protobuf_to_dict(others_comm_masks_protobuf)
 
         return others_comm_masks
+
+    def get_others_lidar_poses_and_pcds(self):
+        if self.cfg.rpc_collaboration_client_debug:
+            return {'DEBUG': {'lidar_pose': np.ones((1, 3)),
+                              'ts_lidar_pose': 1,
+                              'pcd': np.ones((1, 3)),
+                              'ts_pcd': 1}}
+
+        try:
+            response = self.__collaboration_stub.GetOthersLidarPosesAndPCDs(Service_pb2.Empty(), timeout=10)  # 请求协同感知子系统并获得响应
+        except grpc.RpcError as e:  # 捕获grpc异常
+            logging.error(f"RPC get_others_comm_masks failed: code={e.code().name}")  # 记录grpc异常
+            return None
+
+        others_lidar_poses_and_pcds_protobuf = response.others_lidar_poses_and_pcds
+
+        others_lidar_poses_and_pcds = protobuf_to_dict(others_lidar_poses_and_pcds_protobuf)
+
+        return others_lidar_poses_and_pcds

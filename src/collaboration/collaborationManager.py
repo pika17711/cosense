@@ -15,7 +15,7 @@ from utils import InfoDTO
 from perception.perceptionRPCClient import PerceptionRPCClient
 from detection.detectionRPCClient import DetectionRPCClient
 
-from collaboration.coopMap import CoopMap
+from collaboration.coopMap import CoopMap, CoopMapType
 from collaboration.messageRouter import MessageRouter
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
@@ -173,25 +173,30 @@ class CollaborationManager:
     def get_all_data(self, coopmap: CoopMap):
         lidar_pose, ts_lidar_pose, velocity, ts_v, acceleration, ts_a = self.perception_client.get_my_pva()
         # my_extrinsic_matrix, ts_extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
-        lidar_poses = {'other': {'lidar_pose': coopmap.lidar_pose, 'ts_lidar_pose': int(time.time())}}
-        projected_spatial_feature = self.detection_client.lidar_poses_to_projected_spatial_features(lidar_poses)
-        feat = projected_spatial_feature['other']['feature']
-        ts3 = projected_spatial_feature['other']['ts_feature']
+        # lidar_poses = {'other': {'lidar_pose': coopmap.lidar_pose, 'ts_lidar_pose': int(time.time())}}
+        # projected_spatial_feature = self.detection_client.lidar_poses_to_projected_spatial_features(lidar_poses)
+        comm_masked_feature, comm_mask, ts_feature = self.detection_client.request_map_to_projected_comm_masked_feature(
+            coopmap.lidar_pose, coopmap.map, int(time.time()))
+
+        pcd = self.perception_client.get_my_pcd()
+        ts_pcd = int(time.time())
+
         infodto = InfoDTO.InfoDTO(type=1,
                                   id=self.cfg.id,
                                   lidar2world=None,
                                   camera2world=None,
                                   camera_intrinsic=None,
-                                  feat=feat,
-                                  ts_feat=ts3,
+                                  feat={'spatial_feature': comm_masked_feature,
+                                        'comm_mask': comm_mask},
+                                  ts_feat=ts_feature,
                                   speed=velocity,
                                   ts_speed=ts_v,
                                   lidar_pos=lidar_pose,
                                   ts_lidar_pos=ts_lidar_pose,
                                   acc=acceleration,
                                   ts_acc=ts_a,
-                                  pcd=None,
-                                  ts_pcd=None)
+                                  pcd=pcd,
+                                  ts_pcd=ts_pcd)
         data = InfoDTO.InfoDTOSerializer.serialize(infodto)
         # data = InfoDTO.InfoDTOSerializer.serialize_to_str(infodto)
         return data
@@ -204,6 +209,8 @@ class CollaborationManager:
             if len(subeds) > 0:
                 for cctx in subeds:
                     coopmap = self.ctable.get_coopmap(cctx.remote_id())
+                    if self.cfg.collaboration_request_map_debug:
+                        coopmap.map[:] = 1
                     data = self.get_all_data(coopmap)
                     self.executor.submit(self.collaboration_service.send_data, cctx, data)
                     self.executor.submit(self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid))
