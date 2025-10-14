@@ -227,7 +227,7 @@ class TestICPServer:
     def subMessage(self,
                    tid:int =0,
                    oid:str = "",
-                   did:List[str] = [], 
+                   did: List[str] = [],
                    topic:int = 0,
                    act:int = 0,
                    context:str = "",
@@ -358,7 +358,7 @@ class TestICPServer:
 
     def streamSend(self,
                    sid:str = "",
-                   data:str = "" 
+                   data:str = ""
                    ):
         """
         流发送
@@ -373,7 +373,7 @@ class TestICPServer:
             "app_id": self.app_id,
             "msg":{
                 "sid": sid,
-                "data": data 
+                "data": data
             }
         }
         self.send(message)

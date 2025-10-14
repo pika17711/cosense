@@ -64,12 +64,37 @@ class PerceptionRPCClient:                                 # 感知子系统的C
         lidar_pose = protobuf_to_np(response.lidar_pose)
         ts_lidar_pose = response.ts_lidar_pose
         # 自车的速度
-        velocity = protobuf_to_np(response.velocity)
-        ts_v = response.ts_v
+        speed = protobuf_to_np(response.speed)
+        ts_spd = response.ts_spd
         # 自车的加速度
         acceleration = protobuf_to_np(response.acceleration)
-        ts_a = response.ts_a
-        return lidar_pose, ts_lidar_pose, velocity, ts_v, acceleration, ts_a
+        ts_acc = response.ts_acc
+        return lidar_pose, ts_lidar_pose, speed, ts_spd, acceleration, ts_acc
+
+    def get_perception_info(self):
+        if self.cfg.rpc_perception_client_debug:
+            return np.ones((1, 6)), 0, np.ones((1, )), 0, np.ones((1, )), 0, np.ones((1, 3)), 0
+
+        try:
+            response = self.__perception_stub.GetPerceptionInfo(Service_pb2.Empty(), timeout=5)  # 请求感知子系统并获得响应
+        except grpc.RpcError as e:  # 捕获grpc异常
+            logging.error(f"RPC get_perception_info failed: code={e.code()}")  # 记录grpc异常
+            return None, None, None, None, None, None, None, None
+
+        # 自车的位置
+        lidar_pose = protobuf_to_np(response.lidar_pose)
+        ts_lidar_pose = response.ts_lidar_pose
+        # 自车的速度
+        speed = protobuf_to_np(response.speed)
+        ts_spd = response.ts_spd
+        # 自车的加速度
+        acceleration = protobuf_to_np(response.acceleration)
+        ts_acc = response.ts_acc
+        # 自车点云
+        my_pcd = protobuf_to_np(response.pcd).copy()
+        ts_pcd = response.ts_pcd  # 时间戳
+
+        return lidar_pose, ts_lidar_pose, speed, ts_spd, acceleration, ts_acc, my_pcd, ts_pcd
 
     def get_my_extrinsic_matrix(self):  # 从感知子系统获取自车外参矩阵
         if self.cfg.rpc_perception_client_debug:

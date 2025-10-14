@@ -48,6 +48,7 @@ class CollaborationManager:
         self.broadcastpub_event = threading.Event()
         self.broadcastsub_event = threading.Event()
         self.subscribed_send_event = threading.Event()
+        self.subscribing_update_event = threading.Event()
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self.running = True
 
@@ -57,10 +58,13 @@ class CollaborationManager:
 
         self.subscribed_send_loop_thread = threading.Thread(target=self.subscribed_send_loop, name='subscribed_send_loop', daemon=True)
 
+        self.subscribing_update_loop_thread = threading.Thread(target=self.subscribing_update_loop, name='subscribing_update_loop', daemon=True)
+
     def start_send_loop(self):
         self.broadcastpub_loop_thread.start()
         self.broadcastsub_loop_thread.start()
         self.subscribed_send_loop_thread.start()
+        self.subscribing_update_loop_thread.start()
 
 
     def close(self):
@@ -75,6 +79,9 @@ class CollaborationManager:
         if self.subscribed_send_loop_thread.is_alive():
             self.subscribed_send_event.set()
             self.subscribed_send_loop_thread.join(self.cfg.close_timeout)
+        if self.subscribing_update_loop_thread.is_alive():
+            self.subscribing_update_event.set()
+            self.subscribing_update_loop_thread.join(self.cfg.close_timeout)
 
 
     def handle_command(self, argv):
@@ -115,7 +122,7 @@ class CollaborationManager:
             else:
                 print('syntax error')
         elif len(argv) == 2 and argv[0] == 'subscribe':
-            self.collaboration_service.subscribe_send(argv[2], SubscribeAct.ACK)
+            self.collaboration_service.subscribe_send(argv[1], SubscribeAct.ACKUPD)
             print('ok')
         elif len(argv) == 2 and argv[0] == 'disconnect':
             self.collaboration_service.disconnect(argv[1])
@@ -171,15 +178,27 @@ class CollaborationManager:
                 self.broadcastsub_event.wait()
 
     def get_all_data(self, coopmap: CoopMap):
-        lidar_pose, ts_lidar_pose, velocity, ts_v, acceleration, ts_a = self.perception_client.get_my_pva()
+        lidar_pose, ts_lidar_pose, speed, ts_spd, acceleration, ts_acc = self.perception_client.get_my_pva()
         # my_extrinsic_matrix, ts_extrinsic_matrix = self.perception_client.get_my_extrinsic_matrix()
         # lidar_poses = {'other': {'lidar_pose': coopmap.lidar_pose, 'ts_lidar_pose': int(time.time())}}
         # projected_spatial_feature = self.detection_client.lidar_poses_to_projected_spatial_features(lidar_poses)
         comm_masked_feature, comm_mask, ts_feature = self.detection_client.request_map_to_projected_comm_masked_feature(
             coopmap.lidar_pose, coopmap.map, int(time.time()))
 
-        pcd = self.perception_client.get_my_pcd()
-        ts_pcd = int(time.time())
+        if comm_masked_feature is None:
+            return None
+
+        # TODO:
+        comm_mask = comm_mask.copy().astype(np.int8)
+        packed_comm_mask = np.packbits(comm_mask, axis=-1)
+        binary_comm_mask = packed_comm_mask.tobytes()
+
+
+        if self.cfg.collaboration_pcd_debug:
+            pcd, ts_pcd = self.perception_client.get_my_pcd()
+        else:
+            pcd = None
+            ts_pcd = None
 
         infodto = InfoDTO.InfoDTO(type=1,
                                   id=self.cfg.id,
@@ -187,14 +206,14 @@ class CollaborationManager:
                                   camera2world=None,
                                   camera_intrinsic=None,
                                   feat={'spatial_feature': comm_masked_feature,
-                                        'comm_mask': comm_mask},
+                                        'comm_mask': binary_comm_mask},
                                   ts_feat=ts_feature,
-                                  speed=velocity,
-                                  ts_speed=ts_v,
+                                  speed=speed,
+                                  ts_spd=ts_spd,
                                   lidar_pos=lidar_pose,
                                   ts_lidar_pos=ts_lidar_pose,
                                   acc=acceleration,
-                                  ts_acc=ts_a,
+                                  ts_acc=ts_acc,
                                   pcd=pcd,
                                   ts_pcd=ts_pcd)
         data = InfoDTO.InfoDTOSerializer.serialize(infodto)
@@ -205,15 +224,34 @@ class CollaborationManager:
         logging.info("订阅者数据发送循环启动")
         while self.running:
             subeds = self.ctable.get_subscribed()
-            logging.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
             if len(subeds) > 0:
+                logging.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
                 for cctx in subeds:
                     coopmap = self.ctable.get_coopmap(cctx.remote_id())
+                    if self.cfg.collaboration_no_coopmap_debug:
+                        coopmap.map = np.ones((1, 1, 48, 176), dtype=np.float32)
                     if self.cfg.collaboration_request_map_debug:
                         coopmap.map[:] = 1
                     data = self.get_all_data(coopmap)
-                    self.executor.submit(self.collaboration_service.send_data, cctx, data)
-                    self.executor.submit(self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid))
+                    if data is not None:
+                        self.executor.submit(self.collaboration_service.send_data, cctx, data)
+                    else:
+                        logging.info(f'data is None, 取消对订阅者{cctx.remote_id()}的发送')
+                    # self.executor.submit(self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid))
             self.subscribed_send_event.wait(ms2s(self.cfg.send_data_period))
             if self.subscribed_send_event.is_set():
+                break
+
+    def subscribing_update_loop(self):
+        logging.info("被订阅者数据更新循环启动")
+        while self.running:
+            subings = self.ctable.get_subscribing()
+            if len(subings) > 0:
+                logging.info(f"被订阅者数据更新, 被订阅者列表{[cctx.remote_id() for cctx in subings]}")
+                for cctx in subings:
+                    with cctx.lock:
+                        self.collaboration_service.subscribe_send(cctx, SubscribeAct.ACKUPD)
+                        # self.collaboration_service.cctx_to_waitnty(cctx)
+            self.subscribing_update_event.wait(ms2s(self.cfg.update_data_period))
+            if self.subscribing_update_event.is_set():
                 break

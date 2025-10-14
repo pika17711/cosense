@@ -8,10 +8,10 @@ from opencood.utils import box_utils
 from opencood.tools import train_utils
 
 
-def process_pcd(pcd, hypes):        # 对pcd点云数据进行预处理
+def process_pcd(pcd, hypes):  # 对pcd点云数据进行预处理
     # pcd = shuffle_points(pcd)                 # 打乱数据
     # pcd = mask_ego_points(pcd)      # 去除打在自车上的点云
-    processed_pcd = mask_points_by_range(pcd, hypes['preprocess']['cav_lidar_range']) # 去除指定范围外的点云
+    processed_pcd = mask_points_by_range(pcd, hypes['preprocess']['cav_lidar_range'])  # 去除指定范围外的点云
     return processed_pcd
 
 
@@ -63,6 +63,7 @@ def voxel_to_spatial_feature(voxel, shared_info):
 
 def processed_pcd_to_spatial_feature(processed_pcd, shared_info):
     voxel = processed_pcd_to_voxel(processed_pcd, shared_info)
+    # print(voxel)
     spatial_feature_tensor = voxel_to_spatial_feature(voxel, shared_info)
     spatial_feature = spatial_feature_tensor.cpu().data.numpy()
     return spatial_feature
@@ -102,18 +103,20 @@ def spatial_feature_to_comm_masked_feature(spatial_feature, shared_info, request
 
             if model.multi_scale:
                 # Bypass communication cost, communicate at high resolution, neither shrink nor compress
-                comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(spatial_feature,
-                                                                      psm_single,
-                                                                      record_len,
-                                                                      pairwise_t_matrix,
-                                                                      model.backbone,
-                                                                      request_map=request_map)
+                comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(
+                    spatial_feature,
+                    psm_single,
+                    record_len,
+                    pairwise_t_matrix,
+                    model.backbone,
+                    request_map=request_map)
             else:
-                comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(spatial_features_2d,
-                                                                      psm_single,
-                                                                      record_len,
-                                                                      pairwise_t_matrix,
-                                                                      request_map=request_map)
+                comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(
+                    spatial_features_2d,
+                    psm_single,
+                    record_len,
+                    pairwise_t_matrix,
+                    request_map=request_map)
     if comm_masked_feature_tensor is not None:
         comm_masked_feature = comm_masked_feature_tensor.cpu().data.numpy()
     else:
@@ -139,8 +142,8 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
             for key, value in comm_masked_feature.items():
                 comm_masked_feature[key] = torch.from_numpy(value.copy()).to(device)
 
-    record_len = torch.tensor([spatial_feature.shape[0]], dtype=torch.int32).to(device)
-    pairwise_t_matrix = torch.zeros((1, 5, 5, 4, 4), dtype=torch.float64).to(device)
+    # record_len = torch.tensor([spatial_feature.shape[0]], dtype=torch.int32).to(device)
+    # pairwise_t_matrix = torch.zeros((1, 5, 5, 4, 4), dtype=torch.float64).to(device)
 
     with shared_info.model_lock:
         with torch.no_grad():
@@ -157,20 +160,21 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
 
             if model.multi_scale:
                 # Bypass communication cost, communicate at high resolution, neither shrink nor compress
-                fused_feature, communication_rates, ego_comm_mask_tensor = model.fusion_net(spatial_feature,
-                                                                                     psm_single,
-                                                                                     record_len,
-                                                                                     pairwise_t_matrix,
-                                                                                     model.backbone,
-                                                                                     comm_masked_features)
+                fused_feature, communication_rates, ego_comm_mask_tensor, ego_feature = model.fusion_net(spatial_feature,
+                                                                                            psm_single,
+                                                                                            # record_len,
+                                                                                            # pairwise_t_matrix,
+                                                                                            model.backbone,
+                                                                                            comm_masked_features)
                 if model.shrink_flag:
                     fused_feature = model.shrink_conv(fused_feature)
+                    ego_feature = model.shrink_conv(ego_feature)
             else:
                 fused_feature, communication_rates, ego_comm_mask_tensor = model.fusion_net(spatial_features_2d,
-                                                                                     psm_single,
-                                                                                     record_len,
-                                                                                     pairwise_t_matrix,
-                                                                                     comm_masked_features)
+                                                                                            psm_single,
+                                                                                            # record_len,
+                                                                                            # pairwise_t_matrix,
+                                                                                            comm_masked_features)
 
             psm = model.cls_head(fused_feature)
             rm = model.reg_head(fused_feature)
@@ -180,23 +184,25 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
     conf_map = conf_map_tensor
 
     ego_comm_mask = ego_comm_mask_tensor.cpu().data.numpy()
+    fused_feature = fused_feature.cpu().data.numpy()
+    ego_feature = ego_feature.cpu().data.numpy()
 
-    return output_dict, ego_comm_mask, conf_map
+    return output_dict, ego_comm_mask, conf_map, fused_feature, ego_feature
 
 
 def spatial_feature_to_conf_map(spatial_feature, shared_info):  # 根据特征获取置信图
-    _, _, conf_map = process_spatial_feature(spatial_feature, shared_info)
+    _, _, conf_map, _, _ = process_spatial_feature(spatial_feature, shared_info)
     return conf_map
 
 
 def spatial_feature_to_comm_mask(spatial_feature, shared_info):  # 根据特征获取置信图
-    _, comm_mask, _ = process_spatial_feature(spatial_feature, shared_info)
+    _, comm_mask, _, _, _ = process_spatial_feature(spatial_feature, shared_info)
     return comm_mask
 
 
-def spatial_feature_to_pred_box(spatial_feature, shared_info, comm_masked_features=None):      # 根据特征获取检测框
+def spatial_feature_to_pred_box(spatial_feature, shared_info, comm_masked_features=None):  # 根据特征获取检测框
     output_dict = OrderedDict()
-    output_dict['ego'], ego_comm_mask, _ = process_spatial_feature(spatial_feature, shared_info, comm_masked_features)
+    output_dict['ego'], ego_comm_mask, _, fused_feature, ego_feature = process_spatial_feature(spatial_feature, shared_info, comm_masked_features)
 
     device = shared_info.get_device()
     post_processor = shared_info.get_post_processor()
@@ -223,7 +229,7 @@ def spatial_feature_to_pred_box(spatial_feature, shared_info, comm_masked_featur
     else:
         pred_box = np.array([])
 
-    return pred_box, ego_comm_mask
+    return pred_box, ego_comm_mask, fused_feature, ego_feature
 
 
 def voxel_to_conf_map(voxel, shared_info):  # 根据特征获取置信图
@@ -232,9 +238,9 @@ def voxel_to_conf_map(voxel, shared_info):  # 根据特征获取置信图
     return conf_map
 
 
-def voxel_to_pred_box(voxel, shared_info):      # 根据特征获取检测框
+def voxel_to_pred_box(voxel, shared_info):  # 根据特征获取检测框
     spatial_feature = voxel_to_spatial_feature(voxel, shared_info)
-    pred_box, _ = spatial_feature_to_pred_box(spatial_feature, shared_info)
+    pred_box, _, _, _ = spatial_feature_to_pred_box(spatial_feature, shared_info)
 
     return pred_box
 
@@ -282,6 +288,7 @@ def lidar_poses_to_projected_voxel(my_lidar_pose, my_pcd, lidar_poses, shared_in
     }
     return projected_voxels
 
+
 def lidar_pose_to_projected_spatial_feature(my_lidar_pose, my_pcd, lidar_pose, shared_info, gps=False):
     hypes = shared_info.get_hypes()
 
@@ -290,20 +297,30 @@ def lidar_pose_to_projected_spatial_feature(my_lidar_pose, my_pcd, lidar_pose, s
 
     return projected_spatial_feature
 
+def lidar_pose_to_projected_comm_mask(my_lidar_pose, my_pcd, lidar_pose, shared_info, gps=False):
+    projected_spatial_feature = lidar_pose_to_projected_spatial_feature(my_lidar_pose, my_pcd, lidar_pose, shared_info, gps)
+
+    projected_comm_mask = spatial_feature_to_comm_mask(projected_spatial_feature, shared_info)
+    return projected_comm_mask
+
 def lidar_poses_to_projected_spatial_features(my_lidar_pose, my_pcd, lidar_poses, shared_info, gps=False):
     hypes = shared_info.get_hypes()
 
     projected_spatial_features = {}
     for cav_id, lidar_pose in lidar_poses.items():
-        projected_spatial_feature = lidar_pose_to_projected_spatial_feature(my_lidar_pose, my_pcd, lidar_pose['lidar_pose'], shared_info, gps)
+        projected_spatial_feature = lidar_pose_to_projected_spatial_feature(my_lidar_pose, my_pcd,
+                                                                            lidar_pose['lidar_pose'], shared_info, gps)
         projected_spatial_features[cav_id] = {'feature': projected_spatial_feature,
                                               'ts_feature': lidar_pose['ts_lidar_pose']}
     return projected_spatial_features
 
 
-def request_map_to_comm_masked_feature(my_lidar_pose, my_pcd, target_lidar_pose, target_request_map, shared_info, gps=False):
-    projected_spatial_feature = lidar_pose_to_projected_spatial_feature(my_lidar_pose, my_pcd, target_lidar_pose, shared_info, gps)
-    comm_masked_feature, comm_mask = spatial_feature_to_comm_masked_feature(projected_spatial_feature, shared_info, target_request_map)
+def request_map_to_comm_masked_feature(my_lidar_pose, my_pcd, target_lidar_pose, target_request_map, shared_info,
+                                       gps=False):
+    projected_spatial_feature = lidar_pose_to_projected_spatial_feature(my_lidar_pose, my_pcd, target_lidar_pose,
+                                                                        shared_info, gps)
+    comm_masked_feature, comm_mask = spatial_feature_to_comm_masked_feature(projected_spatial_feature, shared_info,
+                                                                            target_request_map)
     return comm_masked_feature, comm_mask
 
 
@@ -364,3 +381,47 @@ def fuse_spatial_feature(my_spatial_feature, spatial_features):
     spatial_features.insert(0, my_spatial_feature)
     fused_spatial_feature = np.vstack(spatial_features)
     return fused_spatial_feature
+
+
+def get_grid_map(x_range=(-140.8, 140.8), y_range=(-38.4, 38.4), z=-3.0, grid_size=6.4):
+    """
+        在 z 平面绘制一个网格。
+
+        Args:
+            x_range (tuple): (x_min, x_max)
+            y_range (tuple): (y_min, y_max)
+            z(float): 网格高度
+            grid_size (float): 每个网格的边长
+        """
+    lines = []
+    points = []
+
+    x_min, x_max = x_range
+    y_min, y_max = y_range
+
+    # 垂直线
+    x_coords = np.arange(x_min, x_max + grid_size, grid_size)
+    for x in x_coords:
+        p1 = [x, y_min, z]
+        p2 = [x, y_max, z]
+        points.extend([p1, p2])
+        lines.append([len(points) - 2, len(points) - 1])
+
+    # 水平线
+    y_coords = np.arange(y_min, y_max + grid_size, grid_size)
+    for y in y_coords:
+        p1 = [x_min, y, z]
+        p2 = [x_max, y, z]
+        points.extend([p1, p2])
+        lines.append([len(points) - 2, len(points) - 1])
+
+    colors = [[0.5, 0.5, 0.5] for _ in range(len(lines))]  # 灰色线条
+
+    import open3d as o3d
+
+    line_set = o3d.geometry.LineSet(
+        points=o3d.utility.Vector3dVector(points),
+        lines=o3d.utility.Vector2iVector(lines),
+    )
+    line_set.colors = o3d.utility.Vector3dVector(colors)
+    return line_set

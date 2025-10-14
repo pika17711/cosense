@@ -6,6 +6,7 @@ import json
 import os
 import re
 import yaml
+import base64
 import logging
 from typing import List, Optional, Any, Tuple, Type, TypeVar, Union
 import traceback
@@ -153,6 +154,14 @@ def string_to_32_hex(input_string):
     md5_hash.update(input_string.encode('utf-8'))
     # 获取十六进制的哈希值
     return md5_hash.hexdigest()
+
+
+def base64_encode(binary_data: bytes, encoding='utf-8') -> str:
+    return base64.b64encode(binary_data).decode(encoding)
+
+
+def base64_decode(str_data: str, encoding='utf-8') -> bytes:
+    return base64.b64decode(str_data.encode(encoding))
 
 
 def project_points_by_matrix_numpy(points, transformation_matrix):
@@ -344,3 +353,15 @@ def calculate_confidence_map_overlap(
         return 0.0
     
     return overlap / total
+
+
+def calculate_matrix_overlap(matrix1: np.ndarray, matrix2: np.ndarray) -> float:
+    if matrix1.shape != matrix2.shape:
+        return -1.0
+
+    overlap_elements = (matrix1 == matrix2)
+    num_overlap = np.sum(overlap_elements)
+    total_elements = matrix1.size
+    overlap_ratio = num_overlap / total_elements
+
+    return overlap_ratio

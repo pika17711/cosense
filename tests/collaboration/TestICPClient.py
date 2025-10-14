@@ -31,7 +31,7 @@ class TestICPClient:
         raw_message_str = ""
         parsed_message_dict = None
         try:
-            raw_message_str = self.socket.recv_string()
+            raw_message_str = self.socket.recv_multipart()[-1].decode('utf-8')
         except zmq.error.ZMQError as e:
             if e.errno == zmq.EAGAIN:
                 logging.debug("ZMQ recv_string would block (EAGAIN). No message.")
@@ -48,15 +48,15 @@ class TestICPClient:
 
             # --- 开始解码 coopMap ---
             if isinstance(parsed_message_dict, dict) and "msg" in parsed_message_dict and \
-               isinstance(parsed_message_dict["msg"], dict) and "coopmap" in parsed_message_dict["msg"]:
+               isinstance(parsed_message_dict["msg"], dict) and "coopMap" in parsed_message_dict["msg"]:
                 
-                coopMap_str = parsed_message_dict["msg"]["coopmap"]
+                coopMap_str = parsed_message_dict["msg"]["coopMap"]
                 if isinstance(coopMap_str, str) and coopMap_str:
                     try:
                         base64_encoded_bytes = coopMap_str.encode('utf-8')
                         original_coopMap_bytes = base64.b64decode(base64_encoded_bytes)
                         
-                        parsed_message_dict["msg"]["coopmap"] = original_coopMap_bytes 
+                        parsed_message_dict["msg"]["coopMap"] = original_coopMap_bytes
                         logging.info(f"Successfully decoded 'coopMap' field.")
                     except base64.binascii.Error as b64_err:
                         logging.error(f"Failed to Base64 decode 'coopMap' string ('{coopMap_str}'): {b64_err}. Keeping as string.")

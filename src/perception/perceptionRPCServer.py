@@ -36,20 +36,39 @@ class PerceptionRPCService(Service_pb2_grpc.PerceptionServiceServicer):  # 感�
     def GetMyPVA(self, request, context):  # 感知子系统向其他进程提供“获取自车位置、速度、加速度信息”的服务
         lidar_pose = self.my_info.get_lidar_pose_copy()
         ts_lidar_pose = int(time.time())
-        # velocity = self.my_info.get_velocity_copy()
-        velocity = self.my_info.get_speed_copy()
-        velocity = np.array(velocity if velocity is not None else -1)
-        ts_v = ts_lidar_pose
+        speed = self.my_info.get_speed_copy()
+        speed = np.array(speed if speed is not None else -1)
+        ts_spd = ts_lidar_pose
         acceleration = self.my_info.get_acceleration_copy()
         acceleration = np.array(acceleration if acceleration is not None else -1)
-        ts_a = ts_lidar_pose
+        ts_acc = ts_lidar_pose
 
         return Service_pb2.PVA(lidar_pose=np_to_protobuf(lidar_pose),
                                ts_lidar_pose=ts_lidar_pose,
-                               velocity=np_to_protobuf(velocity),
-                               ts_v=ts_v,
+                               speed=np_to_protobuf(speed),
+                               ts_spd=ts_spd,
                                acceleration=np_to_protobuf(acceleration),
-                               ts_a=ts_a)
+                               ts_acc=ts_acc)
+
+    def GetPerceptionInfo(self, request, context):
+        lidar_pose = self.my_info.get_lidar_pose_copy()
+        ts_lidar_pose = int(time.time())
+        speed = self.my_info.get_speed_copy()
+        ts_spd = ts_lidar_pose
+        acceleration = self.my_info.get_acceleration_copy()
+        ts_acc = ts_lidar_pose
+        my_pcd = self.my_info.get_pcd_copy()
+        ts_pcd = int(time.time())  # 时间戳
+
+        return Service_pb2.PerceptionInfo(lidar_pose=np_to_protobuf(lidar_pose),
+                                          ts_lidar_pose=ts_lidar_pose,
+                                          speed=np_to_protobuf(speed),
+                                          ts_spd=ts_spd,
+                                          acceleration=np_to_protobuf(acceleration),
+                                          ts_acc=ts_acc,
+                                          pcd=np_to_protobuf(my_pcd),
+                                          ts_pcd=ts_pcd
+                                          )
 
     def GetMyExtrinsicMatrix(self, request, context):  # 感知子系统向其他进程提供“获取自车外参矩阵”的服务
         my_extrinsic_matrix = self.my_info.get_extrinsic_matrix_copy()

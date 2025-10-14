@@ -16,28 +16,33 @@ class OthersInfos:
         def __init__(self):
             self.__info = {'lidar_pose': np.array([]),
                            'ts_lidar_pose': -1,
-                           'velocity': np.array([]),
-                           'ts_v': -1,
+                           'speed': np.array([]),
+                           'ts_spd': -1,
                            'acceleration': np.array([]),
-                           'ts_a': -1,
+                           'ts_acc': -1,
                            'feature': np.array([]),
                            'ts_feature': -1,
                            'comm_mask': np.array([]),
-                           'ts_comm_mask': -1}
+                           'ts_comm_mask': -1,
+                           'pcd': np.array([]),
+                           'ts_pcd': -1}
 
-        def update_info(self, lidar_pose=None, ts_lidar_pose=None, velocity=None, ts_v=None,
-                        acceleration=None, ts_a=None, feature=None, ts_feature=None, comm_mask=None, ts_comm_mask=None):
+        def update_info(self, lidar_pose=None, ts_lidar_pose=None, speed=None, ts_spd=None,
+                        acceleration=None, ts_acc=None, feature=None, ts_feature=None, comm_mask=None, ts_comm_mask=None,
+                        pcd=None, ts_pcd=None):
             cav_info = {
                 'lidar_pose': lidar_pose,
                 'ts_lidar_pose': ts_lidar_pose,
-                'velocity': velocity,
-                'ts_v': ts_v,
+                'speed': speed,
+                'ts_spd': ts_spd,
                 'acceleration': acceleration,
-                'ts_a': ts_a,
+                'ts_acc': ts_acc,
                 'feature': feature,
                 'ts_feature': ts_feature,
                 'comm_mask': comm_mask,
                 'ts_comm_mask': ts_comm_mask,
+                'pcd': pcd,
+                'ts_pcd': ts_pcd
             }
 
             self.update_info_dict(cav_info)
@@ -52,8 +57,9 @@ class OthersInfos:
             info_copy = self.__info.copy()
             return info_copy
 
-    def __update_info(self, cav_id=None, lidar_pose=None, ts_lidar_pose=None, velocity=None, ts_v=None,
-                      acceleration=None, ts_a=None, feature=None, ts_feature=None, comm_mask=None, ts_comm_mask=None):
+    def __update_info(self, cav_id=None, lidar_pose=None, ts_lidar_pose=None, speed=None, ts_spd=None,
+                      acceleration=None, ts_acc=None, feature=None, ts_feature=None, comm_mask=None, ts_comm_mask=None,
+                      pcd=None, ts_pcd=None):
         if cav_id is None:
             return
         with self.__lock:
@@ -61,10 +67,11 @@ class OthersInfos:
                 self.__others_infos[cav_id] = self.__CAVInfo()
 
             self.__others_infos[cav_id].update_info(lidar_pose=lidar_pose, ts_lidar_pose=ts_lidar_pose,
-                                                    velocity=velocity, ts_v=ts_v,
-                                                    acceleration=acceleration, ts_a=ts_a,
+                                                    speed=speed, ts_spd=ts_spd,
+                                                    acceleration=acceleration, ts_acc=ts_acc,
                                                     feature=feature, ts_feature=ts_feature,
-                                                    comm_mask=comm_mask, ts_comm_mask=ts_comm_mask)
+                                                    comm_mask=comm_mask, ts_comm_mask=ts_comm_mask,
+                                                    pcd=pcd, ts_pcd=ts_pcd)
 
     def __update_info_dict(self, cav_id=None, cav_info=None):
         if cav_id is None or cav_info is None:
@@ -96,10 +103,10 @@ class OthersInfos:
 
             cav_info = {'lidar_pose': info.lidar_pos,
                         'ts_lidar_pose': info.ts_lidar_pos,
-                        'velocity': info.speed,
-                        'ts_v': info.ts_speed,
+                        'speed': info.speed,
+                        'ts_spd': info.ts_spd,
                         'acceleration': info.acc,
-                        'ts_a': info.ts_acc,
+                        'ts_acc': info.ts_acc,
                         'feature': feature,
                         'ts_feature': info.ts_feat,
                         'comm_mask': comm_mask,

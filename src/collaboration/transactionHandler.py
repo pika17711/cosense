@@ -142,70 +142,70 @@ class transactionHandler:
         self.submit(
             lambda: self.appreg_handler(CapID, CapVersion, CapConfig, act))
 
-    def brocastpub_handler(self, oid: appType.id_t, topic: str, coopMap: bytes, coopMapType: int):
+    def brocastpub_handler(self, cseq: int, oid: str, topic: str, payload: List):
         self.transaction_message_handler(
-            lambda tid: self.icp_server.brocastPub(tid, oid, topic, coopMap, coopMapType), 'BROCASTPUB')
+            lambda tid: self.icp_server.brocastPub(cseq, tid, oid, topic, payload), 'BROCASTPUB')
 
-    def brocastpub(self, oid: appType.id_t, topic: str, coopMap: bytes, coopMapType: int):
+    def brocastpub(self, cseq: int, oid: str, topic: str, payload: List):
         self.submit(
-            lambda: self.brocastpub_handler(oid, topic, coopMap, coopMapType))
+            lambda: self.brocastpub_handler(cseq, oid, topic, payload))
 
-    def brocastsub_handler(self, oid: appType.id_t, topic: str, context: str, coopMap: bytes,
-                         coopMapType: int, bearCap: int):
+    def brocastsub_handler(self, oid: appType.id_t, topic: str, context: str, cseq: int, payload: List):
         self.transaction_message_handler(
-            lambda tid: self.icp_server.brocastSub(tid, oid, topic, context, coopMap, coopMapType, bearCap),
-            'BROADCASTSUB')
+            lambda tid: self.icp_server.brocastSub(tid, oid, topic, context, cseq, payload), 'BROADCASTSUB')
 
-    def brocastsub(self, oid: appType.id_t, topic: str, context: str, coopMap: bytes,
-                  coopMapType: int, bearCap: int):
+    def brocastsub(self, oid: appType.id_t, topic: str, context: str, cseq: int, payload: List):
         self.submit(
-            lambda: self.brocastsub_handler(oid, topic, context, coopMap, coopMapType, bearCap))
+            lambda: self.brocastsub_handler(oid, topic, context, cseq, payload))
 
-    def brocastsubnty_handler(self, oid: appType.id_t, did: appType.id_t, topic: str, context: str,
-                           coopMap: bytes, coopMapType: int, bearcap: int):
+    # def brocastsubnty_handler(self, oid: appType.id_t, did: appType.id_t, topic: str, context: str,
+    #                        coopMap: bytes, coopMapType: int, bearcap: int):
+    #     self.transaction_message_handler(
+    #         lambda tid: self.icp_server.brocastSubnty(tid, oid, did, topic, context, coopMap, coopMapType,
+    #                                                 bearcap), 'BROCASTSUBNTY')
+    #
+    # def brocastsubnty(self, oid: appType.id_t, did: appType.id_t, topic: str, context: str,
+    #                 coopMap: bytes, coopMapType: int, bearcap: int):
+    #     self.submit(
+    #         lambda: self.brocastsubnty_handler(oid, did, topic, context, coopMap, coopMapType, bearcap))
+
+    def publish_handler(self, oid: appType.id_t, did: str, topic: str, context: str, cseq: int, act: int, payload: List):
         self.transaction_message_handler(
-            lambda tid: self.icp_server.brocastSubnty(tid, oid, did, topic, context, coopMap, coopMapType,
-                                                    bearcap), 'BROCASTSUBNTY')
+            lambda tid: self.icp_server.pubMessage(tid, oid, did, topic, context, cseq, act, payload), 'PUBLISH')
 
-    def brocastsubnty(self, oid: appType.id_t, did: appType.id_t, topic: str, context: str,
-                    coopMap: bytes, coopMapType: int, bearcap: int):
+    def publish(self, oid: appType.id_t, did: str, topic: str, context: str, cseq: int, act: int, payload: List):
         self.submit(
-            lambda: self.brocastsubnty_handler(oid, did, topic, context, coopMap, coopMapType, bearcap))
+            lambda: self.publish_handler(oid, did, topic, context, cseq, act, payload))
 
-    def subscribe_handler(self, oid: appType.id_t, did: List[str], topic: str, act: int,
-                       context: str, coopMap: bytes, coopMapType: int, bearInfo: int):
+    def subscribe_handler(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
         self.transaction_message_handler(
-            lambda tid: self.icp_server.subMessage(tid, oid, did, topic, act, context, coopMap, coopMapType,
-                                                 bearInfo), 'SUBSCRIBE')
+            lambda tid: self.icp_server.subMessage(tid, oid, did, topic, act, context, cseq, payload), 'SUBSCRIBE')
 
-    def subscribe(self, oid: appType.id_t, did: List[str], topic: str, act: int,
-                context: str, coopMap: bytes, coopMapType: int, bearInfo: int):
+    def subscribe(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
         self.submit(
-            lambda: self.subscribe_handler(oid, did, topic, act, context, coopMap, coopMapType, bearInfo))
+            lambda: self.subscribe_handler(oid, did, topic, act, context, cseq, payload))
 
-    def notify_handler(self, oid: appType.id_t, did: appType.id_t, topic: str, act: int,
-                     context: str, coopMap: bytes, coopMapType: int, bearCap: int):
+    def notify_handler(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
         self.transaction_message_handler(
-            lambda tid: self.icp_server.notifyMessage(tid, oid, did, topic, act, context, coopMap,
-                                                    coopMapType, bearCap), 'NOTIFY')
+            lambda tid: self.icp_server.notifyMessage(tid, oid, did, topic, act, context, cseq, payload), 'NOTIFY')
 
-    def notify(self, oid: appType.id_t, did: appType.id_t, topic: str, act: int,
-             context: str, coopMap: bytes, coopMapType: int, bearCap: int):
+    def notify(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
         self.submit(
-            lambda: self.notify_handler(oid, did, topic, act, context, coopMap, coopMapType, bearCap))
+            lambda: self.notify_handler(oid, did, topic, act, context, cseq, payload))
 
     def sendfile(self, did: appType.id_t, context: str, rl: int, pt: int, file: str):
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.sendFile(did, context, rl, pt, file))
 
-    def sendreq(self, did: appType.id_t, context: str, rl: int, pt: int, aoi: int, mode: int):
+    def sendreq(self, did: appType.id_t, sid: appType.sid_t, context: str, rl: int, pt: int, aoi: int, mode: int,
+                ip: str, port: int, ip2: str, port2: int):
         """ 不需要事务 """
-        self.submit(lambda: self.icp_server.streamSendreq(did, context, rl, pt))
+        self.submit(lambda: self.icp_server.streamSendreq(did, sid, context, rl, pt, aoi, mode, ip, port, ip2, port2))
 
-    def send(self, sid: appType.sid_t, data: str):
+    def send(self, sid: appType.sid_t, context: str, did: str, data: bytes):
         """ 不需要事务 """
-        self.submit(lambda: self.icp_server.streamSend(sid, data))
-    def sendend(self, did: appType.id_t, cid: appType.cid_t, sid: appType.sid_t):
+        self.submit(lambda: self.icp_server.streamSend(sid, context, did, data))
 
+    def sendend(self, did: appType.id_t, context: str, sid: appType.sid_t):
         """ 不需要事务 """
-        self.submit(lambda: self.icp_server.streamSendend(did, cid, sid))
+        self.submit(lambda: self.icp_server.streamSendend(did, context, sid))

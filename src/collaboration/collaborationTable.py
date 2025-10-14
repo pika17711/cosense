@@ -227,6 +227,10 @@ class CollaborationTable:
         with self.coopmap_cache_lock:
             self.coopmap_cache[oid] = coopMap
 
+    def update_coopmap(self, oid, coopMap: CoopMap):
+        with self.coopmap_cache_lock:
+            self.coopmap_cache[oid] = coopMap
+
     def get_coopmap(self, oid):
         with self.coopmap_cache_lock:
             return self.coopmap_cache.get(oid)

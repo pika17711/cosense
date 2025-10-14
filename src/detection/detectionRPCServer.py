@@ -11,7 +11,7 @@ from utils.sharedInfo import SharedInfo
 from utils.rpc_utils import np_to_protobuf, protobuf_to_np, protobuf_to_dict
 from utils.detection_utils import pcd_to_spatial_feature, lidar_poses_to_projected_spatial_features, \
     spatial_feature_to_conf_map, spatial_feature_to_pred_box, spatial_feature_to_comm_masked_feature, \
-    request_map_to_comm_masked_feature
+    request_map_to_comm_masked_feature, lidar_pose_to_projected_comm_mask
 
 
 class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合检测子系统的Service类
@@ -21,7 +21,7 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
         self.shared_info = shared_info
 
     def GetCommMaskAndLidarPose(self, request, context):
-        comm_mask = self.shared_info.get_comm_mask_copy()
+        comm_mask = self.shared_info.get_ego_comm_mask_copy()
         ts_comm_mask = int(time.time())
 
         lidar_pose = self.shared_info.get_lidar_pose_copy()
@@ -50,6 +50,17 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
         return Service_pb2.PredBox(pred_box=np_to_protobuf(pred_box),
                                    ts_pred_box=ts_pred_box)
 
+    def GetPresentationInfo(self, request, context):
+        presentation_info = self.shared_info.get_presentation_info_copy()
+
+        return Service_pb2.PresentationInfo(lidar_pose=np_to_protobuf(presentation_info['lidar_pose']),
+                                            speed=np_to_protobuf(presentation_info['speed']),
+                                            pcd_img=np_to_protobuf(presentation_info['pcd_img']),
+                                            ego_comm_mask=np_to_protobuf(presentation_info['ego_comm_mask']),
+                                            others_comm_mask=np_to_protobuf(presentation_info['others_comm_mask']),
+                                            ego_feature=np_to_protobuf(presentation_info['ego_feature']),
+                                            fused_feature=np_to_protobuf(presentation_info['fused_feature']))
+
     def PCD2Feature(self, request, context):
         pcd = protobuf_to_np(request.pcd)
         ts_pcd = request.ts_pcd
@@ -71,6 +82,18 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
                                              ts_feature=ts_pcd,
                                              conf_map=np_to_protobuf(conf_map),
                                              ts_conf_map=ts_pcd)
+
+    def LidarPose2ProjectedCommMask(self, request, context):
+        lidar_pose = protobuf_to_np(request.lidar_pose)
+        ts_lidar_pose = request.ts_lidar_pose
+
+        my_lidar_pose = self.shared_info.get_lidar_pose_copy()
+        my_pcd = self.shared_info.get_pcd_copy()
+
+        projected_comm_mask = lidar_pose_to_projected_comm_mask(my_lidar_pose, my_pcd, lidar_pose, self.shared_info, gps=not self.cfg.perception_debug)
+
+        return Service_pb2.CommMask(comm_mask=projected_comm_mask,
+                                    ts_comm_mask=ts_lidar_pose)
 
     def LidarPoses2ProjectedFeatures(self, request, context):
         lidar_poses_protobuf = request.lidar_poses
@@ -119,6 +142,10 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
         my_lidar_pose = self.shared_info.get_lidar_pose_copy()
         my_pcd = self.shared_info.get_pcd_copy()
 
+        if self.cfg.detection_alt_debug:
+            lidar_pose = lidar_pose.copy()
+            lidar_pose[2] = my_lidar_pose[2]
+
         comm_masked_feature, comm_mask = request_map_to_comm_masked_feature(my_lidar_pose, my_pcd, lidar_pose, request_map, self.shared_info, gps=not self.cfg.perception_debug)
 
         return Service_pb2.CommMaskedFeature(comm_masked_feature=np_to_protobuf(comm_masked_feature),
@@ -138,7 +165,7 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
         spatial_feature = protobuf_to_np(request.feature)
         ts_spatial_feature = request.feature
         # 检测框
-        pred_box, _ = spatial_feature_to_pred_box(spatial_feature, self.shared_info)
+        pred_box, _, _, _ = spatial_feature_to_pred_box(spatial_feature, self.shared_info)
 
         return Service_pb2.PredBox(pred_box=np_to_protobuf(pred_box),
                                    ts_pred_box=ts_spatial_feature)

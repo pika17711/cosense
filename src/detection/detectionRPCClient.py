@@ -65,6 +65,25 @@ class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合
         ts_pred_box = response.ts_pred_box  # 时间戳
         return pred_box, ts_pred_box
 
+    def get_presentation_info(self):  # 从融合检测子系统获取信息呈现所需的信息
+        try:
+            response = self.__detection_stub.GetPresentationInfo(Service_pb2.Empty(), timeout=5)  # 请求融合检测子系统并获得响应
+        except grpc.RpcError as e:  # 捕获grpc异常
+            logging.error(f"RPC get_presentation_info failed: code={e.code()}")  # 记录grpc异常
+            return None
+
+        presentation_info = {
+            'lidar_pose': protobuf_to_np(response.lidar_pose),
+            'speed': protobuf_to_np(response.speed),
+            'pcd_img': protobuf_to_np(response.pcd_img),
+            'ego_comm_mask': protobuf_to_np(response.ego_comm_mask),
+            'others_comm_mask': protobuf_to_np(response.others_comm_mask),
+            'ego_feature': protobuf_to_np(response.ego_feature),
+            'fused_feature': protobuf_to_np(response.fused_feature)
+        }
+
+        return presentation_info
+
     def pcd_to_spatial_feature(self, ts_pcd, pcd):  # 融合检测子系统根据点云返回特征
         request = Service_pb2.PCD(pcd=np_to_protobuf(pcd),
                                   ts_pcd=ts_pcd)
@@ -95,6 +114,19 @@ class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合
         conf_map = protobuf_to_np(response.conf_map)
         ts_conf_map = response.ts_conf_map
         return spatial_feature, ts_spatial_feature, conf_map, ts_conf_map
+
+    def lidar_pose_to_projected_comm_mask(self, lidar_pose, ts_lidar_pose):
+        request = Service_pb2.LidarPose(lidar_pose=np_to_protobuf(lidar_pose),
+                                        ts_lidar_pose=ts_lidar_pose)
+        try:
+            response = self.__detection_stub.PCD2Feature(request, timeout=10)  # 请求融合检测子系统并获得响应
+        except grpc.RpcError as e:  # 捕获grpc异常
+            logging.error(f"RPC lidar_pose_to_projected_comm_mask failed: code={e.code()}")  # 记录grpc异常
+            return None, None
+
+        projected_comm_mask = protobuf_to_np(response.comm_mask)
+        ts_comm_mask = response.ts_comm_mask  # 时间戳
+        return projected_comm_mask, ts_comm_mask
 
     def lidar_pose_to_projected_spatial_feature(self, lidar_pose):
         pass

@@ -31,7 +31,7 @@ def log_init(cfg: AppConfig):
 
 def main():
     if len(sys.argv) > 1:
-        logging.info("Usage: python main.py")
+        logging.info("Usage: python qt_main.py")
         exit(-1)
 
     cfg = AppConfig()
@@ -43,7 +43,7 @@ def main():
     detection_client = DetectionRPCClient()
     ctable = CollaborationTable(cfg)
     tx_handler = transactionHandler(cfg, icp_server, icp_client)
-    collaboration_service = CollaborationService(cfg, ctable, perception_client, tx_handler)
+    collaboration_service = CollaborationService(cfg, ctable, perception_client, detection_client, tx_handler)
     message_handler = MessageRouter(cfg, ctable, tx_handler, perception_client, collaboration_service)
     collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, detection_client, collaboration_service)
 

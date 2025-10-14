@@ -25,10 +25,10 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
             cav_info_protobuf = Service_pb2.OthersInfos.CAVInfo(
                 lidar_pose=np_to_protobuf(cav_info['lidar_pose']),
                 ts_lidar_pose=cav_info['ts_lidar_pose'],
-                velocity=np_to_protobuf(cav_info['velocity']),
-                ts_v=cav_info['ts_v'],
+                speed=np_to_protobuf(cav_info['speed']),
+                ts_spd=cav_info['ts_spd'],
                 acceleration=np_to_protobuf(cav_info['acceleration']),
-                ts_a=cav_info['ts_a'],
+                ts_acc=cav_info['ts_acc'],
                 feature=np_to_protobuf(cav_info['feature']),
                 ts_feature=cav_info['ts_feature'])
 

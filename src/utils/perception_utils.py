@@ -19,7 +19,7 @@ def ros_pcd_to_numpy(ros_pcd: PointCloud2) -> np.array:
     pcd_x = pcd_array[:, :]['x'].flatten()
     pcd_y = pcd_array[:, :]['y'].flatten()
     pcd_z = pcd_array[:, :]['z'].flatten()
-    pcd_intensity = pcd_array[:, :]['intensity'].flatten()
+    pcd_intensity = pcd_array[:, :]['intensity'].flatten() / 255.0
 
     pcd_np = np.vstack([pcd_x, pcd_y, pcd_z, pcd_intensity]).T
 
@@ -122,9 +122,3 @@ def save_lidar_pose_and_pcd(lidar_pose, pcd, path='../pcds/', file_name='pcd1'):
         file.write(binary_data)
 
     exit(0)
-
-
-
-
-
-

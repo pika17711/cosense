@@ -1,25 +1,33 @@
 from __future__ import annotations
 
+import json
+import time
 from functools import wraps
 import logging
 from typing import List, Union
 import appType
 from collaboration.broadcastCollaborationContext import BCContext, BCContextState
-from collaboration.collaborationContext import CContext, CContextCoteeState, CContextCotorState, CSContextCoteeState, CSContextCotorState
+from collaboration.collaborationContext import CContext, CContextCoteeState, CContextCotorState, CSContextCoteeState, \
+    CSContextCotorState
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.contextGenerator import ContextGenerator
 from collaboration.coopMap import CoopMap, CoopMapType
-from collaboration.message import BroadcastPubMessage, BroadcastSubMessage, BroadcastSubNtyMessage, Message, NotifyAct, NotifyMessage, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, SubscribeAct, SubscribeMessage
+from collaboration.message import BroadcastPubMessage, BroadcastSubMessage, Message, NotifyAct, \
+    NotifyMessage, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, \
+    SubscribeAct, SubscribeMessage
 from collaboration.transactionHandler import transactionHandler
+from collaboration.BearInfo import BearInfo
 from appConfig import AppConfig
 from perception.perceptionRPCClient import PerceptionRPCClient
 from detection.detectionRPCClient import DetectionRPCClient
 import numpy as np
 from utils import InfoDTO
-from utils.common import read_binary_file, server_assert, server_logic_error, server_not_implemented
+from utils.common import read_binary_file, server_assert, server_logic_error, server_not_implemented, base64_encode
+
 
 def ContextStateTransition(name):
     """状态转移函数的装饰器，提供自动加锁和日志记录功能"""
+
     def get_state(ctx: Union[CContext, BCContext]):
         state = None
         if name == 'cctx':
@@ -28,7 +36,7 @@ def ContextStateTransition(name):
             state = ctx.state
         elif name == 'stream':
             server_assert(isinstance(ctx, CContext))
-            state = ctx.stream_state # type: ignore
+            state = ctx.stream_state  # type: ignore
         else:
             server_assert(False)
         return state
@@ -41,7 +49,7 @@ def ContextStateTransition(name):
                 old_state = get_state(ctx)
                 func_name = func.__name__
                 logging.info(f"执行状态转移: {func_name}, 上下文ID: {ctx.cid}, "
-                            f"原状态: {old_state}")
+                             f"原状态: {old_state}")
                 try:
                     # 执行实际的状态转移
                     result = func(self, ctx, *args, **kwargs)
@@ -49,7 +57,7 @@ def ContextStateTransition(name):
                     new_state = get_state(ctx)
                     if old_state != new_state:
                         logging.info(f"状态转移成功: 上下文ID: {ctx.cid}, "
-                                    f"{old_state} -> {new_state}")
+                                     f"{old_state} -> {new_state}")
                     else:
                         logging.warning(f"状态未变更: 上下文ID: {ctx.cid}, "
                                         f"函数: {func_name}")
@@ -57,10 +65,13 @@ def ContextStateTransition(name):
                 except Exception as e:
                     # 记录状态转移异常
                     logging.error(f"状态转移失败: 上下文ID: {ctx.cid}, "
-                                f"原状态: {old_state}, 错误: {str(e)}")
+                                  f"原状态: {old_state}, 错误: {str(e)}")
                     raise  # 重新抛出异常，不掩盖错误
+
         return wrapper
+
     return decorator
+
 
 class CollaborationService:
     """
@@ -71,19 +82,21 @@ class CollaborationService:
             4. 一些工具函数和封装函数
     """
 
-    def __init__(self, 
+    def __init__(self,
                  cfg: AppConfig,
                  ctable: 'CollaborationTable',
                  perception_client: 'PerceptionRPCClient',
                  detection_client: 'DetectionRPCClient',
                  tx_handler: 'transactionHandler'
                  ) -> None:
-        self.cfg = cfg 
+        self.cfg = cfg
         self.cid_gen = ContextGenerator(cfg)
         self.ctable = ctable
         self.perception_client = perception_client
         self.detection_client = detection_client
         self.tx_handler = tx_handler
+
+        self.cseq = 1
 
     @ContextStateTransition('cctx')
     def cctx_to_waitnty(self, cctx: CContext):
@@ -125,7 +138,7 @@ class CollaborationService:
             return
         cctx.update_active()
         self.ctable.rem_sendnty(cctx)
-        logging.debug(f"被 { cctx.remote_id()} 订阅, context: {cctx.cid}")
+        logging.debug(f"被 {cctx.remote_id()} 订阅, context: {cctx.cid}")
         cctx.state = CContextCotorState.SUBSCRIBED
         self.ctable.add_subscribed(cctx)
         self.ctable.add_coopmap(cctx.remote_id(), coopmap)
@@ -244,37 +257,25 @@ class CollaborationService:
             return False
         if self.cfg.collaboration_debug:
             return True
-        coopmap = CoopMap.deserialize(msg.coopmap)
-        if coopmap == None:
-            return False
-        coopmap_self = self.get_self_coopmap(CoopMapType.CommMask)
-        ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self)
-        return ratio >= self.cfg.overlap_threshold
 
-    def check_need_broadcastsubnty(self, bcctx: BCContext, msg: BroadcastSubNtyMessage):
-        """
-            是否接收remote的广播推送通知
-                这里一定是因为local发送了broadcastsub
-        """
-        if self.ctable.get_waitnty_by_id(msg.oid) is not None or self.ctable.get_subscribing_by_id(msg.oid) is not None:
-            return False
-        coopmap = CoopMap.deserialize(msg.coopmap)
-        if coopmap == None:
-            return False
-        coopmap_self = self.get_self_coopmap(CoopMapType.CommMask)
-        ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self)
-        return ratio >= self.cfg.overlap_threshold
+        remote_comm_mask = None
+        for p in msg.payload:
+            if p.get('type') == 2 and p.get('encode') == 0:
+                remote_comm_mask_binary_data = p.get('content', None)
+                if remote_comm_mask_binary_data is None or len(remote_comm_mask_binary_data) == 0:
+                    return False
 
-    def check_need_subscribe(self, msg: SubscribeMessage):
-        """
-            是否接受remote的订阅
-            目前开启订阅的操作只有两种:
-            1. broadcastpub
-            2. broadcastsub
-            这两种都已经检查过了重叠率, 所以无需再检查重叠率
-            此时要求协作图类型必须为请求图
-        """
-        return msg.coopmaptype == CoopMapType.RequestMap
+                remote_comm_mask = CoopMap.deserialize_from_only_map_and_lidar_pose(remote_comm_mask_binary_data)
+                remote_comm_mask.type = CoopMapType.CommMask
+                break
+
+        if remote_comm_mask is None:
+            return False
+
+        ego_projected_comm_mask, _ = self.detection_client.lidar_pose_to_projected_comm_mask(remote_comm_mask.lidar_pose, int(time.time()))
+        ego_projected_request_map = CoopMap(self.cfg.id, CoopMapType.RequestMap, 1 - ego_projected_comm_mask, remote_comm_mask.lidar_pose)
+        ratio = CoopMap.calculate_overlap_ratio(remote_comm_mask, ego_projected_request_map, self.cfg.collaboration_no_coopmap_debug)
+        return ratio >= self.cfg.overlap_threshold
 
     def check_need_broadcastsub(self, msg: BroadcastSubMessage):
         """
@@ -289,11 +290,84 @@ class CollaborationService:
 
         if self.ctable.get_sendnty_by_id(msg.oid) is not None or self.ctable.get_subscribed_by_id(msg.oid) is not None:
             return False
-        coopmap = CoopMap.deserialize(msg.coopmap)
-        if coopmap == None:
+
+        remote_request_map = None
+        for p in msg.payload:
+            if p.get('type') == 3 and p.get('encode') == 0:
+                remote_request_map_binary_data = p.get('content', None)
+                if remote_request_map_binary_data is None or len(remote_request_map_binary_data) == 0:
+                    return False
+
+                remote_request_map = CoopMap.deserialize_from_only_map_and_lidar_pose(remote_request_map_binary_data)
+                remote_request_map.type = CoopMapType.RequestMap
+                break
+
+        if remote_request_map is None:
             return False
-        coopmap_self = self.get_self_coopmap(CoopMapType.CommMask)
-        ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self)
+
+        ego_projected_comm_mask, _ = self.detection_client.lidar_pose_to_projected_comm_mask(
+                                     remote_request_map.lidar_pose, int(time.time()))
+        ego_projected_comm_mask = CoopMap(self.cfg.id, CoopMapType.CommMask, ego_projected_comm_mask,
+                                          remote_request_map.lidar_pose)
+        ratio = CoopMap.calculate_overlap_ratio(remote_request_map, ego_projected_comm_mask,
+                                                self.cfg.collaboration_no_coopmap_debug)
+        return ratio >= self.cfg.overlap_threshold
+
+    # def check_need_broadcastsubnty(self, bcctx: BCContext, msg: BroadcastSubNtyMessage):
+    #     """
+    #         是否接收remote的广播推送通知
+    #             这里一定是因为local发送了broadcastsub
+    #     """
+    #     if self.ctable.get_waitnty_by_id(msg.oid) is not None or self.ctable.get_subscribing_by_id(msg.oid) is not None:
+    #         return False
+    #     coopmap = CoopMap.deserialize(msg.coopmap)
+    #     if coopmap == None:
+    #         return False
+    #     coopmap_self = self.get_self_coopmap(CoopMapType.CommMask)
+    #     ratio = CoopMap.calculate_overlap_ratio(coopmap, coopmap_self, self.cfg.collaboration_no_coopmap_debug)
+    #     return ratio >= self.cfg.overlap_threshold
+
+    def check_need_subscribe(self, msg: SubscribeMessage):
+        """
+            是否接受remote的订阅
+            目前开启订阅的操作只有两种:
+            1. broadcastpub
+            2. broadcastsub
+            这两种都已经检查过了重叠率, 所以无需再检查重叠率
+            此时要求协作图类型必须为请求图
+        """
+        # return msg.coopmaptype == CoopMapType.RequestMap or msg.coopmaptype == CoopMapType.Empty
+        return True
+
+    def check_need_notify(self, msg: NotifyMessage):
+        """
+            是否接受remote对于broadcastsub的notify
+            这里一定是因为local发送了broadcastsub
+        """
+        if self.ctable.get_waitnty_by_id(msg.oid) is not None or self.ctable.get_subscribing_by_id(msg.oid) is not None:
+            return False
+
+        remote_comm_mask = None
+        for p in msg.payload:
+            if p.get('type') == 2 and p.get('encode') == 0:
+                remote_comm_mask_binary_data = p.get('content', None)
+                if remote_comm_mask_binary_data is None or len(remote_comm_mask_binary_data) == 0:
+                    return False
+
+                remote_comm_mask = CoopMap.deserialize_from_only_map_and_lidar_pose(remote_comm_mask_binary_data)
+                remote_comm_mask.type = CoopMapType.CommMask
+                break
+
+        if remote_comm_mask is None:
+            return False
+
+        ego_projected_comm_mask, _ = self.detection_client.lidar_pose_to_projected_comm_mask(
+            remote_comm_mask.lidar_pose, int(time.time()))
+        ego_projected_request_map = CoopMap(self.cfg.id, CoopMapType.RequestMap, 1 - ego_projected_comm_mask,
+                                            remote_comm_mask.lidar_pose)
+        ratio = CoopMap.calculate_overlap_ratio(remote_comm_mask, ego_projected_request_map,
+                                                self.cfg.collaboration_no_coopmap_debug)
+
         return ratio >= self.cfg.overlap_threshold
 
     def broadcastsub(self):
@@ -301,25 +375,55 @@ class CollaborationService:
             广播订阅
                 local开启一个新广播会话bcctx，启动一个新协程bcctx_loop(bcctx)，进行消息接收和处理
         """
-        coopMapType = CoopMapType.CommMask
+        if self.cfg.collaboration_no_coopmap_debug:
+            coopMapType = CoopMapType.Empty
+        else:
+            coopMapType = CoopMapType.RequestMap
+
         cid = self.cid_gen()
         coopmap = self.get_self_coopmap(coopMapType)
-        decoopmap = CoopMap.serialize(coopmap)
-        bearCap = 1
+        binary_coopmap = CoopMap.serialize_only_map_and_lidar_pose(coopmap)
+        coopmap_payload = {
+            'type': 3,
+            'encode': 0,
+            'content': binary_coopmap
+        }
+
+        # bear_info = BearInfo()
+
+        payload = [coopmap_payload,
+                   # bear_info.to_dict()
+                   ]
+
         bcctx = BCContext(self.cfg, cid)
         with bcctx.lock:
-            self.tx_handler.brocastsub(self.cfg.id, self.cfg.topic, cid, decoopmap, coopMapType, bearCap)
+            self.tx_handler.brocastsub(oid=self.cfg.id, topic=self.cfg.topic, context=bcctx.cid, cseq=self.cseq,
+                                       payload=payload)
+            self.cseq += 1
             self.bcctx_to_waitbnnty(bcctx)
 
     def broadcastpub_send(self):
         """
             广播推送发送
         """
-        coopMapType = CoopMapType.CommMask
+        if self.cfg.collaboration_no_coopmap_debug:
+            coopMapType = CoopMapType.Empty
+        else:
+            coopMapType = CoopMapType.CommMask
         coopmap = self.get_self_coopmap(coopMapType)
-        decoopmap = CoopMap.serialize(coopmap)
-        self.tx_handler.brocastpub(self.cfg.id, self.cfg.topic, decoopmap, coopMapType)
-    
+        binary_coopmap = CoopMap.serialize_only_map_and_lidar_pose(coopmap)
+
+        coopmap_payload = {
+            'type': 2,
+            'encode': 0,
+            'content': binary_coopmap
+        }
+
+        payload = [coopmap_payload]
+
+        self.tx_handler.brocastpub(cseq=self.cseq, oid=self.cfg.id, topic=self.cfg.topic, payload=payload)
+        self.cseq += 1
+
     def subscribe(self, did: appType.id_t):
         """
             封装subscribe_send
@@ -327,10 +431,10 @@ class CollaborationService:
         cid = self.cid_gen()
         cctx = CContext(self.cfg, cid, did, self.cfg.id)
         with cctx.lock:
-            self.subscribe_send(cctx, SubscribeAct.ACK)
+            self.subscribe_send(cctx, SubscribeAct.ACKUPD)
             self.cctx_to_waitnty(cctx)
 
-    def subscribe_send(self, cctx: CContext, act:SubscribeAct=SubscribeAct.ACK):
+    def subscribe_send(self, cctx: CContext, act: SubscribeAct = SubscribeAct.ACKUPD):
         """
             发送订阅
             描述：
@@ -348,18 +452,38 @@ class CollaborationService:
                 2. act
                     订阅请求或订阅关闭
         """
-        if act == SubscribeAct.ACK:
-            coopMapType = CoopMapType.RequestMap
+        if act == SubscribeAct.ACKUPD:
+            if self.cfg.collaboration_no_coopmap_debug:
+                coopMapType = CoopMapType.Empty
+            else:
+                coopMapType = CoopMapType.RequestMap
             coopmap = self.get_self_coopmap(coopMapType)
-            decoopmap = CoopMap.serialize(coopmap)
-            bearCap = 1
-            self.tx_handler.subscribe(self.cfg.id, [cctx.remote_id()], self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)
+            binary_coopmap = CoopMap.serialize_only_map_and_lidar_pose(coopmap)
+
+            # bearCap = 1
+
+            coopmap_payload = {
+                'type': 3,
+                'encode': 0,
+                'content': binary_coopmap
+            }
+
+            payload = [coopmap_payload]
+
+            self.tx_handler.subscribe(oid=self.cfg.id, did=cctx.remote_id(), topic=self.cfg.topic, act=act,
+                                      context=cctx.cid, cseq=self.cseq, payload=payload)
+            self.cseq += 1
         elif act == SubscribeAct.FIN:
-            coopMapType = CoopMapType.Empty
-            coopmap = self.get_self_coopmap(coopMapType)
-            decoopmap = CoopMap.serialize(coopmap)
-            bearCap = 0
-            self.tx_handler.subscribe(self.cfg.id, [cctx.remote_id()], self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)  # 关闭订阅不需要传协作图
+
+            # coopMapType = CoopMapType.Empty
+            # coopmap = self.get_self_coopmap(coopMapType)
+            # decoopmap = CoopMap.serialize(coopmap)
+            # bearCap = 0
+
+            self.tx_handler.subscribe(oid=self.cfg.id, did=cctx.remote_id(), topic=self.cfg.topic, act=act,
+                                      context=cctx.cid, cseq=self.cseq, payload=[])
+
+            self.cseq += 1
         else:
             server_not_implemented('')
 
@@ -367,14 +491,14 @@ class CollaborationService:
         """
             通知
             描述：
-                1. act = NotifyAct.ACK
+                1. act = NotifyAct.NTY
+                    对话内通知
+                    未实现
+                2. act = NotifyAct.ACK
                     确认订购
                     对话cctx在收到订阅消息时新建
                     找到对应cctx，发送确认订购后，改变cctx状态
-                2. act = NotifyAct.NTY
-                    对话内通知
-                    未实现
-                2. act = NotifyAct.FIN
+                3. act = NotifyAct.FIN
                     取消订购
                     对话cctx在收到订阅消息时新建
                     找到对应cctx，发送取消订购后，改变cctx状态
@@ -382,29 +506,45 @@ class CollaborationService:
                 1. did
                 2. act
         """
-        if act == NotifyAct.ACK:
-            coopMapType = CoopMapType.Empty
-            coopmap = self.get_self_coopmap(coopMapType)
-            decoopmap = CoopMap.serialize(coopmap)
-            bearCap = 1
-            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)   # 不需要传协作图
-        elif act == NotifyAct.NTY:
+        if act == NotifyAct.NTY:
             server_not_implemented('')
+        elif act == NotifyAct.ACK:
+            # coopMapType = CoopMapType.Empty
+            # coopmap = self.get_self_coopmap(coopMapType)
+            # decoopmap = CoopMap.serialize(coopmap)
+            # bearCap = 1
+
+            self.tx_handler.notify(oid=self.cfg.id, did=cctx.remote_id(), topic=self.cfg.topic, act=act,
+                                   context=cctx.cid, cseq=self.cseq, payload=[])  # 不需要传协作图
+            self.cseq += 1
         elif act == NotifyAct.FIN:
-            coopMapType = CoopMapType.Empty
-            coopmap = self.get_self_coopmap(coopMapType)
-            decoopmap = CoopMap.serialize(coopmap)
-            bearCap = 1 
-            self.tx_handler.notify(self.cfg.id, cctx.remote_id(), self.cfg.topic, act, cctx.cid, decoopmap, coopMapType, bearCap)   # 不需要传协作图
+            # coopMapType = CoopMapType.Empty
+            # coopmap = self.get_self_coopmap(coopMapType)
+            # decoopmap = CoopMap.serialize(coopmap)
+            # bearCap = 1
 
-    def sendreq_send(self, did: appType.id_t, cid: appType.cid_t, rl, pt, aoi, mode):
-        self.tx_handler.sendreq(did, cid, rl, pt, aoi, mode)
+            self.tx_handler.notify(oid=self.cfg.id, did=cctx.remote_id(), topic=self.cfg.topic, act=act,
+                                   context=cctx.cid, cseq=self.cseq, payload=[])  # 不需要传协作图
+            self.cseq += 1
 
-    def send_send(self, sid: appType.sid_t, data: str):
-        self.tx_handler.send(sid, data)
+    def sendreq_send(self, did: appType.id_t, context: str,
+                     sid: appType.sid_t = "",
+                     rl: int = 1,
+                     pt: int = 0,
+                     aoi: int = 0,
+                     mode: int = 2,
+                     ip: str = "",
+                     port: int = 0,
+                     ip2: str = "",
+                     port2: int = 0
+                     ):
+        self.tx_handler.sendreq(did, sid, context, rl, pt, aoi, mode, ip, port, ip2, port2)
 
-    def sendend_send(self, did: appType.id_t, cid: appType.cid_t, sid: appType.sid_t):
-        self.tx_handler.sendend(did, cid, sid)
+    def send_send(self, sid: appType.sid_t, context: str, did: str, data: bytes):
+        self.tx_handler.send(sid, context, did, data)
+
+    def sendend_send(self, did: appType.id_t, context: str, sid: appType.sid_t):
+        self.tx_handler.sendend(did, context, sid)
 
     def get_stream(self, cctx: CContext):
         server_assert(cctx.is_cotor())
@@ -413,15 +553,15 @@ class CollaborationService:
             rl = 1
             pt = 1
             aoi = 0
-            mode = 1
+            mode = 2
             with cctx.lock:
-                self.sendreq_send(cctx.remote_id(), cctx.cid, rl, pt, aoi, mode)
-                # self.sendreq_send(cctx.cotor, cctx.cid, rl, pt, aoi, mode)
+                # self.sendreq_send(cctx.remote_id(), cctx.cid, rl, pt, aoi, mode)
+                self.sendreq_send(did=cctx.remote_id(), context=cctx.cid, rl=rl, pt=pt, aoi=aoi, mode=mode)
                 self.stream_to_sendreq(cctx)
             cctx.sid_set_event.wait()
             server_assert(cctx.stream_state == CSContextCotorState.SENDRDY)
 
-    def send_data(self, cctx: CContext, data: str):
+    def send_data(self, cctx: CContext, data: bytes):
         if cctx.stream_state == CSContextCotorState.SENDEND:
             logging.debug(f"context: {cctx.cid} 发送结束, 发送数据失败")
             return
@@ -432,7 +572,7 @@ class CollaborationService:
             elif cctx.stream_state == CSContextCotorState.PENDING:
                 self.get_stream(cctx)
         else:
-            self.send_send(cctx.sid, data) # type: ignore
+            self.send_send(sid=cctx.sid, context=cctx.cid, did=cctx.remote_id(), data=data)
 
     def broadcastpub_service(self, msg: BroadcastPubMessage):
         """
@@ -458,58 +598,94 @@ class CollaborationService:
         need = self.check_need_broadcastsub(msg)
         if need:
             logging.debug(f"接收 {msg.oid} 的BROADCASTSUB")
-            coopMapType = CoopMapType.CommMask
+            if self.cfg.collaboration_no_coopmap_debug:
+                coopMapType = CoopMapType.Empty
+            else:
+                coopMapType = CoopMapType.CommMask
+
             coopmap = self.get_self_coopmap(coopMapType)
-            decoopmap = CoopMap.serialize(coopmap)
-            bearcap = 1
+            binary_coopmap = CoopMap.serialize_only_map_and_lidar_pose(coopmap)
+            coopmap_payload = {
+                'type': 3,
+                'encode': 0,
+                'content': binary_coopmap
+            }
+
             # TODO: 这里有一个问题，如果还没有建立会话，就可能对同一个broadcastsub多次发送brocastsubnty
             # , 但broadcastsub发送时间间隔较长, 先忽略这个问题
-            self.tx_handler.brocastsubnty(self.cfg.id, msg.oid, self.cfg.topic, msg.context, 
-                                            decoopmap, coopMapType, bearcap)
+            self.tx_handler.notify(oid=self.cfg.id, did=msg.oid, topic=self.cfg.topic, act=NotifyAct.ACK,
+                                   context=msg.context, cseq=self.cseq, payload=[coopmap_payload])
+            self.cseq += 1
         else:
             logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUB")
 
-    def broadcastsubnty_service(self, msg: BroadcastSubNtyMessage):
-        """
-            收到广播订阅通知
-            1. 寻找广播对话，因为收到了广播订阅，这个广播会话是自身创建的
-            2. 检查是否需要对话
-            3. 如果需要，创建cctx
-        """
-        logging.debug(f"APP serve message {msg}")
-        bcctx = self.ctable.get_bcctx(msg.context)
-        if bcctx == None:
-            # 可能是超时或消息发送错误
-            logging.warning(f"收到BROADCASTSUBNTY, 广播对话 context:{msg.context} 不存在")
-            return
-        server_assert(bcctx.state != BCContextState.PENDING)
-
-        if bcctx.state == BCContextState.WAITBNTY:
-            need = self.check_need_broadcastsubnty(bcctx, msg)
-            if need:
-                logging.debug(f"接收 {msg.oid} 的BROADCASTSUBNTY")
-                cid = self.cid_gen()
-                cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
-                with cctx.lock:
-                    self.subscribe_send(cctx, SubscribeAct.ACK)
-                    with bcctx.lock:
-                        self.bcctx_add_cctx(bcctx, cctx)
-                    self.cctx_to_waitnty(cctx)
-            else:
-                logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUBNTY")
-        elif bcctx.state == BCContextState.CLOSED:
-            logging.warning(f"收到BROADCASTSUBNTY, 但对应 context:{msg.context} 已超时")
-            pass
+    # def broadcastsubnty_service(self, msg: BroadcastSubNtyMessage):
+    #     """
+    #         收到广播订阅通知
+    #         1. 寻找广播对话，因为收到了广播订阅，这个广播会话是自身创建的
+    #         2. 检查是否需要对话
+    #         3. 如果需要，创建cctx
+    #     """
+    #     logging.debug(f"APP serve message {msg}")
+    #     bcctx = self.ctable.get_bcctx(msg.context)
+    #     if bcctx == None:
+    #         # 可能是超时或消息发送错误
+    #         logging.warning(f"收到BROADCASTSUBNTY, 广播对话 context:{msg.context} 不存在")
+    #         return
+    #     server_assert(bcctx.state != BCContextState.PENDING)
+    #
+    #     if bcctx.state == BCContextState.WAITBNTY:
+    #         need = self.check_need_broadcastsubnty(bcctx, msg)
+    #         if need:
+    #             logging.debug(f"接收 {msg.oid} 的BROADCASTSUBNTY")
+    #             cid = self.cid_gen()
+    #             cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
+    #             with cctx.lock:
+    #                 self.subscribe_send(cctx, SubscribeAct.ACKUPD)
+    #                 with bcctx.lock:
+    #                     self.bcctx_add_cctx(bcctx, cctx)
+    #                 self.cctx_to_waitnty(cctx)
+    #         else:
+    #             logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUBNTY")
+    #     elif bcctx.state == BCContextState.CLOSED:
+    #         logging.warning(f"收到BROADCASTSUBNTY, 但对应 context:{msg.context} 已超时")
+    #         pass
 
     def notify_service(self, msg: NotifyMessage):
         """
             收到notify
-            1. 寻找cctx，cctx是local发送订阅通知时创建的，local一定是cotee
-            2. 根据消息内容，更新状态
+            1. cctx如果是bcctx，则该notify为broadcastsub的notify，
+                1.1. 寻找广播对话，因为收到了广播订阅，这个广播会话是自身创建的
+                1.2. 检查是否需要对话
+                1.3. 如果需要，创建cctx
+            2. 否则寻找cctx，cctx是local发送订阅通知时创建的，local一定是cotee
+                2.1. 根据消息内容，更新状态
         """
         logging.debug(f"APP serve message {msg}")
+
+        bcctx = self.ctable.get_bcctx(msg.context)
+        if bcctx is not None:
+            server_assert(bcctx.state != BCContextState.PENDING)
+
+            if bcctx.state == BCContextState.WAITBNTY:
+                need = self.check_need_notify(msg)
+                if need:
+                    logging.debug(f"接收 {msg.oid} 对于BROADCASTSUB的NTY")
+                    cid = self.cid_gen()
+                    cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
+                    with cctx.lock:
+                        self.subscribe_send(cctx, SubscribeAct.ACKUPD)
+                        with bcctx.lock:
+                            self.bcctx_add_cctx(bcctx, cctx)
+                        self.cctx_to_waitnty(cctx)
+                else:
+                    logging.debug(f"拒绝 {msg.oid} 对于BROADCASTSUB的NTY")
+            elif bcctx.state == BCContextState.CLOSED:
+                logging.warning(f"收到对于BROADCASTSUB的NTY, 但对应 context:{msg.context} 已超时")
+                pass
+
         cctx = self.ctable.get_cctx(msg.context, msg.oid, self.cfg.id)
-        if cctx == None:
+        if cctx is None:
             server_logic_error(f"收到NOTIFY, 但对应 context:{msg.context} 不存在")
             return
         if cctx.is_cotor():
@@ -524,37 +700,54 @@ class CollaborationService:
                 elif msg.act == NotifyAct.FIN:
                     self.cctx_to_closed(cctx)
                 elif msg.act == NotifyAct.NTY:
-                    server_logic_error(f"收到NOTIFY.NTY, 但对应 context:{msg.context} 中状态是WAITNTY, 不应该收到NOTIFY.NTY")
+                    server_logic_error(
+                        f"收到NOTIFY.NTY, 但对应 context:{msg.context} 中状态是WAITNTY, 不应该收到NOTIFY.NTY")
             elif cctx.state == CContextCoteeState.SUBSCRIBING:
                 if msg.act == NotifyAct.ACK:
-                    server_logic_error(f"收到NOTIFY.ACK, 但对应 context:{msg.context} 中状态是SUBSCRIBING, 不应该收到NOTIFY.ACK")
+                    server_logic_error(
+                        f"收到NOTIFY.ACK, 但对应 context:{msg.context} 中状态是SUBSCRIBING, 不应该收到NOTIFY.ACK")
                 elif msg.act == NotifyAct.FIN:
                     self.cctx_to_closed(cctx)
                 elif msg.act == NotifyAct.NTY:
                     server_not_implemented(f"收到NOTIFY.ACK, 对应 context:{msg.context} 中状态是SUBSCRIBING")
 
-    def subscribe_ack_service(self, msg: SubscribeMessage):
+    def subscribe_ackudp_service(self, msg: SubscribeMessage):
         """
             收到订阅消息，act=subscribeAct=ACKUPD
-            1. 此时自车不应该有cctx（目前只将ACKUPD看作ACK，并未实现UPD）
-            2. 创建cctx，自车作为cotor
-            3. 判断是否被订阅
-            4. 发送notify
+            1. 若自车没有cctx，则说明是确认报文ACK
+                1.1. 创建cctx，自车作为cotor
+                1.2. 判断是否被订阅
+                1.3. 发送notify
+            2. 若自车已有cctx,则说明是更新报文UPD
+                1.1. 更新coopmap
         """
         logging.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx(msg.context, self.cfg.id, msg.oid)
-        if cctx is not None:
-            logging.warning(f"收到SUBSCRIBE, 此时不应该存在此context:{msg.context}")
-            return
-        cctx = CContext(self.cfg, msg.context, self.cfg.id, msg.oid)
-        with cctx.lock:
-            self.cctx_to_sendnty(cctx)
-            if self.check_need_subscribe(msg):
-                self.notify_send(cctx)
-                coopmap = CoopMap.deserialize(msg.coopmap)
-                self.cctx_to_subscribed(cctx, coopmap)
-            else:
-                self.cctx_to_closed(cctx)
+
+        remote_request_map = None
+        for p in msg.payload:
+            if p.get('type') == 3 and p.get('encode') == 0:
+                remote_request_map_binary_data = p.get('content', None)
+                if remote_request_map_binary_data is None or len(remote_request_map_binary_data) == 0:
+                    return False
+
+                remote_request_map = CoopMap.deserialize_from_only_map_and_lidar_pose(remote_request_map_binary_data)
+                remote_request_map.type = CoopMapType.RequestMap
+                break
+
+        if cctx is None:
+            logging.debug(f"收到SUBSCRIBE, 不存在context, 正在创建context")
+            cctx = CContext(self.cfg, msg.context, self.cfg.id, msg.oid)
+            with cctx.lock:
+                self.cctx_to_sendnty(cctx)
+                if self.check_need_subscribe(msg):
+                    self.notify_send(cctx)
+                    self.cctx_to_subscribed(cctx, remote_request_map)
+                else:
+                    self.cctx_to_closed(cctx)
+        else:
+            logging.debug(f"收到SUBSCRIBE, 存在此context:{msg.context}, 正在更新coopmap")
+            self.ctable.update_coopmap(cctx.remote_id(), remote_request_map)
 
     def subscribe_fin_service(self, msg: SubscribeMessage):
         """
@@ -580,8 +773,8 @@ class CollaborationService:
 
     def subscribe_service(self, msg: SubscribeMessage):
         logging.debug(f"APP serve message {msg}")
-        if msg.act == SubscribeAct.ACK:
-            self.subscribe_ack_service(msg)
+        if msg.act == SubscribeAct.ACKUPD:
+            self.subscribe_ackudp_service(msg)
         elif msg.act == SubscribeAct.FIN:
             self.subscribe_fin_service(msg)
         else:
@@ -593,8 +786,8 @@ class CollaborationService:
         with cctx.lock:
             server_assert(cctx.state == CContextCoteeState.SUBSCRIBING)
             data = read_binary_file(msg.file)
-            # de_data = InfoDTO.InfoDTOSerializer.deserialize(data)
-            de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(data)
+            de_data = InfoDTO.InfoDTOSerializer.deserialize(data)
+            # de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(data)
             if de_data is None:
                 return
             self.ctable.add_data(de_data)
@@ -639,8 +832,18 @@ class CollaborationService:
         with cctx.lock:
             de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
             # de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(msg.data)
+
             if de_data is None:
                 return
+
+            # TODO:
+            binary_comm_mask = de_data.feat['comm_mask']
+            packed_comm_mask = np.frombuffer(binary_comm_mask, dtype=np.uint8).reshape((1, 1, 48, -1))
+            comm_mask = np.unpackbits(packed_comm_mask, axis=-1).astype(np.float32)
+
+            de_data.feat = de_data.feat.copy()
+            de_data.feat['comm_mask'] = comm_mask
+
             self.ctable.add_data(de_data)
 
     def recvend_service(self, msg: RecvEndMessage):

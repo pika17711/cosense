@@ -46,7 +46,7 @@ class MessageRouter:
 
             MessageID.BROCASTPUB: collaboration_service.broadcastpub_service,
             MessageID.BROCASTSUB: collaboration_service.broadcastsub_service,
-            MessageID.BROCASTSUBNTY: collaboration_service.broadcastsubnty_service,
+            # MessageID.BROCASTSUBNTY: collaboration_service.broadcastsubnty_service,
             MessageID.SUBSCRIBE: collaboration_service.subscribe_service,
             MessageID.NOTIFY: collaboration_service.notify_service,
             

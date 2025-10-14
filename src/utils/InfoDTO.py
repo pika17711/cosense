@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 import pickle
-import base64
 from typing import Dict, Optional
 from numpy.typing import NDArray
+from utils.common import base64_encode, base64_decode
 import appType
 from appConfig import AppConfig
 import numpy as np
@@ -17,7 +17,7 @@ class InfoDTO:
     feat:               Optional[Dict[str, NDArray]]  # 特征 {'spatial_feature': array, Optional['comm_mask': array]}
     ts_feat:            Optional[appType.timestamp_t] # 时间戳
     speed:              Optional[NDArray] # 速度
-    ts_speed:           Optional[appType.timestamp_t] # 时间戳
+    ts_spd:           Optional[appType.timestamp_t] # 时间戳
     lidar_pos:          Optional[NDArray] # 位置
     ts_lidar_pos:       Optional[appType.timestamp_t] # 时间戳
     acc:                Optional[NDArray] # 加速度
@@ -72,7 +72,7 @@ class InfoDTOSerializer:
         binary_data = InfoDTOSerializer.serialize(info_dto, protocol, compress)
 
         try:
-            str_data = base64.b64encode(binary_data).decode('utf-8')
+            str_data = base64_encode(binary_data)
             return str_data
         except Exception as e:
             print(f"序列化错误: {e}")
@@ -118,8 +118,7 @@ class InfoDTOSerializer:
             InfoDTO: 反序列化后的对象
         """
         try:
-            base64_encoded_bytes = str_data.encode('utf-8')
-            original_binary_data = base64.b64decode(base64_encoded_bytes)
-            return InfoDTOSerializer.deserialize(original_binary_data, decompress)
+            binary_data = base64_decode(str_data)
+            return InfoDTOSerializer.deserialize(binary_data, decompress)
         except Exception as e:
             print(f"反序列化错误: {e}")

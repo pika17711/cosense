@@ -80,22 +80,51 @@ class TestBroker:
                 self.broadcast_message_to_all(parts, source_type="server")
             elif msg.get("mid") == MessageID.SENDREQ.value:
                 self.handle_sendreq_message(parts)
+            elif msg.get("mid") == MessageID.SEND.value:
+                self.handle_send_message(parts)
             else:
                 # 常规消息处理（按oid转发）
-                self.forward_message(parts, source_type="server")
-            
+                # self.forward_message(parts, source_type="server")
+                self.forward_message(parts)
+
         except Exception as e:
             logging.error(f"Error processing server message: {e}")
 
-    def gen_sid():
-        return hashlib.md5(str(datetime.datetime.now()))
+    def gen_sid(self):
+        unique_str = f"{datetime.datetime.now()}{os.urandom(4)}".encode('utf-8')
+        return hashlib.md5(unique_str).hexdigest()
 
     def handle_sendreq_message(self, parts):
+        ori_msg = json.loads(parts[-1].decode('utf-8'))
+        server_identity = parts[0]
+        did = ori_msg["msg"].get("did")  # 从消息体中提取目标id
+        context = ori_msg["msg"].get('context')
+
         sid = self.gen_sid()
-        self.sid_table[sid] = (parts["oid"], parts.get('context'))
-        msg = {'mid': MessageID.SENDRDY.value, 'sid': sid}
+
+        self.sid_table[sid] = (did, context)
+
+        msg = {'mid': MessageID.SENDRDY.value, 'did': did, 'context': context, 'sid': sid}
         part = json.dumps(msg).encode()
-        self.send_message(parts['did'], part)
+
+        oid = ''
+        for key, value in self.server_registry.items():
+            if value == server_identity:
+                oid = key
+
+        self.send_message(oid, part)
+
+    def handle_send_message(self, parts):
+        ori_msg = json.loads(parts[-1].decode('utf-8'))
+        # 获取流标识
+        sid = ori_msg['msg'].get('sid')
+        # 获取流目标id
+        did = self.sid_table.get(sid)[0]
+
+        msg = {'mid': MessageID.RECV.value, 'msg': parts[-1]}
+        part = json.dumps(msg).encode()
+
+        self.send_message(did, part)
 
     def handle_client_message(self):
         """
@@ -126,7 +155,7 @@ class TestBroker:
         """
         try:
             # 提取消息内容
-            msg = json.loads(parts[-1].decode('utf-8'))
+            # msg = json.loads(parts[-1].decode('utf-8'))
             
             # 获取所有已注册的客户端
             clients = [entry for entry in self.client_registry.values()]
@@ -169,11 +198,15 @@ class TestBroker:
         """
         try:
             msg = json.loads(parts[-1].decode('utf-8'))
-            target_id = msg["msg"].get("did")  # 从消息体中提取目标oid
+            target_ids = msg["msg"].get("did")  # 从消息体中提取目标id
+            if isinstance(target_ids, List):
+                for target_id in target_ids:
+                    self.send_message(target_id, parts[-1])
+            else:
+                target_id = target_ids
+                self.send_message(target_id, parts[-1])
             
-            self.send_message(target_id, parts[-1])
-            
-            logging.info(f"Forwarded {MessageID(msg['mid']).name} from to oid={target_id}")
+            logging.info(f"Forwarded {MessageID(msg['mid']).name} from oid={msg['msg'].get('oid')} to did={target_ids}")
             
         except Exception as e:
             logging.error(f"Error forwarding message: {e}")

@@ -21,8 +21,8 @@ class CollaborationRPCClient:  # 协同感知子系统的Client类，用于向�
         if self.cfg.rpc_collaboration_client_debug:
             return {'DEBUG': {'lidar_pose': np.ones((1, 3)),
                               'ts_lidar_pose': 1,
-                              'velocity': np.ones((1, 3)),
-                              'ts_velocity': 1,
+                              'speed': np.ones((1, 3)),
+                              'ts_spd': 1,
                               'acceleration': np.ones((1, 3)),
                               'ts_acceleration': 1,
                               'feature': np.ones((1, 3)),
@@ -67,7 +67,7 @@ class CollaborationRPCClient:  # 协同感知子系统的Client类，用于向�
         try:
             response = self.__collaboration_stub.GetOthersLidarPosesAndPCDs(Service_pb2.Empty(), timeout=10)  # 请求协同感知子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC get_others_comm_masks failed: code={e.code().name}")  # 记录grpc异常
+            logging.error(f"RPC get_others_lidar_poses_and_pcds failed: code={e.code().name}")  # 记录grpc异常
             return None
 
         others_lidar_poses_and_pcds_protobuf = response.others_lidar_poses_and_pcds

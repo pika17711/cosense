@@ -40,56 +40,104 @@ class Communication(nn.Module):
             self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
-    def forward(self, batch_confidence_maps, B):
-        """
-        Args:
-            batch_confidence_maps: [(L1, H, W), (L2, H, W), ...]
-        """
+    # def forward(self, batch_confidence_maps, B):
+    #     """
+    #     Args:
+    #         batch_confidence_maps: [(L1, H, W), (L2, H, W), ...]
+    #     """
+    #
+    #     _, _, H, W = batch_confidence_maps[0].shape  # [2,2,48,176]
+    #
+    #     communication_masks = []
+    #     communication_rates = []
+    #     ego_comm_mask = None
+    #     for b in range(B):
+    #         # [2,1,48,176]
+    #         ori_communication_maps, _ = batch_confidence_maps[b].sigmoid().max(dim=1, keepdim=True)
+    #
+    #         if self.smooth:
+    #             communication_maps = self.gaussian_filter(ori_communication_maps)
+    #         else:
+    #             communication_maps = ori_communication_maps
+    #         # communication_maps [2,1,48,176]
+    #         L = communication_maps.shape[0]  # 2
+    #
+    #         if self.training:
+    #             # Official training proxy objective
+    #             K = int(H * W * random.uniform(0, 1))
+    #             communication_maps = communication_maps.reshape(L, H * W)
+    #             _, indices = torch.topk(communication_maps, k=K, sorted=False)
+    #             communication_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
+    #             ones_fill = torch.ones(L, K, dtype=communication_maps.dtype, device=communication_maps.device)
+    #             communication_mask = torch.scatter(communication_mask, -1, indices, ones_fill).reshape(L, 1, H, W)
+    #         elif self.threshold:
+    #             # ones_mask = torch.ones_like(communication_maps).to(communication_maps.device)
+    #             # zeros_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
+    #             # communication_mask = torch.where(communication_maps > self.threshold, ones_mask, zeros_mask)
+    #
+    #             communication_mask = torch.zeros_like(communication_maps)
+    #             indices = torch.topk(communication_maps.view(-1), k=24).indices
+    #             communication_mask.view(-1)[indices] = 1
+    #
+    #         else:
+    #             communication_mask = torch.ones_like(communication_maps).to(communication_maps.device)
+    #
+    #         communication_rate = communication_mask.sum() / (L * H * W)
+    #         # Ego
+    #         if b == 0:
+    #             ego_comm_mask = communication_mask[0].clone().unsqueeze(0)
+    #
+    #         communication_mask[0] = 1
+    #
+    #         communication_masks.append(communication_mask)
+    #         communication_rates.append(communication_rate)
+    #     communication_rates = sum(communication_rates) / B
+    #     communication_masks = torch.cat(communication_masks, dim=0)
+    #     return communication_masks, communication_rates, ego_comm_mask
 
-        _, _, H, W = batch_confidence_maps[0].shape  # [2,2,48,176]
+    def forward(self, confidence_maps):
+        _, _, H, W = confidence_maps.shape  # [2,2,48,176]
 
-        communication_masks = []
-        communication_rates = []
-        ego_comm_mask = None
-        for b in range(B):
-            # [2,1,48,176]
-            ori_communication_maps, _ = batch_confidence_maps[b].sigmoid().max(dim=1, keepdim=True)
-            
-            if self.smooth:
-                communication_maps = self.gaussian_filter(ori_communication_maps)
-            else:
-                communication_maps = ori_communication_maps
-            # communication_maps [2,1,48,176]
-            L = communication_maps.shape[0]  # 2
-           
-            if self.training:
-                # Official training proxy objective
-                K = int(H * W * random.uniform(0, 1))
-                communication_maps = communication_maps.reshape(L, H * W)
-                _, indices = torch.topk(communication_maps, k=K, sorted=False)
-                communication_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
-                ones_fill = torch.ones(L, K, dtype=communication_maps.dtype, device=communication_maps.device)
-                communication_mask = torch.scatter(communication_mask, -1, indices, ones_fill).reshape(L, 1, H, W)
-            elif self.threshold:
-                ones_mask = torch.ones_like(communication_maps).to(communication_maps.device)
-                zeros_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
-                communication_mask = torch.where(communication_maps > self.threshold, ones_mask, zeros_mask)
-            else:
-                communication_mask = torch.ones_like(communication_maps).to(communication_maps.device)
+        # [2,1,48,176]
+        ori_communication_maps, _ = confidence_maps.sigmoid().max(dim=1, keepdim=True)
 
-            communication_rate = communication_mask.sum() / (L * H * W)
-            # Ego
-            if b == 0:
-                ego_comm_mask = communication_mask[0].clone().unsqueeze(0)
+        if self.smooth:
+            communication_maps = self.gaussian_filter(ori_communication_maps)
+        else:
+            communication_maps = ori_communication_maps
+        # communication_maps [2,1,48,176]
+        L = communication_maps.shape[0]  # 2
 
-            communication_mask[0] = 1
+        if self.training:
+            # Official training proxy objective
+            K = int(H * W * random.uniform(0, 1))
+            communication_maps = communication_maps.reshape(L, H * W)
+            _, indices = torch.topk(communication_maps, k=K, sorted=False)
+            communication_masks = torch.zeros_like(communication_maps).to(communication_maps.device)
+            ones_fill = torch.ones(L, K, dtype=communication_maps.dtype, device=communication_maps.device)
+            communication_masks = torch.scatter(communication_masks, -1, indices, ones_fill).reshape(L, 1, H, W)
+        elif self.threshold:
+            ones_mask = torch.ones_like(communication_maps).to(communication_maps.device)
+            zeros_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
+            communication_masks = torch.where(communication_maps > self.threshold, ones_mask, zeros_mask)
 
-            communication_masks.append(communication_mask)
-            communication_rates.append(communication_rate)
-        communication_rates = sum(communication_rates) / B
-        communication_masks = torch.cat(communication_masks, dim=0)
-        return communication_masks, communication_rates, ego_comm_mask
+            # TODO: 因带宽限制设置的使用topk选取communication_maps中最高K位进行传输
+            # ###########################################################################
+            # communication_mask = torch.zeros_like(communication_maps)
+            # indices = torch.topk(communication_maps.view(-1), k=24).indices
+            # communication_mask.view(-1)[indices] = 1
+            # ###########################################################################
 
+        else:
+            communication_masks = torch.ones_like(communication_maps).to(communication_maps.device)
+
+        communication_rate = communication_masks.sum() / (L * H * W)
+        # Ego
+        ego_comm_mask = communication_masks[0].clone().unsqueeze(0)
+
+        communication_masks[0] = 1
+
+        return communication_masks, communication_rate, ego_comm_mask
 
 class AttentionFusion(nn.Module):
     def __init__(self, feature_dim):
@@ -136,7 +184,8 @@ class Where2comm(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, psm_single, record_len, pairwise_t_matrix, backbone=None, comm_masked_features=None):
+    # def forward(self, x, psm_single, record_len, pairwise_t_matrix, backbone=None, comm_masked_features=None):
+    def forward(self, x, psm_single, backbone=None, comm_masked_features=None):
         """
         Fusion forwarding.
 
@@ -150,9 +199,33 @@ class Where2comm(nn.Module):
         """
 
         _, C, H, W = x.shape
-        B = pairwise_t_matrix.shape[0]
+        # B = pairwise_t_matrix.shape[0]
 
         if self.multi_scale:
+            ego_x = x[0].clone().unsqueeze(0)
+
+            ego_ups = []
+
+            for i in range(self.num_levels):
+                ego_x = backbone.blocks[i](ego_x)
+                ego_x_fuse = [self.fuse_modules[i](ego_x)]
+
+                ego_x_fuse = torch.stack(ego_x_fuse)
+
+                # 4. Deconv
+                if len(backbone.deblocks) > 0:
+                    ego_ups.append(backbone.deblocks[i](ego_x_fuse))
+                else:
+                    ego_ups.append(ego_x_fuse)
+
+            if len(ego_ups) > 1:
+                ego_x = torch.cat(ego_ups, dim=1)
+            elif len(ego_ups) == 1:
+                ego_x = ego_ups[0]
+
+            if len(backbone.deblocks) > self.num_levels:
+                ego_x = backbone.deblocks[-1](ego_x)
+
             ups = []
 
             for i in range(self.num_levels):
@@ -164,7 +237,8 @@ class Where2comm(nn.Module):
                         communication_rates = torch.tensor(1).to(x.device)
                     else:
                         # Prune
-                        batch_confidence_maps = self.regroup(psm_single, record_len)
+                        # batch_confidence_maps = self.regroup(psm_single, record_len)
+                        confidence_maps = psm_single
 
                         # for i in range(len(batch_confidence_maps)):
                         #     print(batch_confidence_maps[i].shape)
@@ -184,7 +258,8 @@ class Where2comm(nn.Module):
                         # batch_confidence_maps=pickle.loads(from_server_msg)
                         # -------------------------------
 
-                        communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+                        # communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+                        communication_masks, communication_rate, ego_comm_mask = self.naive_communication(confidence_maps)
 
                         if x.shape[-1] != communication_masks.shape[-1]:
                             communication_masks = F.interpolate(communication_masks, size=(x.shape[-2], x.shape[-1]),
@@ -228,13 +303,18 @@ class Where2comm(nn.Module):
                 # 2. Split the features
                 # split_x: [(L1, C, H, W), (L2, C, H, W), ...]
                 # For example [[2, 256, 48, 176], [1, 256, 48, 176], ...]
-                batch_node_features = self.regroup(x, record_len)
+                # batch_node_features = self.regroup(x, record_len)
+                node_features = x
 
                 # 3. Fusion
                 x_fuse = []
-                for b in range(B):
-                    neighbor_feature = batch_node_features[b]
-                    x_fuse.append(self.fuse_modules[i](neighbor_feature))
+
+                # for b in range(B):
+                #     neighbor_feature = batch_node_features[b]
+                #     x_fuse.append(self.fuse_modules[i](neighbor_feature))
+                neighbor_feature = node_features
+                x_fuse.append(self.fuse_modules[i](neighbor_feature))
+
                 x_fuse = torch.stack(x_fuse)
 
                 # 4. Deconv
@@ -253,7 +333,11 @@ class Where2comm(nn.Module):
 
             if len(backbone.deblocks) > self.num_levels:
                 x_fuse = backbone.deblocks[-1](x_fuse)
+
+            return x_fuse, communication_rate, ego_comm_mask, ego_x
         else:
+            # TODO: 暂时没用到
+            """
             # 1. Communication (mask the features)
             if self.fully:
                 communication_rates = torch.tensor(1).to(x.device)
@@ -308,64 +392,76 @@ class Where2comm(nn.Module):
                 neighbor_feature = batch_node_features[b]
                 x_fuse.append(self.fuse_modules(neighbor_feature))
             x_fuse = torch.stack(x_fuse)
-        return x_fuse, communication_rates, ego_comm_mask
+            """
+            return -1, -1, -1
+        # return x_fuse, communication_rates, ego_comm_mask
 
-    def spatial_feature_to_comm_mask(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None):
+    # def spatial_feature_to_comm_mask(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None):
+    def spatial_feature_to_comm_mask(self, spatial_feature, psm_single, backbone=None):
         _, C, H, W = spatial_feature.shape  # [1, 64, 192, 704]
-        B = pairwise_t_matrix.shape[0]
+        # B = pairwise_t_matrix.shape[0]
 
         if self.multi_scale:
             x = backbone.blocks[0](spatial_feature)
             # Prune
-            batch_confidence_maps = self.regroup(psm_single, record_len)
+            # batch_confidence_maps = self.regroup(psm_single, record_len)
+            confidence_maps = psm_single
 
-            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            # communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            communication_masks, communication_rate, ego_comm_mask = self.naive_communication(confidence_maps)
         else:
             x = spatial_feature
             # Prune
-            batch_confidence_maps = self.regroup(psm_single, record_len)
-            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            # batch_confidence_maps = self.regroup(psm_single, record_len)
+            # communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            confidence_maps = psm_single
+            communication_masks, communication_rate, ego_comm_mask = self.naive_communication(confidence_maps)
 
         comm_mask_tensor = ego_comm_mask
         return comm_mask_tensor
 
-    def spatial_feature_to_comm_masked_feature(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None, request_map=None):
+    # def spatial_feature_to_comm_masked_feature(self, spatial_feature, psm_single, record_len, pairwise_t_matrix, backbone=None, request_map=None):
+    def spatial_feature_to_comm_masked_feature(self, spatial_feature, psm_single, backbone=None, request_map=None):
+
         _, C, H, W = spatial_feature.shape  # [1, 64, 192, 704]
-        B = pairwise_t_matrix.shape[0]
 
         if self.multi_scale:
             x = backbone.blocks[0](spatial_feature)
             # Prune
-            batch_confidence_maps = self.regroup(psm_single, record_len)
+            # batch_confidence_maps = self.regroup(psm_single, record_len)
+            confidence_maps = psm_single
 
-            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            # communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            communication_masks, communication_rate, ego_comm_mask = self.naive_communication(confidence_maps)
 
             if request_map is not None:
-                communication_masks = communication_masks * request_map
+                ego_comm_mask = ego_comm_mask * request_map
 
-            comm_mask_tensor = communication_masks
+            comm_mask_tensor = ego_comm_mask
 
             # 1. 插值掩码到特征图尺寸
-            if x.shape[-1] != communication_masks.shape[-1]:
-                communication_masks = F.interpolate(communication_masks, size=(x.shape[-2], x.shape[-1]),
+            if x.shape[-1] != ego_comm_mask.shape[-1]:
+                ego_comm_mask = F.interpolate(ego_comm_mask, size=(x.shape[-2], x.shape[-1]),
                                                     mode='bilinear', align_corners=False)
         else:
             x = spatial_feature
             # Prune
-            batch_confidence_maps = self.regroup(psm_single, record_len)
-            communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            # batch_confidence_maps = self.regroup(psm_single, record_len)
+            # communication_masks, communication_rates, ego_comm_mask = self.naive_communication(batch_confidence_maps, B)
+            confidence_maps = psm_single
+            communication_masks, communication_rate, ego_comm_mask = self.naive_communication(confidence_maps)
 
             if request_map is not None:
-                communication_masks = communication_masks * request_map
+                ego_comm_mask = ego_comm_mask * request_map
 
-            comm_mask_tensor = communication_masks
+            comm_mask_tensor = ego_comm_mask
 
         # 2. 应用掩码
-        x = x * communication_masks
+        x = x * ego_comm_mask
 
         # 3. 获取掩码的非零位置索引 (空间位置)
         # 掩码形状: [1, 1, H, W]
-        spatial_mask = communication_masks.squeeze(0).squeeze(0)  # [H, W]
+        spatial_mask = ego_comm_mask.squeeze(0).squeeze(0)  # [H, W]
         non_zero_indices = torch.nonzero(spatial_mask != 0, as_tuple=False)  # [N, 2] (h, w)
 
         # 4. 提取特征 (每个通道在非零位置的值)

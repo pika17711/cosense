@@ -6,16 +6,14 @@ import open3d as o3d
 from appConfig import AppConfig
 from collections import deque
 
-import concurrent.futures
 from perception.perceptionRPCServer import PerceptionServerThread
 from perception.rosWrapper import ROSWrapper
-from opencood.visualization.vis_utils import color_encoding
+# from opencood.visualization.vis_utils import color_encoding
 from utils.sharedInfo import SharedInfo
 from utils.perception_utils import get_lidar_pose_and_pcd_from_dataset, get_psa_from_obu, save_lidar_pose_and_pcd, \
     ros_pcd_to_numpy
 
 import numpy as np
-import queue
 
 
 class PerceptionManager:
@@ -130,8 +128,8 @@ class PerceptionManager:
 
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 
-        origin_lidar_intcolor = color_encoding(processed_pcd[:, 2], mode='constant')
-        pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
+        # origin_lidar_intcolor = color_encoding(processed_pcd[:, 2], mode='constant')
+        # pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
 
         self.vis.add_geometry(pcd)
 

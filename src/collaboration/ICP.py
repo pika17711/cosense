@@ -7,7 +7,7 @@ def ICP_init(cfg: AppConfig):
     """
         ICP初始化
     """
-    InteroperationApp.czlconfig.source_id = cfg.id
+    # InteroperationApp.czlconfig.source_id = cfg.id
 
     icp_server = ICPServer(cfg.app_id)
     icp_client = ICPClient(cfg.topic)

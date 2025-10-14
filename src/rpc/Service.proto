@@ -6,6 +6,7 @@ service PerceptionService {                                             // 感�
     rpc GetMyPCD (Empty) returns (PCD);                                 // 向其他进程提供“获取自车点云”的服务
     rpc GetMyLidarPoseAndPCD (Empty) returns (LidarPoseAndPCD);         // 向其他进程提供“获取自车雷达位姿和点云”的服务
     rpc GetMyPVA (Empty) returns (PVA);                                 // 向其他进程提供“获取自车雷达位姿 、速度、加速度信息”的服务
+    rpc GetPerceptionInfo (Empty) returns (PerceptionInfo);
     rpc GetMyExtrinsicMatrix (Empty) returns (ExtrinsicMatrix);         // 向其他进程提供“获取自车外参矩阵”的服务
 }
 
@@ -20,8 +21,10 @@ service DetectionService {                                              // 融�
     rpc GetFusedFeature (Empty) returns (Feature);                      // 向其他进程提供“获取融合后的特征”的服务
     rpc GetFusedCommMask (Empty) returns (CommMask);                    // 向其他进程提供“获取融合后的协作图”的服务
     rpc GetLatestPredBox (Empty) returns (PredBox);                     // 向其他进程提供“获取最新检测框”的服务
+    rpc GetPresentationInfo(Empty) returns (PresentationInfo);
     rpc PCD2Feature (PCD) returns (Feature);                            // 向其他进程提供“根据点云获取特征”的服务
     rpc PCD2FeatureAndConfMap (PCD) returns (FeatureAndConfMap);        // 向其他进程提供“根据点云获取特征和置信图”的服务
+    rpc LidarPose2ProjectedCommMask (LidarPose) returns (CommMask);
     rpc LidarPoses2ProjectedFeatures (LidarPoses) returns (Features);    // 向其他进程提供“根据位姿获取投射后的特征”的服务
     rpc LidarPoses2ProjectedCommMaskedFeatures (LidarPoses) returns (CommMaskedFeatures);
     rpc RequestMap2ProjectedCommMaskedFeature (RequestMap) returns (CommMaskedFeature);
@@ -56,10 +59,21 @@ message LidarPoseAndPCD {               // 雷达位姿和点云
 message PVA {                           // 雷达位姿、速度、加速度信息
     NDArray lidar_pose = 1;             // 雷达位姿
     int64 ts_lidar_pose = 2;            // 雷达位姿对应时间戳
-    NDArray velocity = 3;               // 速度
-    int64 ts_v = 4;                     // 速度对应时间戳
+    NDArray speed = 3;               // 速度
+    int64 ts_spd = 4;                     // 速度对应时间戳
     NDArray acceleration = 5;           // 加速度
-    int64 ts_a = 6;                     // 加速度对应时间戳
+    int64 ts_acc = 6;                     // 加速度对应时间戳
+}
+
+message PerceptionInfo {
+    NDArray lidar_pose = 1;             // 雷达位姿
+    int64 ts_lidar_pose = 2;            // 雷达位姿对应时间戳
+    NDArray speed = 3;               // 速度
+    int64 ts_spd = 4;                     // 速度对应时间戳
+    NDArray acceleration = 5;           // 加速度
+    int64 ts_acc = 6;                     // 加速度对应时间戳
+    NDArray pcd = 7;
+    int64 ts_pcd = 8;
 }
 
 message ExtrinsicMatrix {               // 外参矩阵
@@ -73,10 +87,10 @@ message OthersInfos {                       // 所有他车信息
     message CAVInfo {                       // 单个他车信息
         NDArray lidar_pose = 1;             // 雷达位姿
         int64 ts_lidar_pose = 2;            // 雷达位姿对应时间戳
-        NDArray velocity = 3;               // 速度
-        int64 ts_v = 4;                     // 速度对应时间戳
+        NDArray speed = 3;               // 速度
+        int64 ts_spd = 4;                     // 速度对应时间戳
         NDArray acceleration = 5;           // 加速度
-        int64 ts_a = 6;                     // 加速度对应时间戳
+        int64 ts_acc = 6;                     // 加速度对应时间戳
         NDArray feature = 7;                // 特征
         int64 ts_feature = 8;               // 特征对应时间戳
         optional NDArray comm_mask = 9;
@@ -96,6 +110,16 @@ message CommMaskAndLidarPose {
     int64 ts_comm_mask = 2;
     NDArray lidar_pose = 3;
     int64 ts_lidar_pose = 4;
+}
+
+message PresentationInfo {
+    NDArray lidar_pose = 1;             // 雷达位姿
+    NDArray speed = 2;               // 速度
+    NDArray pcd_img = 3;
+    NDArray ego_comm_mask = 4;
+    NDArray others_comm_mask = 5;
+    NDArray ego_feature = 6;
+    NDArray fused_feature = 7;
 }
 
 message Feature {                       // 特征
@@ -120,13 +144,13 @@ message FeatureAndConfMap {             // 特征和置信图
     int64 ts_conf_map = 4;              // 置信图对应时间戳
 }
 
+message LidarPose {                         // 雷达位姿
+    NDArray lidar_pose = 1;                 // 雷达位姿
+    int64 ts_lidar_pose = 2;                // 雷达位姿对应时间戳
+}
+
 message LidarPoses {                            // 多个雷达位姿
     map<string, LidarPose> lidar_poses = 1;     // 多个雷达位姿
-
-    message LidarPose {                         // 雷达位姿
-        NDArray lidar_pose = 1;                 // 雷达位姿
-        int64 ts_lidar_pose = 2;                // 雷达位姿对应时间戳
-    }
 }
 
 message Features {                              // 多个特征

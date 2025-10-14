@@ -1,4 +1,5 @@
 from dataclasses import dataclass, fields
+from InteroperationApp.czlconfig import source_id
 
 @dataclass
 class AppConfig:
@@ -7,7 +8,7 @@ class AppConfig:
             内存中存储配置的类
             TODO：增加配置文件（json、yaml甚至txt），增加配置文件处理模块
     """
-    id = '京A1234'       # 自身id 目前使用车牌号
+    id = source_id       # 自身id 目前使用车牌号
     app_ver = 1         # 应用版本
     app_id = 131        # 应用id，目前用于标识使用哪个算法
     topic = "W"         # 主题，用于筛选接收的消息，具体机制与zmq SUB PUB中的topic一致
@@ -25,7 +26,8 @@ class AppConfig:
 
     broadcastpub_period = 3 * 1000   # 广播推送的发送间隔，单位ms
     broadcastsub_period = 3 * 1000   # 广播订阅的发送间隔，单位ms
-    send_data_period = 1 * 1000      # 想订阅者发送数据的间隔，单位ms
+    send_data_period = 5 * 1000      # 想订阅者发送数据的间隔，单位ms
+    update_data_period = send_data_period
 
     tx_timeout = 50                   # 事务超时时间，单位ms，目前事务是同步的，
                                       # 所以这个超时时间=调用tx_handler事务方法的阻塞时间，所以不要设太久
@@ -40,21 +42,28 @@ class AppConfig:
     rpc_collaboration_server_debug = False  # collaboration子系统RPC server是否开启debug模式
     rpc_collaboration_client_debug = False  # collaboration子系统RPC client是否开启debug模式
 
+    collaboration_no_coopmap_debug = False
     collaboration_request_map_debug = True
-    collaboration_pcd_debug = True
+    collaboration_pcd_debug = False
 
-    perception_debug = False          # 同上
+    detection_alt_debug = True
+
+    perception_debug = True          # 同上
     perception_hea_debug = True
+
     rpc_perception_server_debug = False
     rpc_perception_client_debug = False
 
     overlap_threshold = 0.0           # 协作图的重叠率阈值，高于此阈值才建立会话
 
     # model_dir = 'opencood/logs/point_pillar_where2comm_2024_10_28_23_24_50/'  # 模型位置
-    model_dir = r'D:\WorkSpace\Python\interopera\opencood\logs\point_pillar_where2comm_2024_10_28_23_24_50'
+    # model_dir = r'D:\WorkSpace\Python\interopera\opencood\logs\point_pillar_where2comm_2024_10_28_23_24_50'
+    model_dir = r'D:\WorkSpace\Python\interopera\opencood\logs\point_pillar_where2comm_v2v4real'
     obu_output_file_path = '/home/nvidia/mydisk/czl/InteroperationApp/data/output.json'       # OBU获取的数据导出的文件位置
     # static_asset_path = 'datasets/OPV2V/test_culver_city_part/2021_09_03_09_32_17' + '/302'  # 静态数据位置
-    static_asset_path = 'D:\\Documents\\datasets\\OPV2V\\test_tmp\\two\\2021_09_03_09_32_17\\' + '302'
-    # static_asset_path = 'D:\\WorkSpace\\Python\\cosense\\tests\\pcds\\25_07_09\\199\\json\\301.json'
+    # static_asset_path = '/home/nvidia/mydisk/gs/datasets/OPV2V/test_tmp/two/2021_09_03_09_32_17/' + '302'
+    # static_asset_path = 'D:\\Documents\\datasets\\OPV2V\\test_tmp\\two\\2021_09_03_09_32_17\\' + '302'
+    static_asset_path = 'D:\\WorkSpace\\Python\\cosense\\tests\\pcds\\25_07_09\\198\\json\\302.json'
+    # static_asset_path = r'D:\Documents\datasets\OPV2V\test_culver_city\2021_09_03_09_32_17\302'
 
     perception_debug_data_from_OPV2V = 'OPV2V' in static_asset_path

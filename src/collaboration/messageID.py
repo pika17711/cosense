@@ -10,11 +10,18 @@ class MessageID(IntEnum):
     # 控制接口
     APPREG = 1          # 应用注册
     APPRSP = 2          # 注册响应
+
+    BROCASTECHO = 10    # 广播推送
     BROCASTPUB = 11     # 广播推送
     BROCASTSUB = 12     # 广播订购
-    BROCASTSUBNTY = 13  # 广播订购通知
-    SUBSCRIBE = 21      # 能力订购
-    NOTIFY = 22         # 订购通知
+    # BROCASTSUBNTY = 13  # 广播订购通知
+
+    MULTIPUB = 16
+    MULTISUB = 17
+
+    PUBLISH = 21
+    SUBSCRIBE = 22      # 能力订购
+    NOTIFY = 23         # 订购通知
     
     # 流传输
     SENDREQ = 101       # 流发送请求
@@ -33,20 +40,25 @@ class MessageID(IntEnum):
     @classmethod
     def get_direction(cls, msg_id):
         """判断消息流向 (返回: '应用->控制层'/'控制层->应用'/'双向')"""
-        bidirectional = {cls.BROCASTPUB, cls.BROCASTSUB, cls.BROCASTSUBNTY, 
-                        cls.SUBSCRIBE, cls.NOTIFY}
+        bidirectional = {cls.BROCASTPUB, cls.BROCASTSUB,
+                         # cls.BROCASTSUBNTY,
+                         cls.PUBLISH, cls.SUBSCRIBE, cls.NOTIFY}
         if msg_id in bidirectional:
             return "双向"
             
-        to_control = {cls.APPREG, cls.SENDREQ, cls.SEND, cls.SENDEND, cls.SENDFILE}
+        to_control = {cls.APPREG,
+                      cls.MULTIPUB, cls.MULTISUB,
+                      cls.SENDREQ, cls.SEND, cls.SENDEND,
+                      cls.SENDFILE}
         return "应用->控制层" if msg_id in to_control else "控制层->应用"
     
     @classmethod
     def is_control(cls, msg_id) -> bool:
         control_mids = {
             cls.APPREG, cls.APPRSP,
-            cls.BROCASTPUB, cls.BROCASTSUB, cls.BROCASTSUBNTY,
-            cls.SUBSCRIBE, cls.NOTIFY
+            cls.BROCASTPUB, cls.BROCASTSUB,
+            # cls.BROCASTSUBNTY,
+            cls.PUBLISH, cls.SUBSCRIBE, cls.NOTIFY
         }
         # 兼容直接传入整数值的情况
         if isinstance(msg_id, MessageID):
