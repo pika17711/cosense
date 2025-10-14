@@ -1,3 +1,6 @@
 [submodule "src/comm"]
 	path = src/comm
 	url = https://github.com/Kodapsy/InteroperationApp.git
+[submodule "src/InteroperationApp"]
+	path = src/InteroperationApp
+	url = https://www.sicrc.com/git/ATS_interoperate/InteroperationApp.git
