@@ -6,7 +6,7 @@
 export PYTHONPATH="/src:$PYTHONPATH"
 
 # 配置各模块的Python解释器路径和主程序
-COLLABORATION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/rospy/bin/python3"
+COLLABORATION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/cosense_detection/bin/python3"
 COLLABORATION_MAIN="src/collaboration/main.py"
 
 DETECTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/cosense_detection/bin/python3"
@@ -15,7 +15,7 @@ DETECTION_MAIN="src/detection/main.py"
 PERCEPTION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/rospy/bin/python3"
 PERCEPTION_MAIN="src/perception/main.py"
 
-PRESENTATION_PYTHON="/path/to/presentation/python"
+PRESENTATION_PYTHON="/home/nvidia/mydisk/miniconda3/envs/cosense_detection/bin/python3"
 PRESENTATION_MAIN="src/presentation/main.py"
 
 # 配置日志文件路径

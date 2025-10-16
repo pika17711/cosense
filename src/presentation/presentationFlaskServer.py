@@ -12,7 +12,7 @@ class PresentationFlaskServerThread:                           # 信息呈现子
         self.run_thread = threading.Thread(target=self.run, name='presentation flask server', daemon=True)
 
     def run(self):
-        self.flask_app.run(debug=False, threaded=True)
+        self.flask_app.run(host='0.0.0.0', debug=False, threaded=True)
 
     def start(self):
         self.run_thread.start()
