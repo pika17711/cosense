@@ -3,7 +3,9 @@ import os
 import logging
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(parent_dir)
+sys.path.append(root_dir)
 from appConfig import AppConfig
 import argparse
 from detection.detectionManager import DetectionManager
