@@ -48,6 +48,12 @@ class transactionHandler:
         self.recv_thread = Thread(target=self.recv_loop, name='transactionHandler recv_loop', daemon=True)
 
     def start_recv(self):
+        CapID = 1
+        CapVersion = 1
+        CapConfig = 1
+        act = 1
+        self.appreg(CapID, CapVersion, CapConfig, act)
+
         self.recv_thread.start()
 
     def close(self):

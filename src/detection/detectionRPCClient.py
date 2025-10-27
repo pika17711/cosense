@@ -119,7 +119,7 @@ class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合
         request = Service_pb2.LidarPose(lidar_pose=np_to_protobuf(lidar_pose),
                                         ts_lidar_pose=ts_lidar_pose)
         try:
-            response = self.__detection_stub.PCD2Feature(request, timeout=10)  # 请求融合检测子系统并获得响应
+            response = self.__detection_stub.LidarPose2ProjectedCommMask(request, timeout=10)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
             logging.error(f"RPC lidar_pose_to_projected_comm_mask failed: code={e.code()}")  # 记录grpc异常
             return None, None

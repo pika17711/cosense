@@ -228,6 +228,10 @@ class CollaborationManager:
                 logging.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
                 for cctx in subeds:
                     coopmap = self.ctable.get_coopmap(cctx.remote_id())
+                    if coopmap is None:
+                        logging.info(f'coopmap is None, 取消对订阅者{cctx.remote_id()}的发送')
+                        continue
+
                     if self.cfg.collaboration_no_coopmap_debug:
                         coopmap.map = np.ones((1, 1, 48, 176), dtype=np.float32)
                     if self.cfg.collaboration_request_map_debug:

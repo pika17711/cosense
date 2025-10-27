@@ -66,7 +66,18 @@ class Message:
         data = {k: process_value(v) for k, v in data.items()}
         data["header"] = asdict(self.header)  # 嵌套结构展开
         data["header"]["mid"] = MessageID(data["header"]["mid"]).name
-        return '\n' + json.dumps(data, indent=2, ensure_ascii=False)
+
+        data_copy = data.copy()
+        if data_copy.get('payload') is not None:
+            payload = data_copy['payload']
+            if isinstance(payload, list):
+                for p in payload:
+                    if p['encode'] == 3:
+                        p['content'] = f'{len(p["content"])} characters'
+                    else:
+                        p['content'] = f'{len(p["content"])}B binary data'
+
+        return '\n' + json.dumps(data_copy, indent=2, ensure_ascii=False)
 
     @classmethod
     def _get_message_class(cls, mid: MessageID) -> "Message":

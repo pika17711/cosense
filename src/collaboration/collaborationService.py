@@ -667,7 +667,7 @@ class CollaborationService:
         if bcctx is not None:
             server_assert(bcctx.state != BCContextState.PENDING)
 
-            if bcctx.state == BCContextState.WAITBNTY:
+            if bcctx.state == BCContextState.WAITBNTY and msg.act == NotifyAct.ACK:
                 need = self.check_need_notify(msg)
                 if need:
                     logging.debug(f"接收 {msg.oid} 对于BROADCASTSUB的NTY")
@@ -741,7 +741,7 @@ class CollaborationService:
             with cctx.lock:
                 self.cctx_to_sendnty(cctx)
                 if self.check_need_subscribe(msg):
-                    self.notify_send(cctx)
+                    self.notify_send(cctx, act=NotifyAct.ACK)
                     self.cctx_to_subscribed(cctx, remote_request_map)
                 else:
                     self.cctx_to_closed(cctx)

@@ -184,8 +184,8 @@ class DetectionManager:
         # cam = view_control.convert_to_pinhole_camera_parameters()
         #
         # cam.extrinsic = np.array([[1, 0, 0, 0],  # 调整相机位置
-        #                           [0, 1, 0, 0],
-        #                           [0, 0, 1, 100],  # Z值增大=拉远相机
+        #                           [0, -1, 0, 0],
+        #                           [0, 0, -1, 100],  # Z值增大=拉远相机
         #                           [0, 0, 0, 1]])
         # extrinsic = np.array(cam.extrinsic)
         # extrinsic[2, 3] = 10

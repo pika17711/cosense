@@ -92,7 +92,7 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
 
         projected_comm_mask = lidar_pose_to_projected_comm_mask(my_lidar_pose, my_pcd, lidar_pose, self.shared_info, gps=not self.cfg.perception_debug)
 
-        return Service_pb2.CommMask(comm_mask=projected_comm_mask,
+        return Service_pb2.CommMask(comm_mask=np_to_protobuf(projected_comm_mask),
                                     ts_comm_mask=ts_lidar_pose)
 
     def LidarPoses2ProjectedFeatures(self, request, context):

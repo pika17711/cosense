@@ -19,9 +19,19 @@ class ContextGenerator:
         else:
             self.counter = random.randint(1, 1 << 20)
     
+    # def cid_gen(self) -> appType.cid_t:
+    #     self.counter += 1
+    #     return string_to_32_hex(str(self.id) + str(mstime()) + str(self.counter))
+
     def cid_gen(self) -> appType.cid_t:
         self.counter += 1
-        return string_to_32_hex(str(self.id) + str(mstime()) + str(self.counter))
+
+        hex_digest = string_to_32_hex(str(self.id) + str(mstime()) + str(self.counter))
+
+        cid_int = int(hex_digest[:8], 16)
+        cid_int = cid_int & 0xFFFFFFFF  # 确保它是一个32位无符号整数
+
+        return cid_int
 
     def __call__(self) -> appType.cid_t:
         return self.cid_gen()
