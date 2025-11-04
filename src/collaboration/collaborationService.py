@@ -14,7 +14,7 @@ from collaboration.contextGenerator import ContextGenerator
 from collaboration.coopMap import CoopMap, CoopMapType
 from collaboration.message import BroadcastPubMessage, BroadcastSubMessage, Message, NotifyAct, \
     NotifyMessage, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, \
-    SubscribeAct, SubscribeMessage
+    SubscribeAct, SubscribeMessage, AppRegAct
 from collaboration.transactionHandler import transactionHandler
 from collaboration.BearInfo import BearInfo
 from appConfig import AppConfig
@@ -370,6 +370,9 @@ class CollaborationService:
 
         return ratio >= self.cfg.overlap_threshold
 
+    def appreg(self, CapID=1, CapVersion=1, CapConfig=1, act: AppRegAct = AppRegAct.REG):
+        self.tx_handler.appreg(CapID, CapVersion, CapConfig, act)
+
     def broadcastsub(self):
         """
             广播订阅
@@ -527,7 +530,7 @@ class CollaborationService:
                                    context=cctx.cid, cseq=self.cseq, payload=[])  # 不需要传协作图
             self.cseq += 1
 
-    def sendreq_send(self, did: appType.id_t, context: str,
+    def sendreq_send(self, did: appType.id_t, context: appType.cid_t,
                      sid: appType.sid_t = "",
                      rl: int = 1,
                      pt: int = 0,
@@ -540,10 +543,10 @@ class CollaborationService:
                      ):
         self.tx_handler.sendreq(did, sid, context, rl, pt, aoi, mode, ip, port, ip2, port2)
 
-    def send_send(self, sid: appType.sid_t, context: str, did: str, data: bytes):
+    def send_send(self, sid: appType.sid_t, context: appType.cid_t, did: str, data: bytes):
         self.tx_handler.send(sid, context, did, data)
 
-    def sendend_send(self, did: appType.id_t, context: str, sid: appType.sid_t):
+    def sendend_send(self, did: appType.id_t, context: appType.cid_t, sid: appType.sid_t):
         self.tx_handler.sendend(did, context, sid)
 
     def get_stream(self, cctx: CContext):
@@ -556,7 +559,8 @@ class CollaborationService:
             mode = 2
             with cctx.lock:
                 # self.sendreq_send(cctx.remote_id(), cctx.cid, rl, pt, aoi, mode)
-                self.sendreq_send(did=cctx.remote_id(), context=cctx.cid, rl=rl, pt=pt, aoi=aoi, mode=mode)
+                self.sendreq_send(did=cctx.remote_id(), context=cctx.cid, rl=rl, pt=pt, aoi=aoi, mode=mode,
+                                  ip=self.cfg.sendreq_ip, port=self.cfg.sendreq_port)
                 self.stream_to_sendreq(cctx)
             cctx.sid_set_event.wait()
             server_assert(cctx.stream_state == CSContextCotorState.SENDRDY)
@@ -606,7 +610,7 @@ class CollaborationService:
             coopmap = self.get_self_coopmap(coopMapType)
             binary_coopmap = CoopMap.serialize_only_map_and_lidar_pose(coopmap)
             coopmap_payload = {
-                'type': 3,
+                'type': 2,
                 'encode': 0,
                 'content': binary_coopmap
             }
@@ -748,6 +752,7 @@ class CollaborationService:
         else:
             logging.debug(f"收到SUBSCRIBE, 存在此context:{msg.context}, 正在更新coopmap")
             self.ctable.update_coopmap(cctx.remote_id(), remote_request_map)
+            cctx.update_active()
 
     def subscribe_fin_service(self, msg: SubscribeMessage):
         """
@@ -816,11 +821,10 @@ class CollaborationService:
             return
         cctx.update_active()
         with cctx.lock:
-            if cctx.have_sid():
-                logging.warning(f'context {msg.context} 已经收到过recvrdy')
-                return
-            cctx.sid = msg.sid
-            self.stream_to_recvrdy(cctx)
+            logging.debug(f'context {msg.context} 收到recvrdy')
+            if not cctx.have_sid():
+                cctx.sid = msg.sid
+                self.stream_to_recvrdy(cctx)
 
     def recv_service(self, msg: RecvMessage):
         logging.debug(f"APP serve message {msg}")

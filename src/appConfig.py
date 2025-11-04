@@ -26,7 +26,7 @@ class AppConfig:
 
     broadcastpub_period = 3 * 1000   # 广播推送的发送间隔，单位ms
     broadcastsub_period = 3 * 1000   # 广播订阅的发送间隔，单位ms
-    send_data_period = 5 * 1000      # 想订阅者发送数据的间隔，单位ms
+    send_data_period = 10 * 1000      # 想订阅者发送数据的间隔，单位ms
     update_data_period = send_data_period
 
     tx_timeout = 50                   # 事务超时时间，单位ms，目前事务是同步的，
@@ -43,7 +43,7 @@ class AppConfig:
     rpc_collaboration_client_debug = False  # collaboration子系统RPC client是否开启debug模式
 
     collaboration_no_coopmap_debug = False
-    collaboration_request_map_debug = True
+    collaboration_request_map_debug = False
     collaboration_pcd_debug = False
 
     detection_alt_debug = True
@@ -63,7 +63,10 @@ class AppConfig:
     # static_asset_path = 'datasets/OPV2V/test_culver_city_part/2021_09_03_09_32_17' + '/302'  # 静态数据位置
     # static_asset_path = '/home/nvidia/mydisk/gs/datasets/OPV2V/test_tmp/two/2021_09_03_09_32_17/' + '302'
     # static_asset_path = 'D:\\Documents\\datasets\\OPV2V\\test_tmp\\two\\2021_09_03_09_32_17\\' + '302'
-    static_asset_path = 'D:\\WorkSpace\\Python\\cosense\\tests\\pcds\\25_07_09\\198\\json\\302.json'
-    # static_asset_path = r'D:\Documents\datasets\OPV2V\test_culver_city\2021_09_03_09_32_17\302'
+    # static_asset_path = 'D:\\WorkSpace\\Python\\cosense\\tests\\pcds\\25_07_09\\198\\json\\302.json'
+    static_asset_path = r'D:\Documents\datasets\OPV2V\test_culver_city\2021_09_03_09_32_17\302'
 
     perception_debug_data_from_OPV2V = 'OPV2V' in static_asset_path
+
+    sendreq_ip = '192.168.20.19x'       # 223上填198, 224上填199
+    sendreq_port = 7002

@@ -120,6 +120,7 @@ message PresentationInfo {
     NDArray others_comm_mask = 5;
     NDArray ego_feature = 6;
     NDArray fused_feature = 7;
+    float communication_rate = 8;
 }
 
 message Feature {                       // 特征

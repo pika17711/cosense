@@ -19,20 +19,23 @@ class MessageError(Exception):
     """消息解析异常基类"""
     pass
 
+
 class InvalidMessageFormat(MessageError):
     """消息格式错误"""
     pass
 
+
 class UnknownMessageType(MessageError):
     """未知消息类型"""
     pass
+
 
 @dataclass
 class MessageHeader:
     """消息头基类"""
     mid: MessageID
     tid: Optional[int]
-    
+
     @classmethod
     def from_dict(cls, data: Dict) -> "MessageHeader":
         try:
@@ -42,6 +45,7 @@ class MessageHeader:
             )
         except KeyError as e:
             raise InvalidMessageFormat(f"Missing header field: {e}")
+
 
 @dataclass
 class Message:
@@ -57,12 +61,14 @@ class Message:
         """工厂方法：从原始字典创建具体消息对象"""
         header = MessageHeader.from_dict(raw_data)
         msg_class = cls._get_message_class(header.mid)
-        return msg_class.from_raw(header, raw_data) # type: ignore
+        return msg_class.from_raw(header, raw_data)  # type: ignore
 
     def __str__(self) -> str:
         data = asdict(self)
+
         def process_value(v):
             return f'{len(v)}B binary data' if isinstance(v, bytes) else v
+
         data = {k: process_value(v) for k, v in data.items()}
         data["header"] = asdict(self.header)  # 嵌套结构展开
         data["header"]["mid"] = MessageID(data["header"]["mid"]).name
@@ -82,22 +88,34 @@ class Message:
     @classmethod
     def _get_message_class(cls, mid: MessageID) -> "Message":
         mapping = {
-            MessageID.APPREG: AppRegMessage,
+            MessageID.ACK: AckMessage,
+
+            # MessageID.APPREG: AppRegMessage,
             MessageID.APPRSP: AppRspMessage,
+            # MessageID.MAPREG: MapRegMessage,
+            MessageID.MAPRSP: MapRspMessage,
+
+            # MessageID.BROCASTECHO: BroadcastEchoMessage,
             MessageID.BROCASTPUB: BroadcastPubMessage,
             MessageID.BROCASTSUB: BroadcastSubMessage,
-            # MessageID.BROCASTSUBNTY: BroadcastSubNtyMessage,
+            # MessageID.BROCASTSUBNTY:  BroadcastSubNtyMessage,
+
+            MessageID.MULTIPUB: MultiPubMessage,
+            MessageID.MULTISUB: MultiSubMessage,
+
             MessageID.PUBLISH: PublishMessage,
             MessageID.SUBSCRIBE: SubscribeMessage,
             MessageID.NOTIFY: NotifyMessage,
-            MessageID.SENDREQ: SendReqMessage,
+
+            # MessageID.SENDREQ: SendReqMessage,
             MessageID.SENDRDY: SendRdyMessage,
             MessageID.RECVRDY: RecvRdyMessage,
-            MessageID.SEND: SendMessage,
+            # MessageID.SEND: SendMessage,
             MessageID.RECV: RecvMessage,
-            MessageID.SENDEND: SendEndMessage,
+            # MessageID.SENDEND: SendEndMessage,
             MessageID.RECVEND: RecvEndMessage,
-            MessageID.SENDFILE: SendFileMessage,
+
+            # MessageID.SENDFILE: SendFileMessage,
             MessageID.SENDFIN: SendFinMessage,
             MessageID.RECVFILE: RecvFileMessage,
         }
@@ -130,37 +148,88 @@ class AckMessage(Message):
         )
 
 
-@dataclass
-class AppRegMessage(Message):
-    """应用注册 (MID.APPREG)"""
-    topic: int
-    ver: int
-    act: int
-    
-    @classmethod
-    def from_raw(cls, header: MessageHeader, raw: Dict) -> "AppRegMessage":
-        msg_body = raw['msg']
-        return cls(
-            header=header,
-            direction=MessageID.get_direction(header.mid),
-            topic=msg_body["topic"],
-            ver=msg_body["ver"],
-            act=msg_body["act"]
-        )
+class AppRegAct(IntEnum):
+    REG = 1
+    FIN = 2
+    UPD = 3
+
+
+# @dataclass
+# class AppRegMessage(Message):
+#     """应用注册 (MID.APPREG)"""
+#     # topic: int
+#     CapID: int
+#     CapVersion: int
+#     CapConfig: int
+#     act: AppRegAct
+#
+#     @classmethod
+#     def from_raw(cls, header: MessageHeader, raw: Dict) -> "AppRegMessage":
+#         msg_body = raw['msg']
+#         return cls(
+#             header=header,
+#             direction=MessageID.get_direction(header.mid),
+#             # topic=msg_body["topic"],
+#             CapID=msg_body['capId'],
+#             CapVersion=msg_body['capVersion'],
+#             CapConfig=msg_body['capConfig'],
+#             act=AppRegAct(msg_body['act'])
+#         )
+
 
 @dataclass
 class AppRspMessage(Message):
     """注册响应 (MID.APPRSP)"""
     result: int
-    
+
     @classmethod
     def from_raw(cls, header: MessageHeader, raw: Dict) -> "AppRspMessage":
-        msg_body = raw['msg']
         return cls(
             header=header,
             direction=MessageID.get_direction(header.mid),
-            result=msg_body["result"],
+            result=raw["result"],
         )
+
+
+# @dataclass
+# class MapRegMessage(Message):
+#     """拓扑图请求 (MID.MAPREG)"""
+#     capId: Optional[int]
+#     capVersion: Optional[int]
+#     capConfig: Optional[int]
+#
+#     @classmethod
+#     def from_raw(cls, header: MessageHeader, raw: Dict) -> "MapRegMessage":
+#         msg_body = raw['msg']
+#         return cls(
+#             header=header,
+#             direction=MessageID.get_direction(header.mid),
+#             capId=msg_body.get('capId', None),
+#             capVersion=msg_body.get('capVersion', None),
+#             capConfig=msg_body.get('capConfig', None)
+#         )
+
+
+@dataclass
+class MapRspMessage(Message):
+    """拓扑图响应 (MID.MAPRSP)"""
+    devices: List
+    result: int
+
+    @classmethod
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "MapRspMessage":
+        return cls(
+            header=header,
+            direction=MessageID.get_direction(header.mid),
+            devices=raw['devices'],
+            result=raw["result"]
+        )
+
+
+# @dataclass
+# class BroadcastEchoMessage(Message):
+#     pass
+
 
 @dataclass
 class BroadcastPubMessage(Message):
@@ -185,6 +254,7 @@ class BroadcastPubMessage(Message):
             extra=msg_body.get("extra")
         )
 
+
 @dataclass
 class BroadcastSubMessage(Message):
     """广播订购 (MID.BROCASTSUB)"""
@@ -193,7 +263,7 @@ class BroadcastSubMessage(Message):
     context: appType.cid_t
     cseq: int
     payload: List
-    
+
     @classmethod
     def from_raw(cls, header: MessageHeader, raw: Dict) -> "BroadcastSubMessage":
         msg_body = raw['msg']
@@ -207,6 +277,7 @@ class BroadcastSubMessage(Message):
             cseq=msg_body['cseq'],
             payload=msg_body['payload']
         )
+
 
 # @dataclass
 # class BroadcastSubNtyMessage(Message):
@@ -241,6 +312,15 @@ class BroadcastSubMessage(Message):
 #             coopmaptype=coopmaptype,
 #             bearcap=msg_body["bearcap"]
 #         )
+
+@dataclass
+class MultiPubMessage(Message):
+    pass
+
+
+@dataclass
+class MultiSubMessage(Message):
+    pass
 
 
 class PublishAct(IntEnum):
@@ -292,7 +372,7 @@ class SubscribeMessage(Message):
     context: appType.cid_t
     cseq: int
     payload: List
-    
+
     @classmethod
     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SubscribeMessage":
         msg_body = raw['msg']
@@ -326,7 +406,7 @@ class NotifyMessage(Message):
     cseq: int
     act: NotifyAct
     payload: List
-    
+
     @classmethod
     def from_raw(cls, header: MessageHeader, raw: Dict) -> "NotifyMessage":
         msg_body = raw['msg']
@@ -343,43 +423,44 @@ class NotifyMessage(Message):
             payload=msg_body['payload']
         )
 
+
 # ----------------------------
 # 流传输消息实现
 # ----------------------------
-@dataclass
-class SendReqMessage(Message):
-    """流发送请求 (MID.SENDREQ)"""
-    context: appType.cid_t
-    did: appType.id_t
-    sid: appType.sid_t
-    rl: int
-    pt: int
-    aoi: int
-    mode: int
-    ip: Optional[str] = ''
-    port: Optional[int] = 0
-    ip2: Optional[str] = ''
-    port2: Optional[int] = 0
-
-    @classmethod
-    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendReqMessage":
-        msg_body = raw['msg']
-
-        return cls(
-            header=header,
-            direction=MessageID.get_direction(header.mid),
-            context=msg_body["context"],
-            did=msg_body["did"],
-            sid=msg_body['sid'],
-            rl=msg_body["rl"],
-            pt=msg_body["pt"],
-            aoi=msg_body["aoi"],
-            mode=msg_body["mode"],
-            ip=msg_body.get('ip', ''),
-            port=msg_body.get('port', 0),
-            ip2=msg_body.get('ip2', ''),
-            port2=msg_body.get('port2', 0),
-        )
+# @dataclass
+# class SendReqMessage(Message):
+#     """流发送请求 (MID.SENDREQ)"""
+#     context: appType.cid_t
+#     did: appType.id_t
+#     sid: appType.sid_t
+#     rl: int
+#     pt: int
+#     aoi: int
+#     mode: int
+#     ip: Optional[str] = ''
+#     port: Optional[int] = 0
+#     ip2: Optional[str] = ''
+#     port2: Optional[int] = 0
+#
+#     @classmethod
+#     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendReqMessage":
+#         msg_body = raw['msg']
+#
+#         return cls(
+#             header=header,
+#             direction=MessageID.get_direction(header.mid),
+#             context=msg_body["context"],
+#             did=msg_body["did"],
+#             sid=msg_body['sid'],
+#             rl=msg_body["rl"],
+#             pt=msg_body["pt"],
+#             aoi=msg_body["aoi"],
+#             mode=msg_body["mode"],
+#             ip=msg_body.get('ip', ''),
+#             port=msg_body.get('port', 0),
+#             ip2=msg_body.get('ip2', ''),
+#             port2=msg_body.get('port2', 0),
+#         )
 
 
 @dataclass
@@ -387,7 +468,7 @@ class SendRdyMessage(Message):
     did: appType.id_t
     context: appType.cid_t
     sid: appType.sid_t
-    
+
     @classmethod
     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendRdyMessage":
         msg_body = raw['msg']
@@ -420,25 +501,25 @@ class RecvRdyMessage(Message):
         )
 
 
-@dataclass
-class SendMessage(Message):
-    context: appType.cid_t
-    did: appType.id_t
-    sid: appType.sid_t
-    data: bytes
-
-    @classmethod
-    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendMessage":
-        msg_body = raw['msg']
-
-        return cls(
-            header=header,
-            direction=MessageID.get_direction(header.mid),
-            context=msg_body['context'],
-            did=msg_body['did'],
-            sid=msg_body["sid"],
-            data=msg_body["data"]
-        )
+# @dataclass
+# class SendMessage(Message):
+#     context: appType.cid_t
+#     did: appType.id_t
+#     sid: appType.sid_t
+#     data: bytes
+#
+#     @classmethod
+#     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendMessage":
+#         msg_body = raw['msg']
+#
+#         return cls(
+#             header=header,
+#             direction=MessageID.get_direction(header.mid),
+#             context=msg_body['context'],
+#             did=msg_body['did'],
+#             sid=msg_body["sid"],
+#             data=msg_body["data"]
+#         )
 
 
 @dataclass
@@ -463,23 +544,22 @@ class RecvMessage(Message):
 
 
 @dataclass
-class SendEndMessage(Message):
-    context: appType.cid_t
-    did: appType.id_t
-    sid: appType.sid_t
-
-    @classmethod
-    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendEndMessage":
-        msg_body = raw['msg']
-
-        return cls(
-            header=header,
-            direction=MessageID.get_direction(header.mid),
-            context=msg_body['context'],
-            did=msg_body['did'],
-            sid=msg_body["sid"]
-        )
-
+# class SendEndMessage(Message):
+#     context: appType.cid_t
+#     did: appType.id_t
+#     sid: appType.sid_t
+#
+#     @classmethod
+#     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendEndMessage":
+#         msg_body = raw['msg']
+#
+#         return cls(
+#             header=header,
+#             direction=MessageID.get_direction(header.mid),
+#             context=msg_body['context'],
+#             did=msg_body['did'],
+#             sid=msg_body["sid"]
+#         )
 
 @dataclass
 class RecvEndMessage(Message):
@@ -499,31 +579,32 @@ class RecvEndMessage(Message):
             sid=msg_body["sid"]
         )
 
+
 # ----------------------------
 # 文件传输消息实现
 # ----------------------------
-@dataclass
-class SendFileMessage(Message):
-    """文件发送请求 (MID.SENDFILE)"""
-    context: appType.cid_t
-    did: appType.id_t
-    rl: int
-    pt: int
-    file: str
-    
-    @classmethod
-    def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendFileMessage":
-        msg_body = raw['msg']
-
-        return cls(
-            header=header,
-            direction=MessageID.get_direction(header.mid),
-            context=msg_body['context'],
-            did=msg_body['did'],
-            rl=msg_body['rl'],
-            pt=msg_body['pt'],
-            file=msg_body['file']
-        )
+# @dataclass
+# class SendFileMessage(Message):
+#     """文件发送请求 (MID.SENDFILE)"""
+#     context: appType.cid_t
+#     did: appType.id_t
+#     rl: int
+#     pt: int
+#     file: str
+#
+#     @classmethod
+#     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendFileMessage":
+#         msg_body = raw['msg']
+#
+#         return cls(
+#             header=header,
+#             direction=MessageID.get_direction(header.mid),
+#             context=msg_body['context'],
+#             did=msg_body['did'],
+#             rl=msg_body['rl'],
+#             pt=msg_body['pt'],
+#             file=msg_body['file']
+#         )
 
 
 @dataclass
@@ -532,7 +613,7 @@ class SendFinMessage(Message):
     context: appType.cid_t
     did: appType.id_t
     file: str
-    
+
     @classmethod
     def from_raw(cls, header: MessageHeader, raw: Dict) -> "SendFinMessage":
         msg_body = raw['msg']
@@ -552,9 +633,9 @@ class RecvFileMessage(Message):
     context: appType.cid_t
     oid: appType.id_t
     file: str
-    
+
     @classmethod
-    def from_raw(cls, header:   MessageHeader, raw: Dict) -> "RecvFileMessage":
+    def from_raw(cls, header: MessageHeader, raw: Dict) -> "RecvFileMessage":
         msg_body = raw['msg']
 
         return cls(

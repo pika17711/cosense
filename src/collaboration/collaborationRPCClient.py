@@ -10,8 +10,8 @@ from appConfig import AppConfig
 
 
 class CollaborationRPCClient:  # 协同感知子系统的Client类，用于向协同感知子系统的服务器请求服务
-    def __init__(self, cfg: AppConfig):
-        collaboration_channel = grpc.insecure_channel('localhost:50052', options=[  # 与协同感知子系统的服务器建立连接
+    def __init__(self, cfg: AppConfig, port=50052):
+        collaboration_channel = grpc.insecure_channel(f'localhost:{port}', options=[  # 与协同感知子系统的服务器建立连接
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         self.__collaboration_stub = Service_pb2_grpc.CollaborationServiceStub(collaboration_channel)

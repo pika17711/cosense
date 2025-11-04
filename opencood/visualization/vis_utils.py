@@ -58,7 +58,8 @@ def bbx2linset(bbx_corner, order='hwl', color=(0, 1, 0)):
     for i in range(bbx_corner.shape[0]):
         bbx = bbx_corner[i]
         # o3d use right-hand coordinate
-        bbx[:, :1] = - bbx[:, :1]
+        # bbx[:, :1] = - bbx[:, :1]
+        bbx[:, 1:2] = - bbx[:, 1:2]
 
         line_set = o3d.geometry.LineSet()
         line_set.points = o3d.utility.Vector3dVector(bbx)
@@ -101,7 +102,8 @@ def bbx2oabb(bbx_corner, order='hwl', color=(0, 0, 1), left_hand_coordinate=True
         bbx = bbx_corner[i]
         # o3d use right-hand coordinate
         if left_hand_coordinate:
-            bbx[:, :1] = -bbx[:, :1]
+            # bbx[:, :1] = -bbx[:, :1]
+            bbx[:, 1:2] = -bbx[:, 1:2]
 
         tmp_pcd = o3d.geometry.PointCloud()
         tmp_pcd.points = o3d.utility.Vector3dVector(bbx)
@@ -139,7 +141,8 @@ def bbx2aabb(bbx_center, order):
     for i in range(bbx_corner.shape[0]):
         bbx = bbx_corner[i]
         # o3d use right-hand coordinate
-        bbx[:, :1] = - bbx[:, :1]
+        # bbx[:, :1] = - bbx[:, :1]
+        bbx[:, 1:2] = - bbx[:, 1:2]
 
         tmp_pcd = o3d.geometry.PointCloud()
         tmp_pcd.points = o3d.utility.Vector3dVector(bbx)
@@ -304,7 +307,8 @@ def visualize_single_sample_output_gt(pred_tensor,
         color_encoding(origin_lidar[:, -1] if mode == 'intensity'
                        else origin_lidar[:, 2], mode=mode)
     # left -> right hand
-    origin_lidar[:, :1] = -origin_lidar[:, :1]
+    # origin_lidar[:, :1] = -origin_lidar[:, :1]
+    origin_lidar[:, 1:2] = -origin_lidar[:, 1:2]
 
     o3d_pcd = o3d.geometry.PointCloud()
     o3d_pcd.points = o3d.utility.Vector3dVector(origin_lidar[:, :3])
@@ -434,7 +438,8 @@ def visualize_single_sample_dataloader(batch_data,
                        else origin_lidar[:, 2], mode=mode)
 
     # left -> right hand
-    origin_lidar[:, :1] = -origin_lidar[:, :1]
+    # origin_lidar[:, :1] = -origin_lidar[:, :1]
+    origin_lidar[:, 1:2] = -origin_lidar[:, 1:2]
 
     o3d_pcd.points = o3d.utility.Vector3dVector(origin_lidar[:, :3])
     o3d_pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)
@@ -500,7 +505,8 @@ def visualize_inference_sample_dataloader(pred_box_tensor,
         gt_box_tensor = common_utils.torch_tensor_to_numpy(gt_box_tensor)
 
     # left -> right hand
-    origin_lidar[:, :1] = -origin_lidar[:, :1]
+    # origin_lidar[:, :1] = -origin_lidar[:, :1]
+    origin_lidar[:, 1:2] = -origin_lidar[:, 1:2]
 
     o3d_pcd.points = o3d.utility.Vector3dVector(origin_lidar[:, :3])
     o3d_pcd.colors = o3d.utility.Vector3dVector(origin_lidar_intcolor)

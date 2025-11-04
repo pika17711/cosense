@@ -9,8 +9,8 @@ from utils.rpc_utils import protobuf_to_np
 
 
 class PerceptionRPCClient:                                 # 感知子系统的Client类，用于向感知子系统的服务器请求服务
-    def __init__(self, cfg: AppConfig):
-        perception_channel = grpc.insecure_channel('localhost:50051', options=[                 # 与感知子系统建立连接
+    def __init__(self, cfg: AppConfig, port=50051):
+        perception_channel = grpc.insecure_channel(f'localhost:{port}', options=[                 # 与感知子系统建立连接
             ('grpc.max_send_message_length', 64 * 1024 * 1024),                     # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         self.__perception_stub = Service_pb2_grpc.PerceptionServiceStub(perception_channel)

@@ -59,7 +59,8 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
                                             ego_comm_mask=np_to_protobuf(presentation_info['ego_comm_mask']),
                                             others_comm_mask=np_to_protobuf(presentation_info['others_comm_mask']),
                                             ego_feature=np_to_protobuf(presentation_info['ego_feature']),
-                                            fused_feature=np_to_protobuf(presentation_info['fused_feature']))
+                                            fused_feature=np_to_protobuf(presentation_info['fused_feature']),
+                                            communication_rate=presentation_info['communication_rate'])
 
     def PCD2Feature(self, request, context):
         pcd = protobuf_to_np(request.pcd)
@@ -172,7 +173,7 @@ class DetectionRPCService(Service_pb2_grpc.DetectionServiceServicer):  # 融合�
 
 
 class DetectionServerThread:  # 融合检测子系统的Server线程
-    def __init__(self, cfg: AppConfig, shared_info):
+    def __init__(self, cfg: AppConfig, shared_info, port=50053):
         self.cfg = cfg
         self.shared_info = shared_info
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
@@ -180,12 +181,12 @@ class DetectionServerThread:  # 融合检测子系统的Server线程
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         Service_pb2_grpc.add_DetectionServiceServicer_to_server(DetectionRPCService(self.cfg, self.shared_info), self.server)
         self.stop_event = threading.Event()
-        self.run_thread = threading.Thread(target=self.run, name='detection rpc server', daemon=True)
+        self.run_thread = threading.Thread(target=self.run, name='detection rpc server', daemon=True, args=(port,))
 
-    def run(self):
-        self.server.add_insecure_port('[::]:50053')
+    def run(self, port=50053):
+        self.server.add_insecure_port(f'[::]:{port}')
         self.server.start()  # 非阻塞, 会实例化一个新线程来处理请求
-        logging.info("Detection Server is up and running on port 50053.")
+        logging.info(f"Detection Server is up and running on port {port}.")
         try:
             # 等待停止事件或被中断
             while not self.stop_event.is_set():

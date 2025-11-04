@@ -14,7 +14,7 @@ def main():
     # TODO: load config
 
     opt = argparse.Namespace()
-    opt.show_vis = True
+    opt.show_vis = False
     opt.save_pcd = False
 
     logging.basicConfig(level=logging.DEBUG,

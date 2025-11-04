@@ -121,17 +121,13 @@ class Communication(nn.Module):
             zeros_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
             communication_masks = torch.where(communication_maps > self.threshold, ones_mask, zeros_mask)
 
-            # TODO: 因带宽限制设置的使用topk选取communication_maps中最高K位进行传输
-            # ###########################################################################
-            # communication_mask = torch.zeros_like(communication_maps)
-            # indices = torch.topk(communication_maps.view(-1), k=24).indices
-            # communication_mask.view(-1)[indices] = 1
-            # ###########################################################################
-
         else:
             communication_masks = torch.ones_like(communication_maps).to(communication_maps.device)
 
-        communication_rate = communication_masks.sum() / (L * H * W)
+        if L > 1:
+            communication_rate = communication_masks[1:L].sum() / ((L - 1) * H * W)
+        else:
+            communication_rate = -1.0
         # Ego
         ego_comm_mask = communication_masks[0].clone().unsqueeze(0)
 
@@ -266,12 +262,14 @@ class Where2comm(nn.Module):
                                                                 mode='bilinear', align_corners=False)
                         x = x * communication_masks
 
-                        if comm_masked_features is not None:
+                        if comm_masked_features is not None and len(comm_masked_features) > 0:
                             features = []
-
+                            communication_rate_sum = 0
                             for comm_masked_feature_dict in comm_masked_features:
                                 comm_masked_feature = comm_masked_feature_dict['comm_masked_feature']
                                 comm_mask = comm_masked_feature_dict['comm_mask']
+
+                                communication_rate_sum += comm_mask.sum() / comm_mask.numel()
 
                                 # 1. 插值掩码到目标尺寸
                                 if x.shape[-1] != comm_mask.shape[-1]:
@@ -299,6 +297,8 @@ class Where2comm(nn.Module):
 
                             features.insert(0, x)
                             x = torch.cat(features, dim=0)
+
+                            communication_rate = communication_rate_sum / len(comm_masked_features)
 
                 # 2. Split the features
                 # split_x: [(L1, C, H, W), (L2, C, H, W), ...]
@@ -436,6 +436,13 @@ class Where2comm(nn.Module):
 
             if request_map is not None:
                 ego_comm_mask = ego_comm_mask * request_map
+
+                # TODO: 因带宽限制设置的使用topk选取communication_maps中最高K位进行传输
+                # ###########################################################################
+                # communication_masks = torch.zeros_like(communication_maps)
+                # indices = torch.topk(communication_maps.view(-1), k=24).indices
+                # communication_masks.view(-1)[indices] = 1
+                # ###########################################################################
 
             comm_mask_tensor = ego_comm_mask
 

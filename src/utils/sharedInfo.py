@@ -42,6 +42,9 @@ class SharedInfo:
         self.__others_comm_mask = np.array([])
         self.__presentation_info_lock = threading.Lock()
 
+        self.__communication_rate = 0.0
+        self.__communication_rate_lock = threading.Lock()
+
     def update_perception_info(self,
                                pcd=None,
                                lidar_pose=None,
@@ -71,7 +74,8 @@ class SharedInfo:
     def update_presentation_info(self, 
                                  lidar_pose=None, speed=None,
                                  ego_comm_mask=None,
-                                 pcd_img=None, others_comm_mask=None, ego_feature=None, fused_feature=None):
+                                 pcd_img=None, others_comm_mask=None, ego_feature=None, fused_feature=None,
+                                 communication_rate=None):
         with self.__perception_info_lock:
             if lidar_pose is not None:
                 self.__lidar_pose = lidar_pose
@@ -91,6 +95,8 @@ class SharedInfo:
                 self.__ego_feature = ego_feature
             if fused_feature is not None:
                 self.__fused_feature = fused_feature
+            if communication_rate is not None:
+                self.__communication_rate = communication_rate
 
     def update_presentation_info_dict(self, presentation_info: dict):
         lidar_pose = presentation_info.get('lidar_pose', None)
@@ -100,11 +106,17 @@ class SharedInfo:
         others_comm_mask = presentation_info.get('others_comm_mask', None)
         ego_feature = presentation_info.get('ego_feature', None)
         fused_feature = presentation_info.get('fused_feature', None)
+        communication_rate = presentation_info.get('communication_rate', None)
 
         self.update_presentation_info(lidar_pose=lidar_pose, speed=speed,
                                       ego_comm_mask=ego_comm_mask,
                                       pcd_img=pcd_img, others_comm_mask=others_comm_mask,
-                                      ego_feature=ego_feature, fused_feature=fused_feature)
+                                      ego_feature=ego_feature, fused_feature=fused_feature,
+                                      communication_rate=communication_rate)
+        
+    # def update_communication_rate(self, communication_rate: float):
+    #     with self.__communication_rate_lock:
+    #         self.__communication_rate = communication_rate
 
     def update_extrinsic_matrix(self, extrinsic_matrix):
         with self.__extrinsic_matrix_lock:
@@ -215,9 +227,13 @@ class SharedInfo:
             presentation_info['others_comm_mask'] = self.__others_comm_mask.copy()
             presentation_info['ego_feature'] = self.__ego_feature.copy()
             presentation_info['fused_feature'] = self.__fused_feature.copy()
+            presentation_info['communication_rate'] = self.__communication_rate
 
         with self.__ego_comm_mask_lock:
             presentation_info['ego_comm_mask'] = self.__ego_comm_mask.copy()
 
         return presentation_info
 
+    # def get_communication_rate(self) -> float:
+    #     with self.__communication_rate_lock:
+    #         return self.__communication_rate

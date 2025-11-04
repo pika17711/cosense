@@ -17,7 +17,7 @@ def main():
     opt = argparse.Namespace()
     opt.fusion_method = 'intermediate'
     opt.model_dir = cfg.model_dir
-    opt.show_vis = True
+    opt.show_vis = False
 
     detection_manager = DetectionManager(opt, cfg)
     try:

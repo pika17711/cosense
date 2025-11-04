@@ -10,16 +10,18 @@ class MessageID(IntEnum):
     # 控制接口
     APPREG = 1          # 应用注册
     APPRSP = 2          # 注册响应
+    MAPREG = 3          # 能力请求
+    MAPRSP = 4          # 能力响应
 
-    BROCASTECHO = 10    # 广播推送
+    # BROCASTECHO = 10    # 广播能力通知
     BROCASTPUB = 11     # 广播推送
     BROCASTSUB = 12     # 广播订购
     # BROCASTSUBNTY = 13  # 广播订购通知
 
-    MULTIPUB = 16
-    MULTISUB = 17
+    MULTIPUB = 16       # 多点发送信息推送
+    MULTISUB = 17       # 多点发送订购请求
 
-    PUBLISH = 21
+    PUBLISH = 21        # 能力推送
     SUBSCRIBE = 22      # 能力订购
     NOTIFY = 23         # 订购通知
     
@@ -42,12 +44,12 @@ class MessageID(IntEnum):
         """判断消息流向 (返回: '应用->控制层'/'控制层->应用'/'双向')"""
         bidirectional = {cls.BROCASTPUB, cls.BROCASTSUB,
                          # cls.BROCASTSUBNTY,
+                         cls.MULTIPUB, cls.MULTISUB,
                          cls.PUBLISH, cls.SUBSCRIBE, cls.NOTIFY}
         if msg_id in bidirectional:
             return "双向"
             
-        to_control = {cls.APPREG,
-                      cls.MULTIPUB, cls.MULTISUB,
+        to_control = {cls.APPREG, cls.MAPREG,
                       cls.SENDREQ, cls.SEND, cls.SENDEND,
                       cls.SENDFILE}
         return "应用->控制层" if msg_id in to_control else "控制层->应用"

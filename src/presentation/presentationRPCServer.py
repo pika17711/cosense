@@ -12,18 +12,18 @@ class PresentationRPCService(Service_pb2_grpc.PresentationServiceServicer):    #
 
 
 class PresentationRPCServerThread:                           # 信息呈现子系统的RPCServer线程
-    def __init__(self):
+    def __init__(self, port=50054):
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         Service_pb2_grpc.add_PresentationServiceServicer_to_server(PresentationRPCService(), self.server)
         self.stop_event = threading.Event()
-        self.run_thread = threading.Thread(target=self.run, name='presentation rpc server', daemon=True)
+        self.run_thread = threading.Thread(target=self.run, name='presentation rpc server', daemon=True, args=(port,))
 
-    def run(self):
-        self.server.add_insecure_port('[::]:50054')
+    def run(self, port=50054):
+        self.server.add_insecure_port(f'[::]:{port}')
         self.server.start()  # 非阻塞, 会实例化一个新线程来处理请求
-        logging.info("Presentation Server is up and running on port 50054.")
+        logging.info(f"Presentation Server is up and running on port {port}.")
         try:
             # 等待停止事件或被中断
             while not self.stop_event.is_set():

@@ -116,16 +116,17 @@ class DetectionManager:
 
             spatial_features, comm_masked_features = get_features_from_cav_infos(cav_infos)
             if len(comm_masked_features) > 0:
-                self.shared_info.update_others_comm_mask(comm_mask=comm_masked_features[0])
+                self.shared_info.update_presentation_info(others_comm_mask=comm_masked_features[0]['comm_mask'])
 
             fused_spatial_feature = fuse_spatial_feature(my_spatial_feature, spatial_features)
             print('fused_spatial_feature.shape: ' + str(fused_spatial_feature.shape))
 
             # 根据融合后的特征得到检测框
-            pred_box, ego_comm_mask, fused_feature, ego_feature = spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info, comm_masked_features)    # TODO: 不应该用融合后的检测框获取comm_mask?
+            pred_box, ego_comm_mask, fused_feature, ego_feature, communication_rate = spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info, comm_masked_features)
             self.shared_info.update_pred_box(pred_box)
             self.shared_info.update_ego_comm_mask(ego_comm_mask)
-            self.shared_info.update_presentation_info(fused_feature=fused_feature, ego_feature=ego_feature)
+            self.shared_info.update_presentation_info(fused_feature=fused_feature, ego_feature=ego_feature, communication_rate=communication_rate)
+            # self.shared_info.update_communication_rate(communication_rate)
 
             projected_others_pcds = None
             if self.cfg.collaboration_pcd_debug:
@@ -149,10 +150,12 @@ class DetectionManager:
 
         left_hand_coordinate = self.cfg.perception_debug and self.cfg.perception_debug_data_from_OPV2V
         if left_hand_coordinate:
-            processed_pcd[:, :1] = -processed_pcd[:, :1]
+            # processed_pcd[:, :1] = -processed_pcd[:, :1]
+            processed_pcd[:, 1:2] = -processed_pcd[:, 1:2]
             if projected_others_pcds is not None:
                 for projected_pcd in projected_others_pcds:
-                    projected_pcd[:, :1] = -projected_pcd[:, :1]
+                    # projected_pcd[:, :1] = -projected_pcd[:, :1]
+                    projected_pcd[:, 1:2] = -projected_pcd[:, 1:2]
 
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 

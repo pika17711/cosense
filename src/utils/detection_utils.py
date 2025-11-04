@@ -85,8 +85,8 @@ def spatial_feature_to_comm_masked_feature(spatial_feature, shared_info, request
     if request_map is not None:
         request_map = torch.from_numpy(request_map.copy()).to(device)
 
-    record_len = torch.tensor([spatial_feature.shape[0]], dtype=torch.int32).to(device)
-    pairwise_t_matrix = torch.zeros((1, 5, 5, 4, 4), dtype=torch.float64).to(device)
+    # record_len = torch.tensor([spatial_feature.shape[0]], dtype=torch.int32).to(device)
+    # pairwise_t_matrix = torch.zeros((1, 5, 5, 4, 4), dtype=torch.float64).to(device)
 
     with shared_info.model_lock:
         with torch.no_grad():
@@ -106,16 +106,16 @@ def spatial_feature_to_comm_masked_feature(spatial_feature, shared_info, request
                 comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(
                     spatial_feature,
                     psm_single,
-                    record_len,
-                    pairwise_t_matrix,
+                    # record_len,
+                    # pairwise_t_matrix,
                     model.backbone,
                     request_map=request_map)
             else:
                 comm_masked_feature_tensor, comm_mask_tensor = model.fusion_net.spatial_feature_to_comm_masked_feature(
                     spatial_features_2d,
                     psm_single,
-                    record_len,
-                    pairwise_t_matrix,
+                    # record_len,
+                    # pairwise_t_matrix,
                     request_map=request_map)
     if comm_masked_feature_tensor is not None:
         comm_masked_feature = comm_masked_feature_tensor.cpu().data.numpy()
@@ -160,7 +160,7 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
 
             if model.multi_scale:
                 # Bypass communication cost, communicate at high resolution, neither shrink nor compress
-                fused_feature, communication_rates, ego_comm_mask_tensor, ego_feature = model.fusion_net(spatial_feature,
+                fused_feature, communication_rate, ego_comm_mask_tensor, ego_feature = model.fusion_net(spatial_feature,
                                                                                             psm_single,
                                                                                             # record_len,
                                                                                             # pairwise_t_matrix,
@@ -170,7 +170,7 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
                     fused_feature = model.shrink_conv(fused_feature)
                     ego_feature = model.shrink_conv(ego_feature)
             else:
-                fused_feature, communication_rates, ego_comm_mask_tensor = model.fusion_net(spatial_features_2d,
+                fused_feature, communication_rate, ego_comm_mask_tensor = model.fusion_net(spatial_features_2d,
                                                                                             psm_single,
                                                                                             # record_len,
                                                                                             # pairwise_t_matrix,
@@ -179,7 +179,7 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
             psm = model.cls_head(fused_feature)
             rm = model.reg_head(fused_feature)
 
-    output_dict = {'psm': psm, 'rm': rm, 'com': communication_rates}
+    output_dict = {'psm': psm, 'rm': rm, 'com': communication_rate}
     conf_map_tensor = 0
     conf_map = conf_map_tensor
 
@@ -229,7 +229,9 @@ def spatial_feature_to_pred_box(spatial_feature, shared_info, comm_masked_featur
     else:
         pred_box = np.array([])
 
-    return pred_box, ego_comm_mask, fused_feature, ego_feature
+    communication_rate = output_dict['ego']['com']
+
+    return pred_box, ego_comm_mask, fused_feature, ego_feature, communication_rate
 
 
 def voxel_to_conf_map(voxel, shared_info):  # 根据特征获取置信图

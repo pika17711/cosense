@@ -71,7 +71,7 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
 
 
 class CollaborationRPCServerThread:  # 协同感知子系统的Server线程
-    def __init__(self, cfg: AppConfig, others_infos):
+    def __init__(self, cfg: AppConfig, others_infos, port=50052):
         self.cfg = cfg
         self.others_infos = others_infos
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
@@ -80,12 +80,12 @@ class CollaborationRPCServerThread:  # 协同感知子系统的Server线程
         Service_pb2_grpc.add_CollaborationServiceServicer_to_server(CollaborationRPCService(self.cfg, self.others_infos),
                                                                     self.server)
         self.stop_event = threading.Event()
-        self.run_thread = threading.Thread(target=self.run, name='collaboration rpc server', daemon=True)
+        self.run_thread = threading.Thread(target=self.run, name='collaboration rpc server', daemon=True, args=(port,))
 
-    def run(self):
-        self.server.add_insecure_port('[::]:50052')
+    def run(self, port=50052):
+        self.server.add_insecure_port(f'[::]:{port}')
         self.server.start()  # 非阻塞, 会实例化一个新线程来处理请求
-        logging.info("Collaboration Server is up and running on port 50052.")
+        logging.info(f"Collaboration Server is up and running on port {port}.")
         try:
             # 等待停止事件或被中断
             while not self.stop_event.is_set():

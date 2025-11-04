@@ -10,7 +10,7 @@ from time import sleep
 import numpy as np
 
 from appConfig import AppConfig
-from collaboration.message import SubscribeAct
+from collaboration.message import AppRegAct, SubscribeAct
 from utils import InfoDTO
 from perception.perceptionRPCClient import PerceptionRPCClient
 from detection.detectionRPCClient import DetectionRPCClient
@@ -66,9 +66,9 @@ class CollaborationManager:
         self.subscribed_send_loop_thread.start()
         self.subscribing_update_loop_thread.start()
 
-
     def close(self):
         self.running = False
+        self.collaboration_service.appreg(act=AppRegAct.FIN)
         self.executor.shutdown()
         if self.broadcastpub_loop_thread.is_alive():
             self.broadcastpub_event.set()
@@ -82,7 +82,6 @@ class CollaborationManager:
         if self.subscribing_update_loop_thread.is_alive():
             self.subscribing_update_event.set()
             self.subscribing_update_loop_thread.join(self.cfg.close_timeout)
-
 
     def handle_command(self, argv):
         logging.debug(f"输入的命令是: {argv}")
@@ -132,6 +131,8 @@ class CollaborationManager:
         return True
 
     def command_loop(self):
+        self.collaboration_service.appreg(act=AppRegAct.REG)
+
         while self.running:
             try:
                 command = input("$ ")
@@ -192,7 +193,6 @@ class CollaborationManager:
         comm_mask = comm_mask.copy().astype(np.int8)
         packed_comm_mask = np.packbits(comm_mask, axis=-1)
         binary_comm_mask = packed_comm_mask.tobytes()
-
 
         if self.cfg.collaboration_pcd_debug:
             pcd, ts_pcd = self.perception_client.get_my_pcd()

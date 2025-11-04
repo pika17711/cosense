@@ -7,8 +7,8 @@ from utils.rpc_utils import protobuf_to_np, np_to_protobuf, protobuf_to_dict
 
 
 class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合检测子系统的服务器请求服务
-    def __init__(self):
-        detection_channel = grpc.insecure_channel('localhost:50053', options=[  # 与融合检测子系统的服务器建立连接
+    def __init__(self, port=50053):
+        detection_channel = grpc.insecure_channel(f'localhost:{port}', options=[  # 与融合检测子系统的服务器建立连接
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         self.__detection_stub = Service_pb2_grpc.DetectionServiceStub(detection_channel)
@@ -79,7 +79,8 @@ class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合
             'ego_comm_mask': protobuf_to_np(response.ego_comm_mask),
             'others_comm_mask': protobuf_to_np(response.others_comm_mask),
             'ego_feature': protobuf_to_np(response.ego_feature),
-            'fused_feature': protobuf_to_np(response.fused_feature)
+            'fused_feature': protobuf_to_np(response.fused_feature),
+            'communication_rate': response.communication_rate
         }
 
         return presentation_info

@@ -247,9 +247,13 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo):
         presentation_info = shared_info.get_presentation_info_copy()
         lidar_pose = presentation_info.get('lidar_pose')    # (x, y, z, roll, pitch, yaw)
         if lidar_pose is not None and lidar_pose.size == 6:
-            longitude, latitude, _, _, _, heading = lidar_pose
+            if cfg.perception_debug_data_from_OPV2V:
+                longitude, latitude, _, _, heading, _ = lidar_pose
+            else:
+                longitude, latitude, _, _, _, heading = lidar_pose
             longitude = f'{abs(longitude):.2f}°' + ('E' if longitude > 0 else 'W')
             latitude = f'{abs(latitude):.2f}°' + ('N' if latitude > 0 else 'S')
+            heading = (heading + 360) % 360
             heading = f'{heading:.2f}°'
         else:
             longitude = 'N/A'
@@ -258,11 +262,27 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo):
         
         speed = presentation_info.get('speed')
         if speed is not None and speed.size == 1:
-            speed = f"{speed[0]:.2f}km/s"
+            speed = f"{speed:.2f}km/s"
         else:
             speed = 'N/A'
 
-        return jsonify(longitude=longitude, latitude=latitude, heading=heading, speed=speed)
+        communication_rate = presentation_info.get('communication_rate')
+        if communication_rate is not None and communication_rate >= 0.0:
+            communication_rate = f'{communication_rate * 100:.2f}%'
+        else:
+            communication_rate = 'N/A'
+
+        return jsonify(longitude=longitude, latitude=latitude, heading=heading, speed=speed,
+                       communication_rate=communication_rate)
+
+    # @app.route('/get_communication_rate')
+    # def get_communication_rate():
+    #     communication_rate = shared_info.get_communication_rate()
+    #     if communication_rate is not None:
+    #         communication_rate = f"{communication_rate:.2f}"
+    #     else:
+    #         communication_rate = 'N/A'
+    #     return jsonify(communication_rate=communication_rate)
     
     @app.route('/get_car_id')
     def get_car_id():

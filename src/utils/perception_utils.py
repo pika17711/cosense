@@ -81,6 +81,58 @@ def get_lidar_pose_and_pcd_from_dataset(file_path):
     return lidar_pose, pcd
 
 
+def get_info_from_dataset(file_path):
+    file_type = file_path.split('.')[-1]
+
+    lidar_pose = np.array([])
+    speed = np.array([])
+    pcd = np.array([])
+
+    if file_type == 'pcd' or file_type == 'yaml':
+        import open3d as o3d
+
+        path = file_path.split('.')[0]
+        try:
+            yaml_load = load_yaml(path + '.yaml')
+            lidar_pose = np.asarray(yaml_load['lidar_pose'])
+            speed = np.asarray(yaml_load['ego_speed'])
+        except FileNotFoundError as e:
+            logging.error(e)
+        except TypeError:
+            logging.error(f'YAML file is empty or contains malformed content. File: \'{path}.yaml\'')
+        except yaml.scanner.ScannerError:
+            logging.error(f'YAML file contains malformed content. File: \'{path}.yaml\'')
+        except KeyError as e:
+            logging.error(f'Key {e} not found in YAML file. File: \'{path}.yaml\'')
+
+        pcd_load = o3d.io.read_point_cloud(path + '.pcd')
+
+        # 将Open3D的点云对象转换为NumPy数组
+        xyz = np.asarray(pcd_load.points)
+        intensity = np.expand_dims(np.asarray(pcd_load.colors)[:, 0], -1)
+        pcd = np.hstack((xyz, intensity))
+    elif file_type == 'json':
+        json_load = load_json(file_path)
+
+        lidar_pose = np.array(json_load['lidar_pose']) if 'lidar_pose' in json_load else None
+        pcd = np.array(json_load['pcd']) if 'pcd' in json_load else None
+        if isinstance(pcd, np.ndarray):
+            pcd[:, 3] = pcd[:, 3] / 255.0
+    elif file_type == 'txt':
+        with open(file_path, 'rb') as file:
+            binary_data = file.read()
+        data_dict = pickle.loads(binary_data)
+
+        lidar_pose = np.array(data_dict['lidar_pose']) if 'lidar_pose' in data_dict else None
+        pcd = np.array(data_dict['pcd']) if 'pcd' in data_dict else None
+        if isinstance(pcd, np.ndarray):
+            pcd[:, 3] = pcd[:, 3] / 255.0
+
+    return {'lidar_pose': lidar_pose,
+            'pcd': pcd,
+            'speed': speed}
+
+
 def get_psa_from_obu(path):
     try:
         json_load = load_json(path)

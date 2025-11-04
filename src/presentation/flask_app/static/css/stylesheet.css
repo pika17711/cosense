@@ -1,3 +1,8 @@
+:root {
+    --main-color: #003399;
+    /* --main-color: #C00000; */
+}
+
 .container {
     min-width: 1080px;
     min-height: 720px;
@@ -9,7 +14,7 @@
     align-items: center;
     height: 50px;
     padding: 5px;
-    border:#003399 solid;
+    border:var(--main-color) solid;
 }
 
 .header img {
@@ -45,7 +50,7 @@
     border-radius: 5px;
     cursor: pointer;
     user-select: none;
-    background-color: #003399;
+    background-color: var(--main-color);
     color: white;
 }
 
@@ -58,7 +63,7 @@
     margin-top: 5px;
     padding: 5px;
     height: 55%;
-    border: #003399 solid;
+    border: var(--main-color) solid;
 }
 
 .pcd-container {
@@ -92,7 +97,7 @@
     display: flex;
     flex-direction: column;
     padding: 5px;
-    border: #003399 solid;
+    border: var(--main-color) solid;
 }
 
 .coop-map-viewer {
@@ -115,7 +120,7 @@
     padding: 5px;
     height: 30%;
     justify-content: center;
-    border: #003399 solid;
+    border: var(--main-color) solid;
     gap: 5px;
 }
 
@@ -124,7 +129,7 @@
     display: flex;
     flex-direction: column;
     padding: 5px;
-    border: #003399 solid;
+    border: var(--main-color) solid;
 }
 
 .feature-viewer {
@@ -145,7 +150,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: #003399 solid;
+    border: var(--main-color) solid;
+}
+
+.communication-rate {
     font-size: 20px;
     font-family: 黑体;
 }

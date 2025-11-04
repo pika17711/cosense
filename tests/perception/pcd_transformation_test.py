@@ -11,7 +11,8 @@ if __name__ == '__main__':
     pcd_file = r'D:\Documents\datasets\OPV2V\test_culver_city\2021_09_03_09_32_17\302\006220.pcd'
     pcd_np = get_pcd(pcd_file)
 
-    pcd_np[:, :1] = - pcd_np[:, :1]
+    # pcd_np[:, :1] = - pcd_np[:, :1]
+    pcd_np[:, 1:2] = - pcd_np[:, 1:2]
 
     x1 = [0, 0, 0, 0, 0, 0]
     x2 = [0, 0, 0, 0, 0, 90]

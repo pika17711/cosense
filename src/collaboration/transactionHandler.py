@@ -48,12 +48,6 @@ class transactionHandler:
         self.recv_thread = Thread(target=self.recv_loop, name='transactionHandler recv_loop', daemon=True)
 
     def start_recv(self):
-        CapID = 1
-        CapVersion = 1
-        CapConfig = 1
-        act = 1
-        self.appreg(CapID, CapVersion, CapConfig, act)
-
         self.recv_thread.start()
 
     def close(self):
@@ -148,6 +142,14 @@ class transactionHandler:
         self.submit(
             lambda: self.appreg_handler(CapID, CapVersion, CapConfig, act))
 
+    def mapreg_handler(self, CapID: Optional[int], CapVersion: Optional[int], CapConfig: Optional[int]):
+        self.transaction_message_handler(
+            lambda tid: self.icp_server.MapMessage(CapID, CapVersion, CapConfig, tid), 'MAPREG')
+
+    def mapreg(self, CapID: Optional[int], CapVersion: Optional[int], CapConfig: Optional[int]):
+        self.submit(
+            lambda: self.mapreg_handler(CapID, CapVersion, CapConfig))
+
     def brocastpub_handler(self, cseq: int, oid: str, topic: str, payload: List):
         self.transaction_message_handler(
             lambda tid: self.icp_server.brocastPub(cseq, tid, oid, topic, payload), 'BROCASTPUB')
@@ -156,62 +158,62 @@ class transactionHandler:
         self.submit(
             lambda: self.brocastpub_handler(cseq, oid, topic, payload))
 
-    def brocastsub_handler(self, oid: appType.id_t, topic: str, context: str, cseq: int, payload: List):
+    def brocastsub_handler(self, oid: appType.id_t, topic: str, context: appType.cid_t, cseq: int, payload: List):
         self.transaction_message_handler(
             lambda tid: self.icp_server.brocastSub(tid, oid, topic, context, cseq, payload), 'BROADCASTSUB')
 
-    def brocastsub(self, oid: appType.id_t, topic: str, context: str, cseq: int, payload: List):
+    def brocastsub(self, oid: appType.id_t, topic: str, context: appType.cid_t, cseq: int, payload: List):
         self.submit(
             lambda: self.brocastsub_handler(oid, topic, context, cseq, payload))
 
-    # def brocastsubnty_handler(self, oid: appType.id_t, did: appType.id_t, topic: str, context: str,
+    # def brocastsubnty_handler(self, oid: appType.id_t, did: appType.id_t, topic: str, context: appType.cid_t,
     #                        coopMap: bytes, coopMapType: int, bearcap: int):
     #     self.transaction_message_handler(
     #         lambda tid: self.icp_server.brocastSubnty(tid, oid, did, topic, context, coopMap, coopMapType,
     #                                                 bearcap), 'BROCASTSUBNTY')
     #
-    # def brocastsubnty(self, oid: appType.id_t, did: appType.id_t, topic: str, context: str,
+    # def brocastsubnty(self, oid: appType.id_t, did: appType.id_t, topic: str, context: appType.cid_t,
     #                 coopMap: bytes, coopMapType: int, bearcap: int):
     #     self.submit(
     #         lambda: self.brocastsubnty_handler(oid, did, topic, context, coopMap, coopMapType, bearcap))
 
-    def publish_handler(self, oid: appType.id_t, did: str, topic: str, context: str, cseq: int, act: int, payload: List):
+    def publish_handler(self, oid: appType.id_t, did: str, topic: str, context: appType.cid_t, cseq: int, act: int, payload: List):
         self.transaction_message_handler(
             lambda tid: self.icp_server.pubMessage(tid, oid, did, topic, context, cseq, act, payload), 'PUBLISH')
 
-    def publish(self, oid: appType.id_t, did: str, topic: str, context: str, cseq: int, act: int, payload: List):
+    def publish(self, oid: appType.id_t, did: str, topic: str, context: appType.cid_t, cseq: int, act: int, payload: List):
         self.submit(
             lambda: self.publish_handler(oid, did, topic, context, cseq, act, payload))
 
-    def subscribe_handler(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
+    def subscribe_handler(self, oid: appType.id_t, did: str, topic: str, act: int, context: appType.cid_t, cseq: int, payload: List):
         self.transaction_message_handler(
             lambda tid: self.icp_server.subMessage(tid, oid, did, topic, act, context, cseq, payload), 'SUBSCRIBE')
 
-    def subscribe(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
+    def subscribe(self, oid: appType.id_t, did: str, topic: str, act: int, context: appType.cid_t, cseq: int, payload: List):
         self.submit(
             lambda: self.subscribe_handler(oid, did, topic, act, context, cseq, payload))
 
-    def notify_handler(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
+    def notify_handler(self, oid: appType.id_t, did: str, topic: str, act: int, context: appType.cid_t, cseq: int, payload: List):
         self.transaction_message_handler(
             lambda tid: self.icp_server.notifyMessage(tid, oid, did, topic, act, context, cseq, payload), 'NOTIFY')
 
-    def notify(self, oid: appType.id_t, did: str, topic: str, act: int, context: str, cseq: int, payload: List):
+    def notify(self, oid: appType.id_t, did: str, topic: str, act: int, context: appType.cid_t, cseq: int, payload: List):
         self.submit(
             lambda: self.notify_handler(oid, did, topic, act, context, cseq, payload))
 
-    def sendfile(self, did: appType.id_t, context: str, rl: int, pt: int, file: str):
+    def sendfile(self, did: appType.id_t, context: appType.cid_t, rl: int, pt: int, file: str):
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.sendFile(did, context, rl, pt, file))
 
-    def sendreq(self, did: appType.id_t, sid: appType.sid_t, context: str, rl: int, pt: int, aoi: int, mode: int,
+    def sendreq(self, did: appType.id_t, sid: appType.sid_t, context: appType.cid_t, rl: int, pt: int   , aoi: int, mode: int,
                 ip: str, port: int, ip2: str, port2: int):
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.streamSendreq(did, sid, context, rl, pt, aoi, mode, ip, port, ip2, port2))
 
-    def send(self, sid: appType.sid_t, context: str, did: str, data: bytes):
+    def send(self, sid: appType.sid_t, context: appType.cid_t, did: str, data: bytes):
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.streamSend(sid, context, did, data))
 
-    def sendend(self, did: appType.id_t, context: str, sid: appType.sid_t):
+    def sendend(self, did: appType.id_t, context: appType.cid_t, sid: appType.sid_t):
         """ 不需要事务 """
         self.submit(lambda: self.icp_server.streamSendend(did, context, sid))

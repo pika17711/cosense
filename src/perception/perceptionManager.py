@@ -10,7 +10,8 @@ from perception.perceptionRPCServer import PerceptionServerThread
 from perception.rosWrapper import ROSWrapper
 # from opencood.visualization.vis_utils import color_encoding
 from utils.sharedInfo import SharedInfo
-from utils.perception_utils import get_lidar_pose_and_pcd_from_dataset, get_psa_from_obu, save_lidar_pose_and_pcd, \
+from utils.perception_utils import get_lidar_pose_and_pcd_from_dataset, get_info_from_dataset, \
+    get_psa_from_obu, save_lidar_pose_and_pcd, \
     ros_pcd_to_numpy
 
 import numpy as np
@@ -68,7 +69,8 @@ class PerceptionManager:
 
     def __update_perception_info(self, loop_index):
         if self.cfg.perception_debug:
-            perception_info = self.__get_info_from_dataset(loop_index)
+            # perception_info = self.__get_info_from_dataset(loop_index)
+            perception_info = self.__get_info_from_dataset(int(time.time()))
         else:
             perception_info = self.__get_info(loop_index)
         if self.opt.save_pcd:
@@ -85,9 +87,11 @@ class PerceptionManager:
                                  if file_name.endswith(('.pcd', '.json', '.txt'))])
             file_path = os.path.join(self.cfg.static_asset_path, file_names[index % len(file_names)])
 
-        lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(file_path)
-        perception_info = {'lidar_pose': lidar_pose,
-                           'pcd': pcd}
+        # lidar_pose, pcd = get_lidar_pose_and_pcd_from_dataset(file_path)
+        # perception_info = {'lidar_pose': lidar_pose,
+        #                    'pcd': pcd}
+
+        perception_info = get_info_from_dataset(file_path)
 
         return perception_info
 
@@ -124,7 +128,8 @@ class PerceptionManager:
 
         # o3d use right-hand coordinate
         if self.cfg.perception_debug and self.cfg.perception_debug_data_from_OPV2V:
-            processed_pcd[:, :1] = -processed_pcd[:, :1]
+            # processed_pcd[:, :1] = -processed_pcd[:, :1]
+            processed_pcd[:, 1:2] = -processed_pcd[:, 1:2]
 
         pcd.points = o3d.utility.Vector3dVector(processed_pcd[:, :3])
 
