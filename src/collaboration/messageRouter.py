@@ -15,6 +15,7 @@ from perception.perceptionRPCClient import PerceptionRPCClient
 
 from collaboration.message import Message, NotifyAct, SubscribeAct
 from collaboration.messageID import MessageID
+from collaboration.LogHandler import logger
 from utils.common import ms2s
 
 class MessageRouter:
@@ -103,4 +104,4 @@ class MessageRouter:
         if mid in self.route_table:
             self.route_table[mid](msg)  # TODO 使用线程池
         else:
-            logging.warning(f"Unhandled message type: {MessageID.get_name(mid.value)}")
+            logger.warning(f"Unhandled message type: {MessageID.get_name(mid.value)}")

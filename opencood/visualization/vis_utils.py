@@ -14,6 +14,7 @@ from matplotlib import cm
 
 from opencood.utils import box_utils
 from opencood.utils import common_utils
+from src.utils.common import project_points_by_matrix_numpy, x1_to_x2
 
 VIRIDIS = np.array(cm.get_cmap('plasma').colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
@@ -113,6 +114,20 @@ def bbx2oabb(bbx_corner, order='hwl', color=(0, 0, 1), left_hand_coordinate=True
         oabbs.append(oabb)
 
     return oabbs
+
+def lidar_pose_to_oabb(other_lidar_pose, ego_lidar_pose, left_hand_coordinate=True):
+    other_to_ego_matrix = x1_to_x2(other_lidar_pose, ego_lidar_pose)
+    front, behind, left, right, top, bottom = 3.0, -2.0, 1.0, -1.0, -0.4, -2.0
+    other_box_corner = np.array([[front, left, top], [front, left, bottom],
+                                 [front, right, top], [front, right, bottom],
+                                 [behind, left, top], [behind, left, bottom],
+                                 [behind, right, top], [behind, right, bottom]])
+    other_box_corner_in_cav1 = project_points_by_matrix_numpy(other_box_corner, other_to_ego_matrix)
+    other_box_corner_in_cav1 = other_box_corner_in_cav1.reshape((1, 8, 3))
+
+    other_oabb = bbx2oabb(other_box_corner_in_cav1, left_hand_coordinate=left_hand_coordinate)[0]
+
+    return other_oabb
 
 
 def bbx2aabb(bbx_center, order):

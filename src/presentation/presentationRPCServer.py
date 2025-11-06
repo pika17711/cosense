@@ -1,3 +1,4 @@
+from queue import Queue
 import threading
 import grpc
 import logging
@@ -8,15 +9,22 @@ from rpc import Service_pb2_grpc
 
 
 class PresentationRPCService(Service_pb2_grpc.PresentationServiceServicer):    # 信息呈现子系统的RPCService类
-    pass
+    def __init__(self, log_queue: Queue):
+        self.queue = log_queue
+
+    def PutLog(self, request, context):
+        log = request.log
+        self.queue.put(log)
+
+        return Service_pb2.Empty()
 
 
 class PresentationRPCServerThread:                           # 信息呈现子系统的RPCServer线程
-    def __init__(self, port=50054):
+    def __init__(self, log_queue: Queue, port=50054):
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_PresentationServiceServicer_to_server(PresentationRPCService(), self.server)
+        Service_pb2_grpc.add_PresentationServiceServicer_to_server(PresentationRPCService(log_queue), self.server)
         self.stop_event = threading.Event()
         self.run_thread = threading.Thread(target=self.run, name='presentation rpc server', daemon=True, args=(port,))
 

@@ -3,11 +3,12 @@ import threading
 from presentation.flask_app.app import create_app
 from appConfig import AppConfig
 from utils.sharedInfo import SharedInfo
+from queue import Queue
 
 
 class PresentationFlaskServerThread:                           # 信息呈现子系统的FlaskServer线程
-    def __init__(self, cfg: AppConfig, shared_info: SharedInfo):
-        self.flask_app = create_app(cfg, shared_info)
+    def __init__(self, cfg: AppConfig, shared_info: SharedInfo, log_queue: Queue):
+        self.flask_app = create_app(cfg, shared_info, log_queue)
         self.stop_event = threading.Event()
         self.run_thread = threading.Thread(target=self.run, name='presentation flask server', daemon=True)
 

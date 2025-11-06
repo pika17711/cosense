@@ -10,8 +10,8 @@ from opencood.hypes_yaml import yaml_utils
 from opencood.tools import train_utils
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.data_utils.post_processor import build_postprocessor
-from opencood.visualization.vis_utils import bbx2oabb, color_encoding
-# from tests.detection.utils_test import get_oabbs_gt
+from opencood.visualization.vis_utils import bbx2oabb, color_encoding, lidar_pose_to_oabb
+from tests.detection.test_utils import get_oabbs_gt
 from opencood.utils import box_utils
 from opencood.utils.transformation_utils import gps_to_utm_transformation, gps_to_enu_transformation
 
@@ -33,7 +33,7 @@ class DetectionManager:
         # ##########################################
         print(self.hypes['model']['args']['where2comm_fusion']['communication']['threshold'])
         # 小于阈值的地方会进行请求, 阈值越高, 请求的部分越多
-        self.hypes['model']['args']['where2comm_fusion']['communication']['threshold'] = 0.015
+        self.hypes['model']['args']['where2comm_fusion']['communication']['threshold'] = 0.02
         # ##########################################
 
         self.model = self.__load_model()
@@ -54,11 +54,13 @@ class DetectionManager:
 
         self.vis = o3d.visualization.Visualizer()
         self.axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=5, origin=[0, 0, 0])  # 坐标系
-        self.grid_map = get_grid_map()
+        self.grid_map = get_grid_map(color=[0.2, 0.2, 0.2])
         self.vis.create_window(visible=opt.show_vis, window_name='Detection')
         vis_opt = self.vis.get_render_option()
         vis_opt.background_color = np.asarray([0, 0, 0])
-        vis_opt.point_size = 1.0
+        vis_opt.point_size = 3.0
+
+        self.left_hand_coordinate = self.cfg.perception_debug and self.cfg.perception_debug_data_from_OPV2V
 
     def __load_model(self):
         logging.info('Creating Model')
@@ -95,7 +97,7 @@ class DetectionManager:
             if t - last_t < loop_time:
                 time.sleep(loop_time + last_t - t)
             t = time.time()
-            print(f'last loop time: {t - last_t}s')
+            # print(f'last loop time: {t - last_t}s')
             last_t = t
 
             logging.info("融合检测进行中...")
@@ -108,7 +110,7 @@ class DetectionManager:
             self.shared_info.update_perception_info(lidar_pose=my_lidar_pose, speed=speed,
                                                     acceleration=acceleration, pcd=my_pcd)
             processed_pcd, my_spatial_feature = pcd_to_spatial_feature(my_pcd, self.shared_info)
-            print('my_spatial_feature.shape: ' + str(my_spatial_feature.shape))
+            # print('my_spatial_feature.shape: ' + str(my_spatial_feature.shape))
             # 获取他车特征
             cav_infos = self.collaboration_client.get_others_infos()
             if self.cfg.collaboration_pcd_debug:
@@ -119,14 +121,24 @@ class DetectionManager:
                 self.shared_info.update_presentation_info(others_comm_mask=comm_masked_features[0]['comm_mask'])
 
             fused_spatial_feature = fuse_spatial_feature(my_spatial_feature, spatial_features)
-            print('fused_spatial_feature.shape: ' + str(fused_spatial_feature.shape))
+            # print('fused_spatial_feature.shape: ' + str(fused_spatial_feature.shape))
 
             # 根据融合后的特征得到检测框
-            pred_box, ego_comm_mask, fused_feature, ego_feature, communication_rate = spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info, comm_masked_features)
-            self.shared_info.update_pred_box(pred_box)
+            ego_pred_box, fused_pred_box, ego_feature, fused_feature, ego_comm_mask, communication_rate = \
+                spatial_feature_to_pred_box(fused_spatial_feature, self.shared_info, comm_masked_features)
+
+            self.shared_info.update_pred_box(fused_pred_box)
             self.shared_info.update_ego_comm_mask(ego_comm_mask)
             self.shared_info.update_presentation_info(fused_feature=fused_feature, ego_feature=ego_feature, communication_rate=communication_rate)
             # self.shared_info.update_communication_rate(communication_rate)
+
+            others_oabbs = []
+            if cav_infos is not None:
+                for cav_id, cav_info in cav_infos.items():
+                    cav_lidar_pose = cav_info['lidar_pose']
+                    cav_oabb = lidar_pose_to_oabb(cav_lidar_pose, my_lidar_pose, self.left_hand_coordinate)
+                    cav_oabb.color = (0, 1, 1)
+                    others_oabbs.append(cav_oabb)
 
             projected_others_pcds = None
             if self.cfg.collaboration_pcd_debug:
@@ -138,9 +150,9 @@ class DetectionManager:
                         projected_pcd = project_pcd(cav_pcd, cav_lidar_pose, my_lidar_pose, self.hypes, gps=not self.cfg.perception_debug)
                         projected_others_pcds.append(projected_pcd)
 
-            self.__render_vis(processed_pcd, pred_box, projected_others_pcds)
+            self.__render_vis(processed_pcd, ego_pred_box, fused_pred_box, others_oabbs, projected_others_pcds)
 
-    def __render_vis(self, processed_pcd, pred_box=None, projected_others_pcds=None):
+    def __render_vis(self, processed_pcd, ego_pred_box=None, fused_pred_box=None, others_oabbs=None, projected_others_pcds=None):
         self.vis.clear_geometries()
 
         self.vis.add_geometry(self.axis)
@@ -148,8 +160,7 @@ class DetectionManager:
 
         pcd = o3d.geometry.PointCloud()
 
-        left_hand_coordinate = self.cfg.perception_debug and self.cfg.perception_debug_data_from_OPV2V
-        if left_hand_coordinate:
+        if self.left_hand_coordinate:
             # processed_pcd[:, :1] = -processed_pcd[:, :1]
             processed_pcd[:, 1:2] = -processed_pcd[:, 1:2]
             if projected_others_pcds is not None:
@@ -173,14 +184,29 @@ class DetectionManager:
 
                 self.vis.add_geometry(pcd)
 
-        if pred_box is not None and pred_box.size > 0:
-            oabbs_pred = bbx2oabb(pred_box, color=(1, 0, 0), left_hand_coordinate=left_hand_coordinate)
+        if ego_pred_box is not None and ego_pred_box.size > 0:
+            # print(f'ego_pred_box.size = {ego_pred_box.shape[0]}')
+            oabbs_pred = bbx2oabb(ego_pred_box, color=(1, 0, 0), left_hand_coordinate=self.left_hand_coordinate)
+            for oabb in oabbs_pred:
+                # pass
+                self.vis.add_geometry(oabb)
+
+        if fused_pred_box is not None and fused_pred_box.size > 0:
+            # print(f'fused_pred_box.size = {fused_pred_box.shape[0]}')
+            more_pred_box_count = fused_pred_box.shape[0] - ego_pred_box.shape[0]
+            if more_pred_box_count > 0:
+                print(f'fusion method get {more_pred_box_count} more pred box')
+            oabbs_pred = bbx2oabb(fused_pred_box, color=(0, 1, 0), left_hand_coordinate=self.left_hand_coordinate)
             for oabb in oabbs_pred:
                 self.vis.add_geometry(oabb)
 
-        # oabbs_gt = get_oabbs_gt(self.shared_info)
+        # oabbs_gt = get_oabbs_gt(self.shared_info, color=(0, 0, 1))
         # for oabb in oabbs_gt:
         #     self.vis.add_geometry(oabb)
+
+        if others_oabbs is not None:
+            for oabb in others_oabbs:
+                self.vis.add_geometry(oabb)
 
         view_control = self.vis.get_view_control()
 

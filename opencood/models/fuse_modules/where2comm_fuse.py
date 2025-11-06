@@ -198,29 +198,29 @@ class Where2comm(nn.Module):
         # B = pairwise_t_matrix.shape[0]
 
         if self.multi_scale:
-            ego_x = x[0].clone().unsqueeze(0)
-
-            ego_ups = []
-
-            for i in range(self.num_levels):
-                ego_x = backbone.blocks[i](ego_x)
-                ego_x_fuse = [self.fuse_modules[i](ego_x)]
-
-                ego_x_fuse = torch.stack(ego_x_fuse)
-
-                # 4. Deconv
-                if len(backbone.deblocks) > 0:
-                    ego_ups.append(backbone.deblocks[i](ego_x_fuse))
-                else:
-                    ego_ups.append(ego_x_fuse)
-
-            if len(ego_ups) > 1:
-                ego_x = torch.cat(ego_ups, dim=1)
-            elif len(ego_ups) == 1:
-                ego_x = ego_ups[0]
-
-            if len(backbone.deblocks) > self.num_levels:
-                ego_x = backbone.deblocks[-1](ego_x)
+            # ego_x = x[0].clone().unsqueeze(0)
+            #
+            # ego_ups = []
+            #
+            # for i in range(self.num_levels):
+            #     ego_x = backbone.blocks[i](ego_x)
+            #     ego_x_fuse = [self.fuse_modules[i](ego_x)]
+            #
+            #     ego_x_fuse = torch.stack(ego_x_fuse)
+            #
+            #     # 4. Deconv
+            #     if len(backbone.deblocks) > 0:
+            #         ego_ups.append(backbone.deblocks[i](ego_x_fuse))
+            #     else:
+            #         ego_ups.append(ego_x_fuse)
+            #
+            # if len(ego_ups) > 1:
+            #     ego_x = torch.cat(ego_ups, dim=1)
+            # elif len(ego_ups) == 1:
+            #     ego_x = ego_ups[0]
+            #
+            # if len(backbone.deblocks) > self.num_levels:
+            #     ego_x = backbone.deblocks[-1](ego_x)
 
             ups = []
 
@@ -334,7 +334,8 @@ class Where2comm(nn.Module):
             if len(backbone.deblocks) > self.num_levels:
                 x_fuse = backbone.deblocks[-1](x_fuse)
 
-            return x_fuse, communication_rate, ego_comm_mask, ego_x
+            # return x_fuse, communication_rate, ego_comm_mask, ego_x
+            return x_fuse, communication_rate, ego_comm_mask
         else:
             # TODO: 暂时没用到
             """

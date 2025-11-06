@@ -160,49 +160,73 @@ def process_spatial_feature(spatial_feature, shared_info, comm_masked_features=N
 
             if model.multi_scale:
                 # Bypass communication cost, communicate at high resolution, neither shrink nor compress
-                fused_feature, communication_rate, ego_comm_mask_tensor, ego_feature = model.fusion_net(spatial_feature,
-                                                                                            psm_single,
-                                                                                            # record_len,
-                                                                                            # pairwise_t_matrix,
-                                                                                            model.backbone,
-                                                                                            comm_masked_features)
+                ego_feature, _, ego_comm_mask_tensor = model.fusion_net(spatial_feature,
+                                                                        psm_single,
+                                                                        # record_len,
+                                                                        # pairwise_t_matrix,
+                                                                        model.backbone)
+                if comm_masked_features is not None:
+                    fused_feature, communication_rate, _ = model.fusion_net(spatial_feature,
+                                                                            psm_single,
+                                                                            # record_len,
+                                                                            # pairwise_t_matrix,
+                                                                            model.backbone,
+                                                                            comm_masked_features)
+
                 if model.shrink_flag:
-                    fused_feature = model.shrink_conv(fused_feature)
                     ego_feature = model.shrink_conv(ego_feature)
+                    if comm_masked_features is not None:
+                        fused_feature = model.shrink_conv(fused_feature)
             else:
-                fused_feature, communication_rate, ego_comm_mask_tensor = model.fusion_net(spatial_features_2d,
-                                                                                            psm_single,
-                                                                                            # record_len,
-                                                                                            # pairwise_t_matrix,
-                                                                                            comm_masked_features)
+                pass
+                # TODO: 暂时没用到
+                # fused_feature, communication_rate, ego_comm_mask_tensor = model.fusion_net(spatial_features_2d,
+                #                                                                             psm_single,
+                #                                                                             # record_len,
+                #                                                                             # pairwise_t_matrix,
+                #                                                                             comm_masked_features)
 
-            psm = model.cls_head(fused_feature)
-            rm = model.reg_head(fused_feature)
+            ego_psm = model.cls_head(ego_feature)
+            ego_rm = model.reg_head(ego_feature)
 
-    output_dict = {'psm': psm, 'rm': rm, 'com': communication_rate}
-    conf_map_tensor = 0
-    conf_map = conf_map_tensor
+            if comm_masked_features is not None:
+                fused_psm = model.cls_head(fused_feature)
+                fused_rm = model.reg_head(fused_feature)
 
-    ego_comm_mask = ego_comm_mask_tensor.cpu().data.numpy()
-    fused_feature = fused_feature.cpu().data.numpy()
-    ego_feature = ego_feature.cpu().data.numpy()
+    output_dict = {'ego': {'psm': ego_psm,
+                           'rm': ego_rm,
+                           'comm_mask': ego_comm_mask_tensor.cpu().data.numpy(),
+                           'feature': ego_feature.cpu().data.numpy(),
+                           'conf_map': -1}}
+    if comm_masked_features is not None:
+        output_dict['fused'] = {'psm': fused_psm,
+                                'rm': fused_rm,
+                                'feature': fused_feature.cpu().data.numpy(),
+                                'communication_rate': communication_rate}
 
-    return output_dict, ego_comm_mask, conf_map, fused_feature, ego_feature
+    return output_dict
 
 
 def spatial_feature_to_conf_map(spatial_feature, shared_info):  # 根据特征获取置信图
-    _, _, conf_map, _, _ = process_spatial_feature(spatial_feature, shared_info)
+    output_dict = process_spatial_feature(spatial_feature, shared_info)
+    conf_map = output_dict['ego']['conf_map']
     return conf_map
 
 
 def spatial_feature_to_comm_mask(spatial_feature, shared_info):  # 根据特征获取置信图
-    _, comm_mask, _, _, _ = process_spatial_feature(spatial_feature, shared_info)
+    output_dict = process_spatial_feature(spatial_feature, shared_info)
+    comm_mask = output_dict['ego']['comm_mask']
     return comm_mask
 
 
 def spatial_feature_to_pred_box(spatial_feature, shared_info, comm_masked_features=None):  # 根据特征获取检测框
-    output_dict = OrderedDict()
-    output_dict['ego'], ego_comm_mask, _, fused_feature, ego_feature = process_spatial_feature(spatial_feature, shared_info, comm_masked_features)
+    output_dict = process_spatial_feature(spatial_feature, shared_info, comm_masked_features)
+    ego_comm_mask = output_dict['ego']['comm_mask']
+    ego_feature = output_dict['ego']['feature']
+    if comm_masked_features is not None and len(comm_masked_features) > 0:
+        fused_feature = output_dict['fused']['feature']
+    else:
+        fused_feature = None
 
     device = shared_info.get_device()
     post_processor = shared_info.get_post_processor()
@@ -218,20 +242,32 @@ def spatial_feature_to_pred_box(spatial_feature, shared_info, comm_masked_featur
         'transformation_matrix': transformation_matrix,
         'anchor_box': anchor_box
     }}
+    if comm_masked_features is not None and len(comm_masked_features) > 0:
+        batch_data['fused'] = batch_data['ego']
 
     with torch.no_grad():
         batch_data = train_utils.to_device(batch_data, device)
     with shared_info.post_processor_lock:
-        pred_box_tensor, _ = post_processor.post_process(batch_data, output_dict)
-
-    if pred_box_tensor is not None:
-        pred_box = pred_box_tensor.cpu().data.numpy()
+        ego_pred_box_tensor, _ = post_processor.post_process({'ego': batch_data['ego']}, {'ego': output_dict['ego']})
+        if comm_masked_features is not None and len(comm_masked_features) > 0:
+            fused_pred_box_tensor, _ = post_processor.post_process({'fused': batch_data['fused']},
+                                                                   {'fused': output_dict['fused']})
+    if ego_pred_box_tensor is not None:
+        ego_pred_box = ego_pred_box_tensor.cpu().data.numpy()
     else:
-        pred_box = np.array([])
+        ego_pred_box = np.array([])
 
-    communication_rate = output_dict['ego']['com']
+    if comm_masked_features is not None and len(comm_masked_features) > 0 and fused_pred_box_tensor is not None:
+        fused_pred_box = fused_pred_box_tensor.cpu().data.numpy()
+    else:
+        fused_pred_box = np.array([])
 
-    return pred_box, ego_comm_mask, fused_feature, ego_feature, communication_rate
+    if comm_masked_features is not None and len(comm_masked_features) > 0:
+        communication_rate = output_dict['fused']['communication_rate']
+    else:
+        communication_rate = -1
+
+    return ego_pred_box, fused_pred_box, ego_feature, fused_feature, ego_comm_mask, communication_rate
 
 
 def voxel_to_conf_map(voxel, shared_info):  # 根据特征获取置信图
@@ -385,7 +421,7 @@ def fuse_spatial_feature(my_spatial_feature, spatial_features):
     return fused_spatial_feature
 
 
-def get_grid_map(x_range=(-140.8, 140.8), y_range=(-38.4, 38.4), z=-3.0, grid_size=6.4):
+def get_grid_map(x_range=(-140.8, 140.8), y_range=(-38.4, 38.4), z=-3.0, grid_size=6.4, color=[0.5, 0.5, 0.5]):
     """
         在 z 平面绘制一个网格。
 
@@ -417,7 +453,7 @@ def get_grid_map(x_range=(-140.8, 140.8), y_range=(-38.4, 38.4), z=-3.0, grid_si
         points.extend([p1, p2])
         lines.append([len(points) - 2, len(points) - 1])
 
-    colors = [[0.5, 0.5, 0.5] for _ in range(len(lines))]  # 灰色线条
+    colors = [color for _ in range(len(lines))]
 
     import open3d as o3d
 

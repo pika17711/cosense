@@ -1,5 +1,6 @@
 import time
 import cv2
+from queue import Queue
 
 from appConfig import AppConfig
 from presentation.presentationRPCServer import PresentationRPCServerThread
@@ -14,11 +15,14 @@ class PresentationManager:
         self.running = False
         self.opt = opt
         self.cfg = cfg
+
+        self.log_queue = Queue()
+
         self.__grpc_prepare()
-        self.presentation_flask_server = PresentationFlaskServerThread(self.cfg, self.shared_info)
+        self.presentation_flask_server = PresentationFlaskServerThread(self.cfg, self.shared_info, self.log_queue)
 
     def __grpc_prepare(self):
-        self.presentation_rpc_server = PresentationRPCServerThread()
+        self.presentation_rpc_server = PresentationRPCServerThread(self.log_queue)
 
         self.detection_client = DetectionRPCClient()
 

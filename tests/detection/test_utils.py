@@ -4,7 +4,7 @@ from opencood.visualization.vis_utils import bbx2oabb
 import numpy as np
 
 
-def get_oabbs_gt(shared_info, left_hand_coordinate=True):
+def get_oabbs_gt(shared_info, left_hand_coordinate=True, color=(0, 1, 0)):
     hypes = shared_info.get_hypes()
     post_processor = shared_info.get_post_processor()
 
@@ -62,5 +62,5 @@ def get_oabbs_gt(shared_info, left_hand_coordinate=True):
                                                                 'object_bbx_mask': object_bbx_mask,
                                                                 'object_ids': object_ids,
                                                                 'transformation_matrix': transformation_matrix}})
-    oabbs_gt = bbx2oabb(gt_box_tensor, color=(0, 1, 0), left_hand_coordinate=left_hand_coordinate)
+    oabbs_gt = bbx2oabb(gt_box_tensor, color=color, left_hand_coordinate=left_hand_coordinate)
     return oabbs_gt

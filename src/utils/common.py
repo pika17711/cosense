@@ -11,6 +11,10 @@ import logging
 from typing import List, Optional, Any, Tuple, Type, TypeVar, Union
 import traceback
 import concurrent.futures
+import sys
+
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(parent_dir)
 import appType
 import numpy as np
 

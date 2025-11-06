@@ -1,12 +1,14 @@
 from flask import Flask, render_template, Response, jsonify
 from utils.sharedInfo import SharedInfo
 from appConfig import AppConfig
+from collections import deque
 from detection.detectionRPCClient import DetectionRPCClient
 import numpy as np
 import cv2
+import queue
 
 
-def create_app(cfg: AppConfig, shared_info: SharedInfo):
+def create_app(cfg: AppConfig, shared_info: SharedInfo, log_queue: queue.Queue):
     app = Flask(__name__)
 
     def gen_pcd_img():
@@ -36,7 +38,7 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo):
             request_map = 1 - shared_info.get_presentation_info_copy().get('ego_comm_mask').squeeze()   # request_map.shape = (48, 176)
             if request_map is not None and request_map.size != 0:
 
-                request_map = np.flipud(request_map)        # 上下翻转
+                # request_map = np.flipud(request_map)        # 上下翻转
 
                 request_map_img = np.zeros((*request_map.shape, 3), dtype=np.uint8)
 
@@ -74,7 +76,7 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo):
             others_comm_mask = shared_info.get_presentation_info_copy().get('others_comm_mask').squeeze()   # others_comm_mask.shape = (1, 1, 48, 176)
             if others_comm_mask is not None and others_comm_mask.size != 0:
 
-                others_comm_mask = np.flipud(others_comm_mask)  # 上下翻转
+                # others_comm_mask = np.flipud(others_comm_mask)  # 上下翻转
 
                 others_comm_mask_img = np.zeros((*others_comm_mask.shape, 3), dtype=np.uint8)
 
@@ -113,7 +115,7 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo):
             if ego_feature is not None and ego_feature.size != 0:
 
                 ego_feature = ego_feature.sum(0)
-                ego_feature = np.flipud(ego_feature)  # 上下翻转
+                # ego_feature = np.flipud(ego_feature)  # 上下翻转
 
                 # 将feature的值缩放到0到1之间
                 # 找到最小值和最大值
@@ -168,7 +170,7 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo):
             fused_feature = shared_info.get_presentation_info_copy().get('fused_feature').squeeze()   # fused_feature.shape = (1, 256, 48, 176)
             if fused_feature is not None and fused_feature.size != 0:
                 fused_feature = fused_feature.sum(0)
-                fused_feature = np.flipud(fused_feature)  # 上下翻转
+                # fused_feature = np.flipud(fused_feature)  # 上下翻转
 
                 # 将feature的值缩放到0到1之间
                 # 找到最小值和最大值
@@ -283,6 +285,17 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo):
     #     else:
     #         communication_rate = 'N/A'
     #     return jsonify(communication_rate=communication_rate)
+
+    @app.route('/get_log')
+    def get_log():
+        try:
+            # 尝试从队列获取，设置一个短超时，避免请求被长时间阻塞
+            # 实际的长轮询可能需要更复杂的逻辑来处理多个客户端
+            log = log_queue.get(timeout=10)
+            return jsonify(log=log)
+        except queue.Empty:
+            # 如果队列为空，可以在超时后返回一个空响应，或者返回最新已知的字符串
+            return jsonify(log='')
     
     @app.route('/get_car_id')
     def get_car_id():

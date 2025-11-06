@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass
 from enum import IntEnum, auto
 import logging
@@ -10,6 +9,7 @@ from numpy.typing import NDArray
 import numpy as np
 from utils.common import calculate_confidence_map_overlap, x1_to_x2, calculate_matrix_overlap
 from utils.common import project_points_by_matrix_numpy
+from collaboration.LogHandler import logger
 
 class CoopMapType(IntEnum):
     DEBUG = auto()
@@ -109,7 +109,7 @@ class CoopMap:
             
             return CoopMap(**data_dict)
         except Exception as e:
-            logging.error(f"反序列化错误: {e}")
+            logger.error(f"反序列化错误: {e}")
             return None
 
     @staticmethod
@@ -130,7 +130,7 @@ class CoopMap:
             return CoopMap('', CoopMapType.Unknown, np_map, lidar_pose)
 
         except Exception as e:
-            logging.error(f"反序列化错误: {e}")
+            logger.error(f"反序列化错误: {e}")
             return None
 
     @staticmethod

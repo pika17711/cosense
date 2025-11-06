@@ -157,3 +157,21 @@
     font-size: 20px;
     font-family: 黑体;
 }
+
+.log-container {
+    width: 100%;
+    height: 500px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    overflow-y: scroll;
+    font-family: monospace;
+    background-color: #f4f4f4;
+}
+.log-entry {
+    margin-bottom: 5px;
+}
+.INFO { color: black; }
+.WARNING { color: orange; }
+.ERROR { color: red; }
+.CRITICAL { color: darkred; font-weight: bold; }
+.DEBUG { color: gray; }

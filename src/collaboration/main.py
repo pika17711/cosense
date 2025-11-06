@@ -15,32 +15,25 @@ from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
 from collaboration.transactionHandler import transactionHandler
 from collaboration.collaborationManager import CollaborationManager
+from collaboration.LogHandler import logger
 from perception.perceptionRPCClient import PerceptionRPCClient
 from detection.detectionRPCClient import DetectionRPCClient
+from presentation.presentationRPCClient import PresentationRPCClient
 from utils.othersInfos import OthersInfos
 
-def log_init(cfg: AppConfig):
-    """
-        日志初始化
-    """
-    logging.basicConfig(level=logging.DEBUG,
-                        filename='collaboration.log',
-                        filemode='w',
-                        format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.info("协同模块启动")
 
 def main():
     if len(sys.argv) > 1:
-        logging.info("Usage: python qt_main.py")
+        logger.info("Usage: python main.py")
         exit(-1)
 
     cfg = AppConfig()
-    log_init(cfg)
     icp_client, icp_server = ICP_init(cfg)
 
     # 全部初始化，依赖注入的思想，方便替换
     perception_client = PerceptionRPCClient(cfg)
     detection_client = DetectionRPCClient()
+
     ctable = CollaborationTable(cfg)
     tx_handler = transactionHandler(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, detection_client, tx_handler)
@@ -64,7 +57,7 @@ def main():
         message_handler.close()
         collaboration_manager.close()
         collaboration_rpc_server.close()
-        logging.info("接收到 Ctrl + C，程序退出。")
+        logger.info("接收到 Ctrl + C，程序退出。")
 
 if __name__ == "__main__":
     main()

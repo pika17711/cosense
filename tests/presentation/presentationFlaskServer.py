@@ -1,6 +1,6 @@
 import threading
 
-from presentation.flask_app.app import create_app
+from flask_app.app import create_app
 from appConfig import AppConfig
 from utils.sharedInfo import SharedInfo
 

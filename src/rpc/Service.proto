@@ -14,6 +14,7 @@ service CollaborationService {                                          // 协�
     rpc GetOthersInfos (Empty) returns (OthersInfos);                 // 向其他进程提供“获取所有他车信息”的服务
     rpc GetOthersCommMasks (Empty) returns (OthersCommMasks);        // 向其他进程提供“获取所有他车协作图”的服务
     rpc GetOthersLidarPosesAndPCDs (Empty) returns (LidarPosesAndPCDs);
+    rpc PutCommand (Command) returns (Empty);
 }
 
 service DetectionService {                                              // 融合检测子系统
@@ -33,7 +34,7 @@ service DetectionService {                                              // 融�
 }
 
 service PresentationService {                                           // 信息呈现子系统
-
+    rpc PutLog (Log) returns (Empty);
 }
 
 message Empty {}
@@ -103,6 +104,10 @@ message OthersCommMasks {                           // 所有他车协作图
 
 message LidarPosesAndPCDs {
     map<string, LidarPoseAndPCD> others_lidar_poses_and_pcds = 1;
+}
+
+message Command {
+    string command = 1;
 }
 
 message CommMaskAndLidarPose {
@@ -177,4 +182,8 @@ message RequestMap {
 message ConfMap {                       // 置信图
     NDArray conf_map = 1;               // 置信图
     int64 ts_conf_map = 2;                // 置信图对应时间戳
+}
+
+message Log {
+    string log = 1;
 }

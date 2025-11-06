@@ -16,6 +16,7 @@ from collaboration.message import BroadcastPubMessage, BroadcastSubMessage, Mess
     NotifyMessage, RecvEndMessage, RecvFileMessage, RecvMessage, RecvRdyMessage, SendFinMessage, SendRdyMessage, \
     SubscribeAct, SubscribeMessage, AppRegAct
 from collaboration.transactionHandler import transactionHandler
+from collaboration.LogHandler import logger
 from collaboration.BearInfo import BearInfo
 from appConfig import AppConfig
 from perception.perceptionRPCClient import PerceptionRPCClient
@@ -48,7 +49,7 @@ def ContextStateTransition(name):
             with ctx.lock:
                 old_state = get_state(ctx)
                 func_name = func.__name__
-                logging.info(f"执行状态转移: {func_name}, 上下文ID: {ctx.cid}, "
+                logger.info(f"执行状态转移: {func_name}, 上下文ID: {ctx.cid}, "
                              f"原状态: {old_state}")
                 try:
                     # 执行实际的状态转移
@@ -56,15 +57,15 @@ def ContextStateTransition(name):
                     # 记录状态转移成功
                     new_state = get_state(ctx)
                     if old_state != new_state:
-                        logging.info(f"状态转移成功: 上下文ID: {ctx.cid}, "
+                        logger.info(f"状态转移成功: 上下文ID: {ctx.cid}, "
                                      f"{old_state} -> {new_state}")
                     else:
-                        logging.warning(f"状态未变更: 上下文ID: {ctx.cid}, "
+                        logger.warning(f"状态未变更: 上下文ID: {ctx.cid}, "
                                         f"函数: {func_name}")
                     return result
                 except Exception as e:
                     # 记录状态转移异常
-                    logging.error(f"状态转移失败: 上下文ID: {ctx.cid}, "
+                    logger.error(f"状态转移失败: 上下文ID: {ctx.cid}, "
                                   f"原状态: {old_state}, 错误: {str(e)}")
                     raise  # 重新抛出异常，不掩盖错误
 
@@ -116,7 +117,7 @@ class CollaborationService:
             return
         cctx.update_active()
         self.ctable.rem_waitnty(cctx)
-        logging.debug(f"订阅 {cctx.remote_id()}, context: {cctx.cid}")
+        logger.debug(f"订阅 {cctx.remote_id()}, context: {cctx.cid}")
         cctx.state = CContextCoteeState.SUBSCRIBING
         self.ctable.add_subscribing(cctx)
         self.stream_to_waitrdy(cctx)
@@ -138,7 +139,7 @@ class CollaborationService:
             return
         cctx.update_active()
         self.ctable.rem_sendnty(cctx)
-        logging.debug(f"被 {cctx.remote_id()} 订阅, context: {cctx.cid}")
+        logger.debug(f"被 {cctx.remote_id()} 订阅, context: {cctx.cid}")
         cctx.state = CContextCotorState.SUBSCRIBED
         self.ctable.add_subscribed(cctx)
         self.ctable.add_coopmap(cctx.remote_id(), coopmap)
@@ -218,7 +219,7 @@ class CollaborationService:
     @ContextStateTransition('bcctx')
     def bcctx_to_closed(self, bcctx: BCContext):
         if bcctx.state == BCContextState.PENDING:
-            logging.warning(f"广播会话 {bcctx.cid}未发送广播订阅消息即被关闭")
+            logger.warning(f"广播会话 {bcctx.cid}未发送广播订阅消息即被关闭")
 
         self.ctable.rem_bcctx(bcctx)
         bcctx.state = BCContextState.CLOSED
@@ -552,7 +553,7 @@ class CollaborationService:
     def get_stream(self, cctx: CContext):
         server_assert(cctx.is_cotor())
         if cctx.stream_state == CSContextCotorState.PENDING:
-            logging.debug(f"context: {cctx.cid} 获取stream")
+            logger.debug(f"context: {cctx.cid} 获取stream")
             rl = 1
             pt = 1
             aoi = 0
@@ -567,12 +568,12 @@ class CollaborationService:
 
     def send_data(self, cctx: CContext, data: bytes):
         if cctx.stream_state == CSContextCotorState.SENDEND:
-            logging.debug(f"context: {cctx.cid} 发送结束, 发送数据失败")
+            logger.debug(f"context: {cctx.cid} 发送结束, 发送数据失败")
             return
 
         if not cctx.have_sid():
             if cctx.stream_state == CSContextCotorState.SENDREQ:
-                logging.debug(f"context: {cctx.cid} 获取stream中, 发送数据失败")
+                logger.debug(f"context: {cctx.cid} 获取stream中, 发送数据失败")
             elif cctx.stream_state == CSContextCotorState.PENDING:
                 self.get_stream(cctx)
         else:
@@ -584,13 +585,13 @@ class CollaborationService:
             1. 判断是否接受
             2. 如果接受，创建cctx，发送订阅请求
         """
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         need = self.check_need_broadcastpub(msg)
         if need:
-            logging.info(f"接收 {msg.oid} 的BROADCASTPUB")
+            logger.info(f"接收 {msg.oid} 的BROADCASTPUB")
             self.subscribe(msg.oid)
         else:
-            logging.info(f"拒绝 {msg.oid} 的BROADCASTPUB")
+            logger.info(f"拒绝 {msg.oid} 的BROADCASTPUB")
 
     def broadcastsub_service(self, msg: BroadcastSubMessage):
         """
@@ -598,10 +599,10 @@ class CollaborationService:
             1. 判断是否接受
             2. 如果接受，发送广播订阅通知
         """
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         need = self.check_need_broadcastsub(msg)
         if need:
-            logging.debug(f"接收 {msg.oid} 的BROADCASTSUB")
+            logger.debug(f"接收 {msg.oid} 的BROADCASTSUB")
             if self.cfg.collaboration_no_coopmap_debug:
                 coopMapType = CoopMapType.Empty
             else:
@@ -621,7 +622,7 @@ class CollaborationService:
                                    context=msg.context, cseq=self.cseq, payload=[coopmap_payload])
             self.cseq += 1
         else:
-            logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUB")
+            logger.debug(f"拒绝 {msg.oid} 的BROADCASTSUB")
 
     # def broadcastsubnty_service(self, msg: BroadcastSubNtyMessage):
     #     """
@@ -630,18 +631,18 @@ class CollaborationService:
     #         2. 检查是否需要对话
     #         3. 如果需要，创建cctx
     #     """
-    #     logging.debug(f"APP serve message {msg}")
+    #     logger.debug(f"APP serve message {msg}")
     #     bcctx = self.ctable.get_bcctx(msg.context)
     #     if bcctx == None:
     #         # 可能是超时或消息发送错误
-    #         logging.warning(f"收到BROADCASTSUBNTY, 广播对话 context:{msg.context} 不存在")
+    #         logger.warning(f"收到BROADCASTSUBNTY, 广播对话 context:{msg.context} 不存在")
     #         return
     #     server_assert(bcctx.state != BCContextState.PENDING)
     #
     #     if bcctx.state == BCContextState.WAITBNTY:
     #         need = self.check_need_broadcastsubnty(bcctx, msg)
     #         if need:
-    #             logging.debug(f"接收 {msg.oid} 的BROADCASTSUBNTY")
+    #             logger.debug(f"接收 {msg.oid} 的BROADCASTSUBNTY")
     #             cid = self.cid_gen()
     #             cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
     #             with cctx.lock:
@@ -650,9 +651,9 @@ class CollaborationService:
     #                     self.bcctx_add_cctx(bcctx, cctx)
     #                 self.cctx_to_waitnty(cctx)
     #         else:
-    #             logging.debug(f"拒绝 {msg.oid} 的BROADCASTSUBNTY")
+    #             logger.debug(f"拒绝 {msg.oid} 的BROADCASTSUBNTY")
     #     elif bcctx.state == BCContextState.CLOSED:
-    #         logging.warning(f"收到BROADCASTSUBNTY, 但对应 context:{msg.context} 已超时")
+    #         logger.warning(f"收到BROADCASTSUBNTY, 但对应 context:{msg.context} 已超时")
     #         pass
 
     def notify_service(self, msg: NotifyMessage):
@@ -665,7 +666,7 @@ class CollaborationService:
             2. 否则寻找cctx，cctx是local发送订阅通知时创建的，local一定是cotee
                 2.1. 根据消息内容，更新状态
         """
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
 
         bcctx = self.ctable.get_bcctx(msg.context)
         if bcctx is not None:
@@ -674,7 +675,7 @@ class CollaborationService:
             if bcctx.state == BCContextState.WAITBNTY and msg.act == NotifyAct.ACK:
                 need = self.check_need_notify(msg)
                 if need:
-                    logging.debug(f"接收 {msg.oid} 对于BROADCASTSUB的NTY")
+                    logger.debug(f"接收 {msg.oid} 对于BROADCASTSUB的NTY")
                     cid = self.cid_gen()
                     cctx = CContext(self.cfg, cid, msg.oid, self.cfg.id)
                     with cctx.lock:
@@ -683,9 +684,9 @@ class CollaborationService:
                             self.bcctx_add_cctx(bcctx, cctx)
                         self.cctx_to_waitnty(cctx)
                 else:
-                    logging.debug(f"拒绝 {msg.oid} 对于BROADCASTSUB的NTY")
+                    logger.debug(f"拒绝 {msg.oid} 对于BROADCASTSUB的NTY")
             elif bcctx.state == BCContextState.CLOSED:
-                logging.warning(f"收到对于BROADCASTSUB的NTY, 但对应 context:{msg.context} 已超时")
+                logger.warning(f"收到对于BROADCASTSUB的NTY, 但对应 context:{msg.context} 已超时")
                 pass
 
         cctx = self.ctable.get_cctx(msg.context, msg.oid, self.cfg.id)
@@ -725,7 +726,7 @@ class CollaborationService:
             2. 若自车已有cctx,则说明是更新报文UPD
                 1.1. 更新coopmap
         """
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx(msg.context, self.cfg.id, msg.oid)
 
         remote_request_map = None
@@ -740,7 +741,7 @@ class CollaborationService:
                 break
 
         if cctx is None:
-            logging.debug(f"收到SUBSCRIBE, 不存在context, 正在创建context")
+            logger.debug(f"收到SUBSCRIBE, 不存在context, 正在创建context")
             cctx = CContext(self.cfg, msg.context, self.cfg.id, msg.oid)
             with cctx.lock:
                 self.cctx_to_sendnty(cctx)
@@ -750,7 +751,7 @@ class CollaborationService:
                 else:
                     self.cctx_to_closed(cctx)
         else:
-            logging.debug(f"收到SUBSCRIBE, 存在此context:{msg.context}, 正在更新coopmap")
+            logger.debug(f"收到SUBSCRIBE, 存在此context:{msg.context}, 正在更新coopmap")
             self.ctable.update_coopmap(cctx.remote_id(), remote_request_map)
             cctx.update_active()
 
@@ -761,14 +762,14 @@ class CollaborationService:
             2. 找到cctx
             3. 根据cctx状态行动
         """
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx(msg.context, self.cfg.id, msg.oid)
         if cctx is None:
-            logging.warning(f"收到SUBSCRIBE FIN, 但不存在此context:{msg.context}")
+            logger.warning(f"收到SUBSCRIBE FIN, 但不存在此context:{msg.context}")
             return
         with cctx.lock:
             if cctx.state == CContextCotorState.PENDING:
-                logging.warning(f"收到SUBSCRIBE FIN, 但对应context:{msg.context}还未发送NOTIFY")
+                logger.warning(f"收到SUBSCRIBE FIN, 但对应context:{msg.context}还未发送NOTIFY")
             elif cctx.state == CContextCotorState.SENDNTY:
                 self.cctx_to_closed(cctx)
             elif cctx.state == CContextCotorState.SUBSCRIBED:
@@ -777,7 +778,7 @@ class CollaborationService:
                 pass
 
     def subscribe_service(self, msg: SubscribeMessage):
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         if msg.act == SubscribeAct.ACKUPD:
             self.subscribe_ackudp_service(msg)
         elif msg.act == SubscribeAct.FIN:
@@ -786,7 +787,7 @@ class CollaborationService:
             assert False
 
     def recvfile_service(self, msg: RecvFileMessage):
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx_or_panic(msg.context, self.cfg.id, msg.oid)
         with cctx.lock:
             server_assert(cctx.state == CContextCoteeState.SUBSCRIBING)
@@ -798,14 +799,14 @@ class CollaborationService:
             self.ctable.add_data(de_data)
 
     def sendfin_service(self, msg: SendFinMessage):
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
 
     def sendrdy_service(self, msg: SendRdyMessage):
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx(msg.context, self.cfg.id, msg.did)
         # cctx = self.ctable.get_cctx(msg.context, msg)
         if cctx is None:
-            logging.warning(f'sendrdy context不存在: {msg.context}')
+            logger.warning(f'sendrdy context不存在: {msg.context}')
             return
         with cctx.lock:
             server_assert(not cctx.have_sid())
@@ -814,23 +815,23 @@ class CollaborationService:
             cctx.sid_set_event.set()
 
     def recvrdy_service(self, msg: RecvRdyMessage):
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx(msg.context, msg.oid, self.cfg.id)
         if cctx is None:
-            logging.warning(f'recvrdy context不存在: {msg.context}')
+            logger.warning(f'recvrdy context不存在: {msg.context}')
             return
         cctx.update_active()
         with cctx.lock:
-            logging.debug(f'context {msg.context} 收到recvrdy')
+            logger.debug(f'context {msg.context} 收到recvrdy')
             if not cctx.have_sid():
                 cctx.sid = msg.sid
                 self.stream_to_recvrdy(cctx)
 
     def recv_service(self, msg: RecvMessage):
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx_from_stream(msg.sid)
         if cctx is None:
-            logging.warning(f'不存在与{msg.sid}关联的会话')
+            logger.warning(f'不存在与{msg.sid}关联的会话')
             return
         cctx.update_active()
         with cctx.lock:
@@ -851,10 +852,10 @@ class CollaborationService:
             self.ctable.add_data(de_data)
 
     def recvend_service(self, msg: RecvEndMessage):
-        logging.debug(f"APP serve message {msg}")
+        logger.debug(f"APP serve message {msg}")
         cctx = self.ctable.get_cctx_from_stream(msg.sid)
         if cctx is None:
-            logging.warning(f'不存在与{msg.sid}关联的会话')
+            logger.warning(f'不存在与{msg.sid}关联的会话')
             return
         with cctx.lock:
             if cctx.stream_state == CSContextCoteeState.PENDING:
@@ -864,7 +865,7 @@ class CollaborationService:
             elif cctx.stream_state == CSContextCoteeState.RECVRDY:
                 self.stream_to_end(cctx)
             elif cctx.stream_state == CSContextCoteeState.RECVEND:
-                logging.debug("收到RECVEND, 会话context: {cctx.cid} 流接收结束")
+                logger.debug("收到RECVEND, 会话context: {cctx.cid} 流接收结束")
 
     def disconnect(self, id):
         subed_cctx = self.ctable.get_subscribed_by_id(id)

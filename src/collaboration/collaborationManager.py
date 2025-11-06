@@ -19,6 +19,7 @@ from collaboration.coopMap import CoopMap, CoopMapType
 from collaboration.messageRouter import MessageRouter
 from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
+from collaboration.LogHandler import logger
 from utils.common import ms2s
 
 class CollaborationManager:
@@ -84,7 +85,7 @@ class CollaborationManager:
             self.subscribing_update_loop_thread.join(self.cfg.close_timeout)
 
     def handle_command(self, argv):
-        logging.debug(f"输入的命令是: {argv}")
+        logger.debug(f"输入的命令是: {argv}")
         if len(argv) == 0:
             pass
         elif len(argv) == 1 and argv[0] == 'exit':
@@ -126,6 +127,8 @@ class CollaborationManager:
         elif len(argv) == 2 and argv[0] == 'disconnect':
             self.collaboration_service.disconnect(argv[1])
             print('ok')
+        # elif len(argv) == 2 and argv[0] == 'channel':
+        #     self.switch
         else:
             print('syntax error')
         return True
@@ -221,15 +224,15 @@ class CollaborationManager:
         return data
 
     def subscribed_send_loop(self):
-        logging.info("订阅者数据发送循环启动")
+        logger.info("订阅者数据发送循环启动")
         while self.running:
             subeds = self.ctable.get_subscribed()
             if len(subeds) > 0:
-                logging.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
+                logger.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
                 for cctx in subeds:
                     coopmap = self.ctable.get_coopmap(cctx.remote_id())
                     if coopmap is None:
-                        logging.info(f'coopmap is None, 取消对订阅者{cctx.remote_id()}的发送')
+                        logger.info(f'coopmap is None, 取消对订阅者{cctx.remote_id()}的发送')
                         continue
 
                     if self.cfg.collaboration_no_coopmap_debug:
@@ -240,18 +243,18 @@ class CollaborationManager:
                     if data is not None:
                         self.executor.submit(self.collaboration_service.send_data, cctx, data)
                     else:
-                        logging.info(f'data is None, 取消对订阅者{cctx.remote_id()}的发送')
+                        logger.info(f'data is None, 取消对订阅者{cctx.remote_id()}的发送')
                     # self.executor.submit(self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid))
             self.subscribed_send_event.wait(ms2s(self.cfg.send_data_period))
             if self.subscribed_send_event.is_set():
                 break
 
     def subscribing_update_loop(self):
-        logging.info("被订阅者数据更新循环启动")
+        logger.info("被订阅者数据更新循环启动")
         while self.running:
             subings = self.ctable.get_subscribing()
             if len(subings) > 0:
-                logging.info(f"被订阅者数据更新, 被订阅者列表{[cctx.remote_id() for cctx in subings]}")
+                logger.info(f"被订阅者数据更新, 被订阅者列表{[cctx.remote_id() for cctx in subings]}")
                 for cctx in subings:
                     with cctx.lock:
                         self.collaboration_service.subscribe_send(cctx, SubscribeAct.ACKUPD)

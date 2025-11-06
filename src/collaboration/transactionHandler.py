@@ -12,6 +12,7 @@ from queue import Queue
 import appType
 from collaboration.messageID import MessageID
 from collaboration.message import AckMessage, Message
+from collaboration.LogHandler import logger
 from appConfig import AppConfig
 from utils.common import ms2s
 
@@ -33,7 +34,7 @@ class transactionHandler:
     def __init__(self, 
                  cfg: AppConfig, 
                  icp_server,
-                 icp_client,
+                 icp_client
                  ):
         self.cfg = cfg
         self.recv_queue = Queue()
@@ -80,7 +81,7 @@ class transactionHandler:
             try:
                 mes = Message.parse(resp)
             except Exception as e:
-                logging.error(f'message {resp} 解析错误 {e}')
+                logger.error(f'message {resp} 解析错误 {e}')
                 return
 
             if mes.header.mid == MessageID.ACK:
@@ -109,7 +110,7 @@ class transactionHandler:
             return
         txctx = self.rem_tx(mes.header.tid)
         if txctx is None:
-            logging.warning('ack resp non existing tid')
+            logger.warning('ack resp non existing tid')
             return
         txctx.response = mes
         txctx.event.set()
@@ -127,10 +128,10 @@ class transactionHandler:
         resp_mes: Optional[AckMessage] = self.wait_with_timeout(txctx, ms2s(self.cfg.tx_timeout))
         if resp_mes is None:
             self.rem_tx(tid)
-            logging.warning(f'{name}:{tid} timeout')
+            logger.warning(f'{name}:{tid} timeout')
             return False
         elif resp_mes.code != 0:
-            logging.warning(f'{name}:{tid} failed: {resp_mes.mes}')
+            logger.warning(f'{name}:{tid} failed: {resp_mes.mes}')
             return False
         return True
 

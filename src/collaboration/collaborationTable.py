@@ -8,6 +8,7 @@ import appType
 from cachetools import TTLCache
 from collaboration.collaborationContext import CContext
 from collaboration.broadcastCollaborationContext import BCContext
+from collaboration.LogHandler import logger
 from appConfig import AppConfig
 from collaboration.coopMap import CoopMap
 from utils.InfoDTO import InfoDTO
@@ -65,7 +66,7 @@ class CollaborationTable:
 
     def add_cctx(self, cctx: CContext):
         with self.cctx_lock:
-            logging.debug(f"新增CContext: {cctx}")
+            logger.debug(f"新增CContext: {cctx}")
             self.cctx[(cctx.cid, cctx.cotor, cctx.cotee)] = cctx
 
     def check_cctx_exist(self, cid, cotor, cotee):
@@ -104,7 +105,7 @@ class CollaborationTable:
             if t in self.cctx:
                 self.cctx.pop((cctx.cid, cctx.cotor, cctx.cotee))
             else:
-                logging.warning(f'删除不存在的cctx {cctx}')
+                logger.warning(f'删除不存在的cctx {cctx}')
 
     def get_cctx_from_stream(self, sid: appType.sid_t) -> Optional[CContext]:
         with self.stream_lock:

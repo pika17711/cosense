@@ -5,6 +5,7 @@ const speedDisplay = document.getElementById('speed');
 
 const carIdDisplay = document.getElementById('car-id');
 const communicationRateDisplay = document.getElementById('communication-rate');
+const logContainer = document.getElementById('logContainer')
 
 // 定义一个函数来获取并更新车辆状态
 function updateCarState() {
@@ -51,6 +52,40 @@ function updateCarId() {
 //        });
 //}
 
+function fetchNewLog() {
+    fetch('/get_log') // 向后端API发起请求
+        .then(response => response.json()) // 将响应解析为JSON
+        .then(data => {
+            console.log('Received log:', data.log);
+            var logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+
+            // 尝试根据日志级别添加样式
+            if (data.log.includes(" - INFO - ")) {
+                logEntry.classList.add('INFO');
+            } else if (data.log.includes(" - WARNING - ")) {
+                logEntry.classList.add('WARNING');
+            } else if (data.log.includes(" - ERROR - ")) {
+                logEntry.classList.add('ERROR');
+            } else if (data.log.includes(" - CRITICAL - ")) {
+                logEntry.classList.add('CRITICAL');
+            } else if (data.log.includes(" - DEBUG - ")) {
+                logEntry.classList.add('DEBUG');
+            }
+
+            logEntry.textContent = data.log;
+            logContainer.appendChild(logEntry);
+            // 自动滚动到底部
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            fetchNewLog()
+        })
+        .catch(error => {
+            console.error('获取日志失败:', error);
+            fetchNewLog()
+        });
+}
+
 // 每秒更新一次
 setInterval(updateCarState, 1000); // 1000 毫秒 = 1 秒
 setInterval(updateCarId, 10 * 1000); // 10000 毫秒 = 10 秒
@@ -59,4 +94,5 @@ setInterval(updateCarId, 10 * 1000); // 10000 毫秒 = 10 秒
 // 第一次加载时，希望立即更新（覆盖初始值），调用一次
 updateCarState();
 updateCarId();
+fetchNewLog();
 //updateCommunicationRate();

@@ -3,7 +3,7 @@ import open3d as o3d
 from src.utils.common import load_yaml, load_json
 
 
-def grid_map(k, interval=10):
+def get_grid_map(k, interval=10):
     temp_0 = np.arange(-k, k + interval, interval).reshape((-1, 1))
     temp_1 = np.array([-k for i in range(len(temp_0))]).reshape((-1, 1))
     temp_2 = np.array([k for i in range(len(temp_0))]).reshape((-1, 1))
@@ -37,7 +37,7 @@ def grid_map(k, interval=10):
     return [lineset_vertical, lineset_horizontal]
 
 
-def grid_map_1(x_range=(-140.8, 140.8), y_range=(-38.4, 38.4), z=-3.0, grid_size=3.2):
+def get_grid_map_2(x_range=(-140.8, 140.8), y_range=(-38.4, 38.4), z=-3.0, grid_size=3.2):
     """
         在 z 平面绘制一个网格。
 
@@ -79,26 +79,38 @@ def grid_map_1(x_range=(-140.8, 140.8), y_range=(-38.4, 38.4), z=-3.0, grid_size
     return line_set
 
 
-def get_vis():
+def get_vis(show_axis=True, show_grid_map=True):
     vis = o3d.visualization.Visualizer()
     vis.create_window(visible=True)
     vis_opt = vis.get_render_option()
     vis_opt.background_color = np.asarray([0, 0, 0])
     vis_opt.point_size = 2.0
 
-    axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=5, origin=[0, 0, 0])  # 坐标系
-    vis.add_geometry(axis)
+    if show_axis is True:
+        axis = o3d.geometry.TriangleMesh.create_coordinate_frame(size=5, origin=[0, 0, 0])  # 坐标系
+        vis.add_geometry(axis)
 
-    grid_map = grid_map_1()
-    vis.add_geometry(grid_map)
+    if show_grid_map is True:
+        grid_map = get_grid_map_2()
+        vis.add_geometry(grid_map)
 
     return vis
 
 
-def get_pcd(pcd_file):
+def get_pcd(pcd_path):
     pcd_np = []
-    if pcd_file.endswith('.pcd'):
-        with open(pcd_file, 'r') as file:
+    if pcd_path.endswith('.txt'):
+        with open(pcd_path, 'r') as file:
+            for line in file:
+                splits = line.split(' ')
+                pcd_np.append(np.array([float(num) for num in splits]))
+        pcd_np = np.vstack(pcd_np)
+    elif pcd_path.endswith('.json'):
+        json_load = load_json(pcd_path)
+
+        pcd_np = np.array(json_load['pcd']) if 'pcd' in json_load else None
+    elif pcd_path.endswith('.pcd'):
+        with open(pcd_path, 'r') as file:
             data = False
 
             for line in file:
@@ -119,15 +131,48 @@ def get_pcd(pcd_file):
         # colors = np.asarray(pcd_load.colors)
         # intensity = np.expand_dims(np.asarray(pcd_load.colors)[:, 0], -1)
         # pcd_np = np.hstack((xyz, intensity))
-    elif pcd_file.endswith('.txt'):
-        with open(pcd_file, 'r') as file:
-            for line in file:
-                splits = line.split(' ')
-                pcd_np.append(np.array([float(num) for num in splits]))
-        pcd_np = np.vstack(pcd_np)
-    elif pcd_file.endswith('.json'):
-        json_load = load_json(pcd_file)
+    else:
+        with open(pcd_path + '.pcd', 'r') as file:
+            data = False
 
-        pcd_np = np.array(json_load['pcd']) if 'pcd' in json_load else None
+            for line in file:
+                if not data:
+                    if line.startswith('DATA'):
+                        print(line)
+                        data = True
+                    continue
+
+                splits = line.split(' ')
+                pcd_np.append(np.array([float(num) for num in splits], dtype=np.float32))
+        pcd_np = np.vstack(pcd_np)
 
     return pcd_np
+
+
+def get_ego_lidar_pos(yaml_path: str):
+    if not yaml_path.endswith('.yaml'):
+        yaml_path += '.yaml'
+
+    try:
+        yaml_load = load_yaml(yaml_path)
+        true_ego_pos = yaml_load['lidar_pose']
+    except Exception as e:
+        print(e)
+        return None
+
+    return true_ego_pos
+
+
+def get_true_ego_pos(yaml_path: str):
+    if not yaml_path.endswith('.yaml'):
+        yaml_path += '.yaml'
+
+    try:
+        yaml_load = load_yaml(yaml_path)
+        true_ego_pos = yaml_load['true_ego_pos']
+    except Exception as e:
+        print(e)
+        return None
+
+    return true_ego_pos
+

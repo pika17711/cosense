@@ -2,7 +2,6 @@ import time
 import cv2
 
 from appConfig import AppConfig
-from presentation.presentationRPCServer import PresentationRPCServerThread
 from presentationFlaskServer import PresentationFlaskServerThread
 from detection.detectionRPCClient import DetectionRPCClient
 from utils.sharedInfo import SharedInfo
@@ -18,8 +17,6 @@ class PresentationManager:
         self.presentation_flask_server = PresentationFlaskServerThread(self.cfg, self.shared_info)
 
     def __grpc_prepare(self):
-        self.presentation_rpc_server = PresentationRPCServerThread()
-
         self.detection_client = DetectionRPCClient()
 
     def start(self):

@@ -301,6 +301,11 @@ class CollaborationServiceStub(object):
                 request_serializer=Service__pb2.Empty.SerializeToString,
                 response_deserializer=Service__pb2.LidarPosesAndPCDs.FromString,
                 _registered_method=True)
+        self.PutCommand = channel.unary_unary(
+                '/service.CollaborationService/PutCommand',
+                request_serializer=Service__pb2.Command.SerializeToString,
+                response_deserializer=Service__pb2.Empty.FromString,
+                _registered_method=True)
 
 
 class CollaborationServiceServicer(object):
@@ -327,6 +332,12 @@ class CollaborationServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PutCommand(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_CollaborationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -344,6 +355,11 @@ def add_CollaborationServiceServicer_to_server(servicer, server):
                     servicer.GetOthersLidarPosesAndPCDs,
                     request_deserializer=Service__pb2.Empty.FromString,
                     response_serializer=Service__pb2.LidarPosesAndPCDs.SerializeToString,
+            ),
+            'PutCommand': grpc.unary_unary_rpc_method_handler(
+                    servicer.PutCommand,
+                    request_deserializer=Service__pb2.Command.FromString,
+                    response_serializer=Service__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -428,6 +444,33 @@ class CollaborationService(object):
             '/service.CollaborationService/GetOthersLidarPosesAndPCDs',
             Service__pb2.Empty.SerializeToString,
             Service__pb2.LidarPosesAndPCDs.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PutCommand(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/service.CollaborationService/PutCommand',
+            Service__pb2.Command.SerializeToString,
+            Service__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1049,15 +1092,31 @@ class PresentationServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.PutLog = channel.unary_unary(
+                '/service.PresentationService/PutLog',
+                request_serializer=Service__pb2.Log.SerializeToString,
+                response_deserializer=Service__pb2.Empty.FromString,
+                _registered_method=True)
 
 
 class PresentationServiceServicer(object):
     """信息呈现子系统
     """
 
+    def PutLog(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PresentationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'PutLog': grpc.unary_unary_rpc_method_handler(
+                    servicer.PutLog,
+                    request_deserializer=Service__pb2.Log.FromString,
+                    response_serializer=Service__pb2.Empty.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'service.PresentationService', rpc_method_handlers)
@@ -1069,3 +1128,30 @@ def add_PresentationServiceServicer_to_server(servicer, server):
 class PresentationService(object):
     """信息呈现子系统
     """
+
+    @staticmethod
+    def PutLog(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/service.PresentationService/PutLog',
+            Service__pb2.Log.SerializeToString,
+            Service__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
