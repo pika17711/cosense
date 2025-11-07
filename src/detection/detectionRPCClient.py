@@ -69,7 +69,7 @@ class DetectionRPCClient:  # 融合检测子系统的Client类，用于向融合
         try:
             response = self.__detection_stub.GetPresentationInfo(Service_pb2.Empty(), timeout=5)  # 请求融合检测子系统并获得响应
         except grpc.RpcError as e:  # 捕获grpc异常
-            logging.error(f"RPC get_presentation_info failed: code={e.code()}")  # 记录grpc异常
+            # logging.error(f"RPC get_presentation_info failed: code={e.code()}")  # 记录grpc异常
             return None
 
         presentation_info = {

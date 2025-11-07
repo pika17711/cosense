@@ -20,6 +20,7 @@ from perception.perceptionRPCClient import PerceptionRPCClient
 from detection.detectionRPCClient import DetectionRPCClient
 from presentation.presentationRPCClient import PresentationRPCClient
 from utils.othersInfos import OthersInfos
+from queue import Queue
 
 
 def main():
@@ -30,6 +31,8 @@ def main():
     cfg = AppConfig()
     icp_client, icp_server = ICP_init(cfg)
 
+    command_queue = Queue()
+
     # 全部初始化，依赖注入的思想，方便替换
     perception_client = PerceptionRPCClient(cfg)
     detection_client = DetectionRPCClient()
@@ -38,10 +41,10 @@ def main():
     tx_handler = transactionHandler(cfg, icp_server, icp_client)
     collaboration_service = CollaborationService(cfg, ctable, perception_client, detection_client, tx_handler)
     message_handler = MessageRouter(cfg, ctable, tx_handler, perception_client, collaboration_service)
-    collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, detection_client, collaboration_service)
+    collaboration_manager = CollaborationManager(cfg, ctable, message_handler, perception_client, detection_client, collaboration_service, command_queue)
 
     others_infos = OthersInfos(ctable)
-    collaboration_rpc_server = CollaborationRPCServerThread(cfg, others_infos)
+    collaboration_rpc_server = CollaborationRPCServerThread(cfg, others_infos, command_queue)
 
     tx_handler.start_recv()
     message_handler.start_recv()

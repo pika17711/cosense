@@ -21,6 +21,7 @@ from collaboration.collaborationTable import CollaborationTable
 from collaboration.collaborationService import CollaborationService
 from collaboration.LogHandler import logger
 from utils.common import ms2s
+import queue
 
 class CollaborationManager:
     """
@@ -37,7 +38,8 @@ class CollaborationManager:
                  message_handler: MessageRouter,
                  perception_client: PerceptionRPCClient,
                  detection_client: DetectionRPCClient,
-                 collaboration_service: CollaborationService):
+                 collaboration_service: CollaborationService,
+                 command_queue: queue.Queue):
 
         self.cfg = cfg
         self.perception_client = perception_client
@@ -45,13 +47,17 @@ class CollaborationManager:
         self.message_handler = message_handler
         self.ctable = ctable
         self.collaboration_service = collaboration_service
+        self.command_queue = command_queue
 
+        self.handle_command_event = threading.Event()
         self.broadcastpub_event = threading.Event()
         self.broadcastsub_event = threading.Event()
         self.subscribed_send_event = threading.Event()
         self.subscribing_update_event = threading.Event()
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self.running = True
+
+        self.handle_command_loop_thread = threading.Thread(target=self.handle_command, name='handle_command_loop', daemon=True)
 
         self.broadcastpub_loop_thread = threading.Thread(target=self.broadcastpub_loop, name='broadcastpub_loop', daemon=True)
 
@@ -62,6 +68,7 @@ class CollaborationManager:
         self.subscribing_update_loop_thread = threading.Thread(target=self.subscribing_update_loop, name='subscribing_update_loop', daemon=True)
 
     def start_send_loop(self):
+        self.handle_command_loop_thread.start()
         self.broadcastpub_loop_thread.start()
         self.broadcastsub_loop_thread.start()
         self.subscribed_send_loop_thread.start()
@@ -71,6 +78,9 @@ class CollaborationManager:
         self.running = False
         self.collaboration_service.appreg(act=AppRegAct.FIN)
         self.executor.shutdown()
+        if self.handle_command_loop_thread.is_alive():
+            self.handle_command_event.set()
+            self.handle_command_loop_thread.join(self.cfg.close_timeout)
         if self.broadcastpub_loop_thread.is_alive():
             self.broadcastpub_event.set()
             self.broadcastpub_loop_thread.join(self.cfg.close_timeout)
@@ -84,54 +94,65 @@ class CollaborationManager:
             self.subscribing_update_event.set()
             self.subscribing_update_loop_thread.join(self.cfg.close_timeout)
 
-    def handle_command(self, argv):
-        logger.debug(f"输入的命令是: {argv}")
-        if len(argv) == 0:
-            pass
-        elif len(argv) == 1 and argv[0] == 'exit':
-            return False
-        elif len(argv) == 2 and argv[0] == 'bpub':
-            if argv[1] == 'open':
-                self.broadcastpub_open()
+    def handle_command(self):
+        while self.running:
+            if self.handle_command_event.is_set():
+                break
+
+            if self.command_queue.empty():
+                sleep(1)
+
+            command = self.command_queue.get()
+            argv = command.split()
+            logger.debug(f"输入的命令是: {argv}")
+
+            if len(argv) == 0:
+                pass
+            elif len(argv) == 1 and argv[0] == 'exit':
+                # return False
+                self.close()
+            elif len(argv) == 2 and argv[0] == 'bpub':
+                if argv[1] == 'open':
+                    self.broadcastpub_open()
+                    print('ok')
+                elif argv[1] == 'close':
+                    self.broadcastpub_close()
+                    print('ok')
+                elif argv[1] == 'send':
+                    self.collaboration_service.broadcastpub_send()
+                    print('ok')
+                else:
+                    print('syntax error')
+            elif len(argv) == 2 and argv[0] == 'bsub':
+                if argv[1] == 'open':
+                    self.broadcastsub_open()
+                    print('ok')
+                elif argv[1] == 'close':
+                    self.broadcastsub_close()
+                    print('ok')
+                elif argv[1] == 'send':
+                    self.collaboration_service.broadcastsub()
+                    print('ok')
+                else:
+                    print('syntax error')
+            elif len(argv) == 2 and argv[0] == 'show':
+                if argv[1] == 'subing':
+                    print([cctx.remote_id() for cctx in self.ctable.get_subscribing()])
+                elif argv[1] == 'subed':
+                    print([subed.remote_id() for subed in self.ctable.get_subscribed()])
+                else:
+                    print('syntax error')
+            elif len(argv) == 2 and argv[0] == 'subscribe':
+                self.collaboration_service.subscribe_send(argv[1], SubscribeAct.ACKUPD)
                 print('ok')
-            elif argv[1] == 'close':
-                self.broadcastpub_close()
+            elif len(argv) == 2 and argv[0] == 'disconnect':
+                self.collaboration_service.disconnect(argv[1])
                 print('ok')
-            elif argv[1] == 'send':
-                self.collaboration_service.broadcastpub_send()
-                print('ok')
+            # elif len(argv) == 2 and argv[0] == 'channel':
+            #     self.switch
             else:
                 print('syntax error')
-        elif len(argv) == 2 and argv[0] == 'bsub':
-            if argv[1] == 'open':
-                self.broadcastsub_open()
-                print('ok')
-            elif argv[1] == 'close':
-                self.broadcastsub_close()
-                print('ok')
-            elif argv[1] == 'send':
-                self.collaboration_service.broadcastsub()
-                print('ok')
-            else:
-                print('syntax error')
-        elif len(argv) == 2 and argv[0] == 'show':
-            if argv[1] == 'subing':
-                print([cctx.remote_id() for cctx in self.ctable.get_subscribing()])
-            elif argv[1] == 'subed':
-                print([subed.remote_id() for subed in self.ctable.get_subscribed()])
-            else:
-                print('syntax error')
-        elif len(argv) == 2 and argv[0] == 'subscribe':
-            self.collaboration_service.subscribe_send(argv[1], SubscribeAct.ACKUPD)
-            print('ok')
-        elif len(argv) == 2 and argv[0] == 'disconnect':
-            self.collaboration_service.disconnect(argv[1])
-            print('ok')
-        # elif len(argv) == 2 and argv[0] == 'channel':
-        #     self.switch
-        else:
-            print('syntax error')
-        return True
+            # return True
 
     def command_loop(self):
         self.collaboration_service.appreg(act=AppRegAct.REG)
@@ -139,11 +160,11 @@ class CollaborationManager:
         while self.running:
             try:
                 command = input("$ ")
-                argv = command.split()
-                should_continue = self.handle_command(argv)
-                if not should_continue:
-                    self.close()
-                    break
+                self.command_queue.put(command)
+                # should_continue = self.handle_command(argv)
+                # if not should_continue:
+                #     self.close()
+                #     break
             except EOFError:
                 break
 

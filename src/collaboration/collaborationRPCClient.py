@@ -75,3 +75,10 @@ class CollaborationRPCClient:  # 协同感知子系统的Client类，用于向�
         others_lidar_poses_and_pcds = protobuf_to_dict(others_lidar_poses_and_pcds_protobuf)
 
         return others_lidar_poses_and_pcds
+    
+    def send_command(self, command):
+        request = Service_pb2.Command(command=command)
+        try:
+            self.__collaboration_stub.SendCommand(request, timeout=1)
+        except grpc.RpcError:  # 捕获grpc异常
+            pass

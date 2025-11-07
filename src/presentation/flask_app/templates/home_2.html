@@ -5,7 +5,7 @@
 <!--    <title>自主式交通系统互操作验证平台</title>-->
     <title>端边云协同计算测试验证平台</title>
     <link rel="icon" type="image/png" href="/static/icon/bupt_logo.png"/>
-    <link rel="stylesheet" type="text/css" href="/static/css/home.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/home_2.css">
 </head>
 <body>
     <div class="container">
@@ -14,20 +14,20 @@
 <!--            <img src="/static/icon/china_unicom_logo.png"/>-->
 <!--            <span class="header-title">自主式交通系统互操作验证平台</span>-->
             <span class="header-title">端边云协同计算测试验证平台</span>
-            <div class="my-car-id">车辆编号: 
+            <div class="my-car-id">车辆编号:
                 <span id="car-id">N/A</span>
             </div>
             <div class="my-car-state">
-                <div class="car-state-item">经度: 
+                <div class="car-state-item">经度:
                     <span id="longitude">N/A</span>
                 </div>
-                <div class="car-state-item">航向: 
+                <div class="car-state-item">航向:
                     <span id="heading">N/A</span>
                 </div>
-                <div class="car-state-item">纬度: 
+                <div class="car-state-item">纬度:
                     <span id="latitude">N/A</span>
                 </div>
-                <div class="car-state-item">速度: 
+                <div class="car-state-item">速度:
                     <span id="speed">N/A</span>
                 </div>
             </div>
@@ -36,10 +36,14 @@
             <span class="state">状态</span>
         </div>
         <div class="main">
-            <div class="pcd-container">
-                <img class="pcd-viewer" src="{{ url_for('get_pcd_img') }}">
+            <div class="left-containers">
+                <div class="pcd-container">
+                    <img class="pcd-viewer" src="{{ url_for('get_pcd_img') }}">
+                </div>
+                <div class="log-container" id="logContainer"></div>
+                <input type="text" id="commandInput" placeholder="在此输入命令...">
             </div>
-            <div class="coop-map-containers">
+            <div class="map-containers">
                 <div class="coop-map-container">
                     <img class="coop-map-viewer" src="{{ url_for('get_request_map') }}">
                     <div class="coop-map-title">请求图</div>
@@ -48,25 +52,22 @@
                     <img class="coop-map-viewer" src="{{ url_for('get_others_comm_mask') }}">
                     <div class="coop-map-title">协作图</div>
                 </div>
-            </div>
-        </div>
-        <div class="feature-containers">
-            <div class="feature-container">
-                <img class="feature-viewer" src="{{ url_for('get_ego_feature') }}">
-                <div class="feature-title">本车特征图</div>
-            </div>
-            <div class="feature-container">
+                <div class="feature-container">
+                    <img class="feature-viewer" src="{{ url_for('get_ego_feature') }}">
+                    <div class="feature-title">本车特征图</div>
+                </div>
+                <div class="feature-container">
                     <img class="feature-viewer" src="{{ url_for('get_fused_feature') }}">
-                <div class="feature-title">融合特征图</div>
+                    <div class="feature-title">融合特征图</div>
+                </div>
             </div>
         </div>
         <div class="footer">
-            <div class="communication-rate">语义数据交互码率: 
+            <div class="communication-rate">语义数据交互码率:
                 <span id="communication-rate">N/A</span>
             </div>
         </div>
-        <div class="log-container" id="logContainer"></div>
     </div>
-    <script src="/static/js/home.js"></script>
+   <script src="/static/js/home_2.js"></script>
 </body>
 </html>

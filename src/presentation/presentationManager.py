@@ -6,6 +6,7 @@ from appConfig import AppConfig
 from presentation.presentationRPCServer import PresentationRPCServerThread
 from presentation.presentationFlaskServer import PresentationFlaskServerThread
 from detection.detectionRPCClient import DetectionRPCClient
+from collaboration.collaborationRPCClient import CollaborationRPCClient
 from utils.sharedInfo import SharedInfo
 
 
@@ -19,12 +20,13 @@ class PresentationManager:
         self.log_queue = Queue()
 
         self.__grpc_prepare()
-        self.presentation_flask_server = PresentationFlaskServerThread(self.cfg, self.shared_info, self.log_queue)
+        self.presentation_flask_server = PresentationFlaskServerThread(self.cfg, self.shared_info, self.log_queue, self.collaboration_rpc_client)
 
     def __grpc_prepare(self):
         self.presentation_rpc_server = PresentationRPCServerThread(self.log_queue)
 
-        self.detection_client = DetectionRPCClient()
+        self.detection_rpc_client = DetectionRPCClient()
+        self.collaboration_rpc_client =  CollaborationRPCClient(self.cfg)
 
     def start(self):
         self.running = True
@@ -33,6 +35,11 @@ class PresentationManager:
         self.__loop()
 
     def __loop(self):
+        for i in range(20):
+            self.log_queue.put(f'- INFO - {i} - - [07/Nov/2025 14:21:31] "GET /get_car_state HTTP/1.1" 200 -')
+
+
+
         loop_time = 0.33
         last_t = time.time() - loop_time
         while self.running:
@@ -42,7 +49,7 @@ class PresentationManager:
             t = time.time()
             # print(f'last loop time: {t - last_t}s')
             last_t = t
-            presentation_info = self.detection_client.get_presentation_info()
+            presentation_info = self.detection_rpc_client.get_presentation_info()
             if presentation_info is not None:
                 self.shared_info.update_presentation_info_dict(presentation_info)
 

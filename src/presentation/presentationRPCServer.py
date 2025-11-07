@@ -10,11 +10,11 @@ from rpc import Service_pb2_grpc
 
 class PresentationRPCService(Service_pb2_grpc.PresentationServiceServicer):    # 信息呈现子系统的RPCService类
     def __init__(self, log_queue: Queue):
-        self.queue = log_queue
+        self.log_queue = log_queue
 
-    def PutLog(self, request, context):
+    def SendLog(self, request, context):
         log = request.log
-        self.queue.put(log)
+        self.log_queue.put(log)
 
         return Service_pb2.Empty()
 

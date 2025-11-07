@@ -301,8 +301,8 @@ class CollaborationServiceStub(object):
                 request_serializer=Service__pb2.Empty.SerializeToString,
                 response_deserializer=Service__pb2.LidarPosesAndPCDs.FromString,
                 _registered_method=True)
-        self.PutCommand = channel.unary_unary(
-                '/service.CollaborationService/PutCommand',
+        self.SendCommand = channel.unary_unary(
+                '/service.CollaborationService/SendCommand',
                 request_serializer=Service__pb2.Command.SerializeToString,
                 response_deserializer=Service__pb2.Empty.FromString,
                 _registered_method=True)
@@ -332,7 +332,7 @@ class CollaborationServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def PutCommand(self, request, context):
+    def SendCommand(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -356,8 +356,8 @@ def add_CollaborationServiceServicer_to_server(servicer, server):
                     request_deserializer=Service__pb2.Empty.FromString,
                     response_serializer=Service__pb2.LidarPosesAndPCDs.SerializeToString,
             ),
-            'PutCommand': grpc.unary_unary_rpc_method_handler(
-                    servicer.PutCommand,
+            'SendCommand': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendCommand,
                     request_deserializer=Service__pb2.Command.FromString,
                     response_serializer=Service__pb2.Empty.SerializeToString,
             ),
@@ -455,7 +455,7 @@ class CollaborationService(object):
             _registered_method=True)
 
     @staticmethod
-    def PutCommand(request,
+    def SendCommand(request,
             target,
             options=(),
             channel_credentials=None,
@@ -468,7 +468,7 @@ class CollaborationService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/service.CollaborationService/PutCommand',
+            '/service.CollaborationService/SendCommand',
             Service__pb2.Command.SerializeToString,
             Service__pb2.Empty.FromString,
             options,
@@ -1092,8 +1092,8 @@ class PresentationServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.PutLog = channel.unary_unary(
-                '/service.PresentationService/PutLog',
+        self.SendLog = channel.unary_unary(
+                '/service.PresentationService/SendLog',
                 request_serializer=Service__pb2.Log.SerializeToString,
                 response_deserializer=Service__pb2.Empty.FromString,
                 _registered_method=True)
@@ -1103,7 +1103,7 @@ class PresentationServiceServicer(object):
     """信息呈现子系统
     """
 
-    def PutLog(self, request, context):
+    def SendLog(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -1112,8 +1112,8 @@ class PresentationServiceServicer(object):
 
 def add_PresentationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'PutLog': grpc.unary_unary_rpc_method_handler(
-                    servicer.PutLog,
+            'SendLog': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendLog,
                     request_deserializer=Service__pb2.Log.FromString,
                     response_serializer=Service__pb2.Empty.SerializeToString,
             ),
@@ -1130,7 +1130,7 @@ class PresentationService(object):
     """
 
     @staticmethod
-    def PutLog(request,
+    def SendLog(request,
             target,
             options=(),
             channel_credentials=None,
@@ -1143,7 +1143,7 @@ class PresentationService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/service.PresentationService/PutLog',
+            '/service.PresentationService/SendLog',
             Service__pb2.Log.SerializeToString,
             Service__pb2.Empty.FromString,
             options,

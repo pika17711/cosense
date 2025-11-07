@@ -13,12 +13,9 @@ class PresentationRPCClient:                   # 信息呈现子系统的Client�
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
         self.__presentation_stub = Service_pb2_grpc.PresentationServiceStub(presentation_channel)
 
-    def put_log(self, log):
+    def send_log(self, log):
         request = Service_pb2.Log(log=log)
         try:
-            self.__presentation_stub.PutLog(request, timeout=1)
+            self.__presentation_stub.SendLog(request, timeout=1)
         except grpc.RpcError:  # 捕获grpc异常
             pass
-
-
-a213132 = 1

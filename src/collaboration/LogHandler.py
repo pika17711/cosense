@@ -9,7 +9,7 @@ class LogHandler(logging.Handler):
 
     def emit(self, record):
         log = self.format(record)
-        self.presentation_client.put_log(log)
+        self.presentation_client.send_log(log)
 
 
 def log_init(presentation_client: PresentationRPCClient):
@@ -22,7 +22,7 @@ def log_init(presentation_client: PresentationRPCClient):
     #                     format='%(asctime)s - %(levelname)s - %(message)s')
     # self.loggerinfo("协同模块启动")
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     log_handler = LogHandler(presentation_client)

@@ -1,14 +1,15 @@
-from flask import Flask, render_template, Response, jsonify
+from flask import Flask, render_template, Response, jsonify, request
 from utils.sharedInfo import SharedInfo
 from appConfig import AppConfig
 from collections import deque
 from detection.detectionRPCClient import DetectionRPCClient
+from collaboration.collaborationRPCClient import CollaborationRPCClient
 import numpy as np
 import cv2
 import queue
 
 
-def create_app(cfg: AppConfig, shared_info: SharedInfo, log_queue: queue.Queue):
+def create_app(cfg: AppConfig, shared_info: SharedInfo, log_queue: queue.Queue, collaboration_rpc_client: CollaborationRPCClient):
     app = Flask(__name__)
 
     def gen_pcd_img():
@@ -222,7 +223,7 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo, log_queue: queue.Queue):
 
     @app.route('/')
     def home():
-        return render_template('home.html')
+        return render_template('home_2.html')
     
     @app.route('/get_pcd_img')
     def get_pcd_img():
@@ -291,7 +292,7 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo, log_queue: queue.Queue):
         try:
             # 尝试从队列获取，设置一个短超时，避免请求被长时间阻塞
             # 实际的长轮询可能需要更复杂的逻辑来处理多个客户端
-            log = log_queue.get(timeout=10)
+            log = log_queue.get(timeout=1)
             return jsonify(log=log)
         except queue.Empty:
             # 如果队列为空，可以在超时后返回一个空响应，或者返回最新已知的字符串
@@ -300,5 +301,23 @@ def create_app(cfg: AppConfig, shared_info: SharedInfo, log_queue: queue.Queue):
     @app.route('/get_car_id')
     def get_car_id():
         return jsonify(car_id=cfg.id)
+    
+    @app.route('/send_command', methods=['POST'])
+    def send_command():
+        # 确保请求是POST方法
+        if request.method == 'POST':
+            # 获取前端发送的JSON数据
+            data = request.get_json()
+            if data and 'command' in data:
+                command = data['command']
+
+                collaboration_rpc_client.send_command(command)
+
+                return jsonify(status='success', message=f'已成功接收: {command}')
+            else:
+                # 如果数据格式不正确
+                return jsonify(status='error', message='无效的请求数据')
+        # 对于非POST请求，我们返回错误
+        return jsonify(status='error', message='只接受POST请求')
 
     return app

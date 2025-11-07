@@ -8,12 +8,14 @@ from rpc import Service_pb2
 from rpc import Service_pb2_grpc
 from utils.rpc_utils import np_to_protobuf
 from utils.othersInfos import OthersInfos
+from queue import Queue
 
 
 class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  # 协同感知子系统的Service类
-    def __init__(self, cfg: AppConfig, others_infos: OthersInfos):
+    def __init__(self, cfg: AppConfig, others_infos: OthersInfos, command_queue: Queue):
         self.cfg = cfg
         self.others_infos = others_infos
+        self.command_queue = command_queue
 
     def GetOthersInfos(self, request, context):  # 协同感知子系统向其他进程提供“获取所有他车信息”的服务
         others_infos = self.others_infos.get_infos()
@@ -68,16 +70,23 @@ class CollaborationRPCService(Service_pb2_grpc.CollaborationServiceServicer):  #
             others_lidar_poses_and_pcds[cav_id] = cav_lidar_pose_and_pcd
 
         return Service_pb2.LidarPosesAndPCDs(others_lidar_poses_and_pcds=others_lidar_poses_and_pcds)
+    
+    def SendCommand(self, request, context):
+        command = request.command
+        self.command_queue.put(command)
+
+        return Service_pb2.Empty()
 
 
 class CollaborationRPCServerThread:  # 协同感知子系统的Server线程
-    def __init__(self, cfg: AppConfig, others_infos, port=50052):
+    def __init__(self, cfg: AppConfig, others_infos, command_queue: Queue, port=50052):
         self.cfg = cfg
         self.others_infos = others_infos
+        self.command_queue = command_queue
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
             ('grpc.max_send_message_length', 64 * 1024 * 1024),  # 设置gRPC 消息的最大发送和接收大小为64MB
             ('grpc.max_receive_message_length', 64 * 1024 * 1024)])
-        Service_pb2_grpc.add_CollaborationServiceServicer_to_server(CollaborationRPCService(self.cfg, self.others_infos),
+        Service_pb2_grpc.add_CollaborationServiceServicer_to_server(CollaborationRPCService(self.cfg, self.others_infos, self.command_queue),
                                                                     self.server)
         self.stop_event = threading.Event()
         self.run_thread = threading.Thread(target=self.run, name='collaboration rpc server', daemon=True, args=(port,))
