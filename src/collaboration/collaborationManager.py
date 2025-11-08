@@ -245,15 +245,15 @@ class CollaborationManager:
         return data
 
     def subscribed_send_loop(self):
-        logger.info("订阅者数据发送循环启动")
+        logger.info("向订阅者的数据发送循环启动")
         while self.running:
             subeds = self.ctable.get_subscribed()
             if len(subeds) > 0:
-                logger.info(f"订阅者数据发送, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
+                logger.info(f"向订阅者发送数据, 订阅者列表{[cctx.remote_id() for cctx in subeds]}")
                 for cctx in subeds:
                     coopmap = self.ctable.get_coopmap(cctx.remote_id())
                     if coopmap is None:
-                        logger.info(f'coopmap is None, 取消对订阅者{cctx.remote_id()}的发送')
+                        logger.info(f'coopmap is None, 取消对订阅者 {cctx.remote_id()} 的发送')
                         continue
 
                     if self.cfg.collaboration_no_coopmap_debug:
@@ -262,20 +262,21 @@ class CollaborationManager:
                         coopmap.map[:] = 1
                     data = self.get_all_data(coopmap)
                     if data is not None:
+                        logger.debug(f'向订阅者 {cctx.remote_id()} 发送 {len(data)} bytes 数据')
                         self.executor.submit(self.collaboration_service.send_data, cctx, data)
                     else:
-                        logger.info(f'data is None, 取消对订阅者{cctx.remote_id()}的发送')
+                        logger.info(f'data is None, 取消对订阅者 {cctx.remote_id()} 的发送')
                     # self.executor.submit(self.collaboration_service.sendend_send(cctx.remote_id(), cctx.cid, cctx.sid))
             self.subscribed_send_event.wait(ms2s(self.cfg.send_data_period))
             if self.subscribed_send_event.is_set():
                 break
 
     def subscribing_update_loop(self):
-        logger.info("被订阅者数据更新循环启动")
+        logger.info("向推送方的数据更新循环启动")
         while self.running:
             subings = self.ctable.get_subscribing()
             if len(subings) > 0:
-                logger.info(f"被订阅者数据更新, 被订阅者列表{[cctx.remote_id() for cctx in subings]}")
+                logger.info(f"向推送方发送数据更新, 推送方列表{[cctx.remote_id() for cctx in subings]}")
                 for cctx in subings:
                     with cctx.lock:
                         self.collaboration_service.subscribe_send(cctx, SubscribeAct.ACKUPD)

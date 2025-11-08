@@ -835,6 +835,7 @@ class CollaborationService:
             return
         cctx.update_active()
         with cctx.lock:
+            logger.info(f'收到来自 {cctx.remote_id()} 的 {len(msg.data)} bytes 数据')
             de_data = InfoDTO.InfoDTOSerializer.deserialize(msg.data)
             # de_data = InfoDTO.InfoDTOSerializer.deserialize_from_str(msg.data)
 

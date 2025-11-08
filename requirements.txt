@@ -14,6 +14,8 @@ tensorboardX
 shapely==2.0.0
 einops
 timm
-rospy -i https://rospypi.github.io/simple/
 pyzmq
 grpcio
+pyproj
+# rospy -i https://rospypi.github.io/simple/
+# sensor_msgs -i https://rospypi.github.io/simple/

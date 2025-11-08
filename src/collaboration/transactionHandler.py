@@ -128,10 +128,10 @@ class transactionHandler:
         resp_mes: Optional[AckMessage] = self.wait_with_timeout(txctx, ms2s(self.cfg.tx_timeout))
         if resp_mes is None:
             self.rem_tx(tid)
-            logger.warning(f'{name}:{tid} timeout')
+            # logger.warning(f'{name}:{tid} timeout')
             return False
         elif resp_mes.code != 0:
-            logger.warning(f'{name}:{tid} failed: {resp_mes.mes}')
+            # logger.warning(f'{name}:{tid} failed: {resp_mes.mes}')
             return False
         return True
 

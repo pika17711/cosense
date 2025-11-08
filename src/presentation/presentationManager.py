@@ -35,11 +35,6 @@ class PresentationManager:
         self.__loop()
 
     def __loop(self):
-        for i in range(20):
-            self.log_queue.put(f'- INFO - {i} - - [07/Nov/2025 14:21:31] "GET /get_car_state HTTP/1.1" 200 -')
-
-
-
         loop_time = 0.33
         last_t = time.time() - loop_time
         while self.running:
